@@ -31,6 +31,11 @@ const TILE_FX_EMOJI: Partial<Record<FxKind, string>> = {
   swap: '🌀',
   refresh: '✨',
   shuffle: '🎲',
+  bomb_fuse: '💣',
+  mystery_sell: '🎁',
+  event_money: '💰',
+  event_tax: '🧾',
+  event_shower: '🪙',
 };
 
 export function ShopTile({

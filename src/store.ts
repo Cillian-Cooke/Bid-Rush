@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { decideBotAction, nextBotCooldown } from './game/bots';
-import { AVATAR_EMOJIS, CONFIG } from './game/constants';
+import { CONFIG, type GameMode } from './game/constants';
 import {
   bid,
   createInitialState,
@@ -10,12 +10,19 @@ import {
   applyUseItem,
 } from './game/engine';
 import { getItem } from './game/items';
+import {
+  bidOnNameTag,
+  createNameAuction,
+  resolveNameAuction,
+  tickNameAuction,
+} from './game/naming';
 import type {
   DifficultyMode,
   FxKind,
   GameEvent,
   GameState,
   LobbyConfig,
+  NameAuctionState,
   Phase,
   TargetingMode,
   UseTargets,
@@ -45,23 +52,24 @@ const FX_TTL_MS = 800;
 type Store = {
   phase: Phase;
   lobby: LobbyConfig;
+  naming: NameAuctionState | null;
+  codexOpen: boolean;
   countdown: number;
   game: GameState | null;
   targeting: TargetingMode | null;
   handFocus: string | null;
   floats: FloatText[];
   activeFx: FxInstance[];
-  joinOpen: boolean;
   lastEvents: GameEvent[];
 
-  setBotCount: (n: number) => void;
+  setMode: (mode: GameMode) => void;
   setDifficulty: (d: DifficultyMode) => void;
-  setHumanName: (name: string) => void;
-  setHumanAvatar: (emoji: string) => void;
-  randomizeAvatar: () => void;
-  setJoinOpen: (open: boolean) => void;
+  setCodexOpen: (open: boolean) => void;
 
-  startCountdown: () => void;
+  startNaming: (mode: GameMode) => void;
+  bidNameTag: (tagId: string) => void;
+  finishNaming: () => void;
+
   beginPlaying: () => void;
   returnToLobby: () => void;
 
@@ -77,6 +85,7 @@ type Store = {
 
 let loopId: ReturnType<typeof setInterval> | null = null;
 let countdownId: ReturnType<typeof setInterval> | null = null;
+let namingLoopId: ReturnType<typeof setInterval> | null = null;
 let floatSeq = 0;
 let fxSeq = 0;
 let rng = createRng(Date.now());
@@ -92,6 +101,13 @@ function stopCountdown() {
   if (countdownId !== null) {
     clearInterval(countdownId);
     countdownId = null;
+  }
+}
+
+function stopNamingLoop() {
+  if (namingLoopId !== null) {
+    clearInterval(namingLoopId);
+    namingLoopId = null;
   }
 }
 
@@ -111,6 +127,13 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
         id: ++floatSeq,
         playerId: e.playerId,
         text: `+${e.amount} 🪙`,
+        createdAt: now,
+      });
+    } else if (e.type === 'loss') {
+      next.push({
+        id: ++floatSeq,
+        playerId: e.playerId,
+        text: `-${e.amount} 🪙`,
         createdAt: now,
       });
     }
@@ -197,10 +220,8 @@ function applyBotIntents(game: GameState): GameState {
 }
 
 const defaultLobby = (): LobbyConfig => ({
-  botCount: 3,
+  mode: 'blitz',
   difficulty: 'mixed',
-  humanName: 'You',
-  humanAvatar: AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)]!,
 });
 
 function commitGame(
@@ -220,60 +241,97 @@ function commitGame(
   });
 }
 
+function startCountdownFromGame(get: () => Store, set: (p: Partial<Store>) => void, game: GameState) {
+  stopCountdown();
+  stopNamingLoop();
+  rng = createRng(game.seed);
+  set({
+    phase: 'countdown',
+    countdown: 3,
+    game,
+    naming: null,
+    targeting: null,
+    handFocus: null,
+    floats: [],
+    activeFx: [],
+  });
+
+  countdownId = setInterval(() => {
+    const c = get().countdown;
+    if (c <= 0) {
+      stopCountdown();
+      get().beginPlaying();
+    } else {
+      set({ countdown: c - 1 });
+    }
+  }, 1000);
+}
+
 export const useGameStore = create<Store>((set, get) => ({
   phase: 'lobby',
   lobby: defaultLobby(),
+  naming: null,
+  codexOpen: false,
   countdown: 3,
   game: null,
   targeting: null,
   handFocus: null,
   floats: [],
   activeFx: [],
-  joinOpen: false,
   lastEvents: [],
 
-  setBotCount: (n) =>
-    set((s) => ({
-      lobby: { ...s.lobby, botCount: Math.min(7, Math.max(1, n)) },
-    })),
+  setMode: (mode) => set((s) => ({ lobby: { ...s.lobby, mode } })),
   setDifficulty: (d) => set((s) => ({ lobby: { ...s.lobby, difficulty: d } })),
-  setHumanName: (name) => set((s) => ({ lobby: { ...s.lobby, humanName: name } })),
-  setHumanAvatar: (emoji) =>
-    set((s) => ({ lobby: { ...s.lobby, humanAvatar: emoji } })),
-  randomizeAvatar: () =>
-    set((s) => ({
-      lobby: {
-        ...s.lobby,
-        humanAvatar: AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)]!,
-      },
-    })),
-  setJoinOpen: (open) => set({ joinOpen: open }),
+  setCodexOpen: (open) => set({ codexOpen: open }),
 
-  startCountdown: () => {
+  startNaming: (mode) => {
     stopLoop();
     stopCountdown();
-    const { lobby } = get();
-    const game = createInitialState(lobby);
-    rng = createRng(game.seed);
+    stopNamingLoop();
+    const difficulty = get().lobby.difficulty;
+    const naming = createNameAuction(mode, difficulty);
     set({
-      phase: 'countdown',
-      countdown: 3,
-      game,
-      targeting: null,
-      handFocus: null,
+      phase: 'naming',
+      lobby: { ...get().lobby, mode },
+      naming,
+      game: null,
+      codexOpen: false,
       floats: [],
       activeFx: [],
     });
 
-    countdownId = setInterval(() => {
-      const c = get().countdown;
-      if (c <= 0) {
-        stopCountdown();
-        get().beginPlaying();
-      } else {
-        set({ countdown: c - 1 });
+    namingLoopId = setInterval(() => {
+      const cur = get().naming;
+      if (!cur || get().phase !== 'naming') return;
+      const next = tickNameAuction(cur, CONFIG.TICK_MS, rng);
+      if (next.msLeft <= 0) {
+        stopNamingLoop();
+        set({ naming: next });
+        get().finishNaming();
+        return;
       }
-    }, 1000);
+      set({ naming: next });
+    }, CONFIG.TICK_MS);
+  },
+
+  bidNameTag: (tagId) => {
+    const { naming, phase } = get();
+    if (!naming || phase !== 'naming') return;
+    set({ naming: bidOnNameTag(naming, naming.humanId, tagId) });
+  },
+
+  finishNaming: () => {
+    stopNamingLoop();
+    const { naming, lobby } = get();
+    if (!naming) return;
+    const identities = resolveNameAuction(naming);
+    const game = createInitialState({
+      mode: naming.mode,
+      difficulty: naming.difficulty,
+      identities,
+    }, naming.seed);
+    startCountdownFromGame(get, set, game);
+    set({ lobby: { ...lobby, mode: naming.mode, identities } });
   },
 
   beginPlaying: () => {
@@ -285,14 +343,17 @@ export const useGameStore = create<Store>((set, get) => ({
   returnToLobby: () => {
     stopLoop();
     stopCountdown();
+    stopNamingLoop();
     set({
       phase: 'lobby',
       game: null,
+      naming: null,
       targeting: null,
       handFocus: null,
       floats: [],
       activeFx: [],
       countdown: 3,
+      codexOpen: false,
     });
   },
 
@@ -465,7 +526,6 @@ export function fxForTile(activeFx: FxInstance[], tileIndex: number): FxInstance
 }
 
 export function fxForPlayer(activeFx: FxInstance[], playerId: string): FxInstance | null {
-  // Prefer active_cast on this player so their item emoji wins over being a target
   for (let i = activeFx.length - 1; i >= 0; i--) {
     const f = activeFx[i]!;
     if (f.kind === 'active_cast' && f.playerId === playerId) return f;
@@ -485,3 +545,4 @@ export function fxForHandItem(activeFx: FxInstance[], instanceId: string): FxIns
   }
   return null;
 }
+

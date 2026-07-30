@@ -12,7 +12,43 @@ export type BotArchetype = 'chill' | 'balanced' | 'ruthless';
 
 export type DifficultyMode = 'mixed' | 'chill' | 'balanced' | 'ruthless';
 
-export type Phase = 'lobby' | 'countdown' | 'playing' | 'results';
+export type Phase = 'lobby' | 'naming' | 'countdown' | 'playing' | 'results';
+
+export type GameMode = 'duel' | 'blitz';
+
+export type PlayerIdentity = {
+  name: string;
+  avatar: string;
+  color: string;
+  isHuman: boolean;
+  archetype: BotArchetype | null;
+};
+
+export type NameTag = {
+  id: string;
+  name: string;
+  avatar: string;
+  price: number;
+  highBidderId: string | null;
+};
+
+export type NameAuctionParticipant = {
+  id: string;
+  isHuman: boolean;
+  color: string;
+  /** Bot bid cooldown */
+  cooldownMs: number;
+};
+
+export type NameAuctionState = {
+  mode: GameMode;
+  difficulty: DifficultyMode;
+  tags: NameTag[];
+  participants: NameAuctionParticipant[];
+  humanId: string;
+  msLeft: number;
+  seed: number;
+};
 
 export type ItemId =
   | 'coin_mine'
@@ -120,10 +156,48 @@ export type FxKind =
   | 'pickpocket'
   | 'bomb_fuse'
   | 'tile_label'
-  | 'active_cast';
+  | 'active_cast'
+  | 'event_money'
+  | 'event_tax'
+  | 'event_shower';
+
+export type WorldEventId =
+  | 'money_money_money'
+  | 'tax_collector'
+  | 'fire_sale'
+  | 'deep_freeze'
+  | 'turbo_market'
+  | 'bomb_bazaar'
+  | 'coin_shower'
+  | 'shuffle_storm'
+  | 'inflation_wave'
+  | 'mystery_mall';
+
+export type WorldEventPhase = 'pending' | 'warning' | 'active' | 'done';
+
+export type WorldEventState = {
+  id: WorldEventId | null;
+  phase: WorldEventPhase;
+  /** Remaining duration while phase === 'active' */
+  activeMs: number;
+  pulseAccMs: number;
+  fxAccMs: number;
+};
+
+export type WorldEventDef = {
+  id: WorldEventId;
+  name: string;
+  emoji: string;
+  blurb: string;
+  warnLine: string;
+  activeLine: string;
+  accent: string;
+  fxKind: FxKind;
+};
 
 export type GameEvent =
   | { type: 'income'; playerId: string; amount: number; emoji: string }
+  | { type: 'loss'; playerId: string; amount: number; emoji: string }
   | { type: 'eliminate'; playerId: string; reason: 'unpaid' | 'bomb' }
   | { type: 'resolve'; tileIndex: number; winnerId: string | null }
   | { type: 'explosion'; playerId: string }
@@ -142,6 +216,8 @@ export type GameEvent =
     };
 
 export type GameState = {
+  mode: GameMode;
+  gridCols: number;
   players: Player[];
   tiles: Tile[];
   roundMs: number;
@@ -154,13 +230,15 @@ export type GameState = {
   winnerId: string | null;
   /** Accumulator for richest-player crown tax */
   leaderTaxAccMs: number;
+  /** Mid-match floor event (warn @ 2:30, live @ 2:00 for 30s) */
+  worldEvent: WorldEventState;
 };
 
 export type LobbyConfig = {
-  botCount: number;
+  mode: GameMode;
   difficulty: DifficultyMode;
-  humanName: string;
-  humanAvatar: string;
+  /** Filled after Tag Sale; optional until naming resolves */
+  identities?: PlayerIdentity[];
 };
 
 export type GameAction =

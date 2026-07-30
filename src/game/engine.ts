@@ -1,5 +1,6 @@
-import { AVATAR_EMOJIS, CONFIG, PLAYER_COLORS } from './constants';
+import { AVATAR_EMOJIS, CONFIG, MODE_SETUP, PLAYER_COLORS } from './constants';
 import { getItem, weightedRandomItem } from './items';
+import { createRng } from './rng';
 import type {
   BotArchetype,
   DifficultyMode,
@@ -9,10 +10,18 @@ import type {
   ItemId,
   LobbyConfig,
   Player,
+  PlayerIdentity,
   RankingEntry,
   Tile,
   UseTargets,
 } from './types';
+import {
+  createWorldEventState,
+  tickWorldEvent,
+  worldEventTimerScale,
+} from './worldEvents';
+
+export { createRng };
 
 function emitFx(
   state: GameState,
@@ -29,18 +38,6 @@ function emitFx(
   state.events.push({ type: 'fx', kind, ...opts });
 }
 
-/** Mulberry32 seeded RNG */
-export function createRng(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 function uid(prefix: string, n: number): string {
   return `${prefix}_${n}`;
 }
@@ -54,6 +51,7 @@ function cloneState(state: GameState): GameState {
     })),
     tiles: state.tiles.map((t) => ({ ...t })),
     events: [...state.events],
+    worldEvent: { ...state.worldEvent },
   };
 }
 
@@ -117,62 +115,75 @@ function botName(archetype: BotArchetype, index: number): string {
 export function createInitialState(config: LobbyConfig, seed?: number): GameState {
   const actualSeed = seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
   const rng = createRng(actualSeed);
-  const archetypes = assignArchetypes(config.botCount, config.difficulty, rng);
+  const setup = MODE_SETUP[config.mode];
+  const archetypes = assignArchetypes(setup.botCount, config.difficulty, rng);
 
-  const players: Player[] = [];
+  const identities: PlayerIdentity[] =
+    config.identities ??
+    (() => {
+      const list: PlayerIdentity[] = [
+        {
+          name: 'You',
+          avatar: AVATAR_EMOJIS[Math.floor(rng() * AVATAR_EMOJIS.length)]!,
+          color: PLAYER_COLORS[0]!,
+          isHuman: true,
+          archetype: null,
+        },
+      ];
+      for (let i = 0; i < setup.botCount; i++) {
+        list.push({
+          name: botName(archetypes[i]!, i),
+          avatar: AVATAR_EMOJIS[Math.floor(rng() * AVATAR_EMOJIS.length)]!,
+          color: PLAYER_COLORS[(i + 1) % PLAYER_COLORS.length]!,
+          isHuman: false,
+          archetype: archetypes[i]!,
+        });
+      }
+      return list;
+    })();
+
   const humanId = 'player_0';
-  players.push({
-    id: humanId,
-    name: config.humanName.trim() || 'You',
-    avatar: config.humanAvatar || AVATAR_EMOJIS[Math.floor(rng() * AVATAR_EMOJIS.length)]!,
-    color: PLAYER_COLORS[0]!,
+  const players: Player[] = identities.map((id, i) => ({
+    id: `player_${i}`,
+    name: id.name,
+    avatar: id.avatar,
+    color: id.color,
     coins: CONFIG.START_COINS,
     hand: [],
-    isHuman: true,
+    isHuman: id.isHuman,
     isAlive: true,
-    archetype: null,
+    archetype: id.archetype,
     handcuffMs: 0,
-    botCooldownMs: 0,
+    botCooldownMs: id.isHuman ? 0 : 200 + Math.floor(rng() * 600),
     eliminatedAt: null,
     comebackAccMs: 0,
-  });
+  }));
 
-  for (let i = 0; i < config.botCount; i++) {
-    const arch = archetypes[i]!;
-    const colorIdx = (i + 1) % PLAYER_COLORS.length;
-    players.push({
-      id: `player_${i + 1}`,
-      name: botName(arch, i),
-      avatar: AVATAR_EMOJIS[Math.floor(rng() * AVATAR_EMOJIS.length)]!,
-      color: PLAYER_COLORS[colorIdx]!,
-      coins: CONFIG.START_COINS,
-      hand: [],
-      isHuman: false,
-      isAlive: true,
-      archetype: arch,
-      handcuffMs: 0,
-      botCooldownMs: 200 + Math.floor(rng() * 600),
-      eliminatedAt: null,
-      comebackAccMs: 0,
-    });
+  // Ensure human id is player_0
+  const human = players.find((p) => p.isHuman);
+  if (human) {
+    // already mapped by identity order with human first from resolveNameAuction
   }
 
   const tiles: Tile[] = [];
-  for (let i = 0; i < CONFIG.GRID_SIZE; i++) {
+  for (let i = 0; i < setup.gridSize; i++) {
     tiles.push(makeTile(i, weightedRandomItem(rng)));
   }
 
   return {
+    mode: config.mode,
+    gridCols: setup.gridCols,
     players,
     tiles,
     roundMs: CONFIG.GAME_LENGTH_MS,
-    humanId,
+    humanId: human?.id ?? humanId,
     seed: actualSeed,
     events: [],
     nextInstance: 1,
     ended: false,
     winnerId: null,
     leaderTaxAccMs: 0,
+    worldEvent: createWorldEventState(),
   };
 }
 
@@ -696,6 +707,8 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
 
   next.roundMs = Math.max(0, next.roundMs - dtMs);
 
+  tickWorldEvent(next, dtMs, rng);
+
   // Status timers
   for (const player of next.players) {
     if (player.handcuffMs > 0) {
@@ -705,6 +718,8 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
       player.botCooldownMs = Math.max(0, player.botCooldownMs - dtMs);
     }
   }
+
+  const timerScale = worldEventTimerScale(next);
 
   // Tile timers & flash
   for (const tile of next.tiles) {
@@ -716,7 +731,8 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
       tile.freezeMs = Math.max(0, tile.freezeMs - dtMs);
       continue;
     }
-    tile.timerMs -= dtMs;
+    if (timerScale === 0) continue;
+    tile.timerMs -= dtMs * timerScale;
   }
 
   // Resolve expired tiles (snapshot indices that hit 0)

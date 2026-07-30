@@ -1,5 +1,6 @@
 import { useGameStore } from './store';
 import { Lobby } from './screens/Lobby';
+import { NameAuction } from './screens/NameAuction';
 import { Game } from './screens/Game';
 import { Results } from './screens/Results';
 
@@ -8,6 +9,7 @@ export default function App() {
   const countdown = useGameStore((s) => s.countdown);
 
   if (phase === 'lobby') return <Lobby />;
+  if (phase === 'naming') return <NameAuction />;
   if (phase === 'results') return <Results />;
 
   return (

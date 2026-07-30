@@ -2,10 +2,11 @@ import type { FxInstance } from '../store';
 
 type Props = {
   activeFx: FxInstance[];
+  gridCols: number;
 };
 
-/** Purple portal streak between two swapped tiles on the 3×3 grid. */
-export function FxLayer({ activeFx }: Props) {
+/** Purple portal streak between two swapped tiles. */
+export function FxLayer({ activeFx, gridCols }: Props) {
   const swaps = activeFx.filter(
     (f) =>
       f.kind === 'swap' &&
@@ -14,16 +15,17 @@ export function FxLayer({ activeFx }: Props) {
   );
 
   if (swaps.length === 0) return null;
+  const cols = gridCols || 3;
 
   return (
     <div className="fx-layer" aria-hidden>
       {swaps.map((f) => {
         const a = f.tileIndex!;
         const b = f.tileIndexB!;
-        const ax = (a % 3) + 0.5;
-        const ay = Math.floor(a / 3) + 0.5;
-        const bx = (b % 3) + 0.5;
-        const by = Math.floor(b / 3) + 0.5;
+        const ax = (a % cols) + 0.5;
+        const ay = Math.floor(a / cols) + 0.5;
+        const bx = (b % cols) + 0.5;
+        const by = Math.floor(b / cols) + 0.5;
         const mx = (ax + bx) / 2;
         const my = (ay + by) / 2;
         const dx = bx - ax;
@@ -36,9 +38,9 @@ export function FxLayer({ activeFx }: Props) {
             key={f.id}
             className="fx-swap-wrap"
             style={{
-              left: `${(mx / 3) * 100}%`,
-              top: `${(my / 3) * 100}%`,
-              width: `${(len / 3) * 100}%`,
+              left: `${(mx / cols) * 100}%`,
+              top: `${(my / cols) * 100}%`,
+              width: `${(len / cols) * 100}%`,
               transform: `translate(-50%, -50%) rotate(${angle}deg)`,
             }}
           >

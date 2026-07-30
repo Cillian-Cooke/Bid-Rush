@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { EventBanner } from '../components/EventBanner';
 import { ExplosionFx } from '../components/ExplosionFx';
 import { FxLayer } from '../components/FxLayer';
 import { HandSlot } from '../components/HandSlot';
@@ -39,9 +40,7 @@ export function Game() {
 
   const human = game.players.find((p) => p.id === game.humanId)!;
   const others = game.players.filter((p) => p.id !== game.humanId);
-
-  const leftPlayers = [...others.slice(0, 3), human];
-  const rightPlayers = others.slice(3);
+  const seatOrder = [human, ...others];
 
   const floatFor = (playerId: string) => {
     const f = floats.filter((x) => x.playerId === playerId).at(-1);
@@ -66,9 +65,11 @@ export function Game() {
       ? human.hand.find((h) => h.itemId === 'bomb' && !handSlots.includes(h))
       : null;
 
+  const cols = game.gridCols;
+
   return (
     <div
-      className={`screen game-screen${targeting ? ' targeting-active' : ''}${inUseMode ? ' use-mode' : ''}`}
+      className={`screen game-screen mode-${game.mode}${targeting ? ' targeting-active' : ''}${inUseMode ? ' use-mode' : ''}`}
     >
       <RoundClock ms={game.roundMs} />
 
@@ -86,37 +87,20 @@ export function Game() {
       )}
       <ExplosionFx />
 
-      <div className="game-board">
-        <div className="player-col left">
-          {leftPlayers.map((p) => {
-            const fx = fxForPlayer(activeFx, p.id);
-            // Prefer cast flash for this player (caster), not being a leech/cuff target
-            const castFx = activeFx
-              .filter((f) => f.kind === 'active_cast' && f.playerId === p.id)
-              .at(-1);
-            const showFx = castFx ?? fx;
-            return (
-              <PlayerPanel
-                key={p.id}
-                player={p}
-                isYou={p.id === human.id}
-                compact
-                targeting={targetingPlayers && p.id !== human.id && p.isAlive}
-                floatText={floatFor(p.id)}
-                fxKind={showFx?.kind ?? null}
-                fxLabel={castFx?.label ?? null}
-                onTap={
-                  targetingPlayers && p.id !== human.id && p.isAlive
-                    ? () => selectTargetPlayer(p.id)
-                    : undefined
-                }
-              />
-            );
-          })}
-        </div>
+      <div
+        className="game-main"
+        style={{ ['--grid-cols' as string]: cols }}
+      >
+        <EventBanner worldEvent={game.worldEvent} roundMs={game.roundMs} />
 
-        <div className="shop-grid">
-          <FxLayer activeFx={activeFx} />
+        <div
+          className="shop-grid"
+          style={{
+            gridTemplateColumns: `repeat(${cols}, var(--tile-size))`,
+            gridTemplateRows: `repeat(${cols}, var(--tile-size))`,
+          }}
+        >
+          <FxLayer activeFx={activeFx} gridCols={cols} />
           {game.tiles.map((tile) => {
             const bidderColor = tile.highBidderId
               ? (colorById.get(tile.highBidderId) ?? null)
@@ -141,28 +125,26 @@ export function Game() {
           })}
         </div>
 
-        <div className="player-col right">
-          {rightPlayers.map((p) => {
+        <div className="player-row">
+          {seatOrder.map((p) => {
             const fx = fxForPlayer(activeFx, p.id);
             const castFx = activeFx
               .filter((f) => f.kind === 'active_cast' && f.playerId === p.id)
               .at(-1);
             const showFx = castFx ?? fx;
+            const canTarget =
+              targetingPlayers && p.id !== human.id && p.isAlive;
             return (
               <PlayerPanel
                 key={p.id}
                 player={p}
-                isYou={false}
+                isYou={p.id === human.id}
                 compact
-                targeting={targetingPlayers && p.isAlive}
+                targeting={!!canTarget}
                 floatText={floatFor(p.id)}
                 fxKind={showFx?.kind ?? null}
                 fxLabel={castFx?.label ?? null}
-                onTap={
-                  targetingPlayers && p.isAlive
-                    ? () => selectTargetPlayer(p.id)
-                    : undefined
-                }
+                onTap={canTarget ? () => selectTargetPlayer(p.id) : undefined}
               />
             );
           })}

@@ -24,6 +24,9 @@ const PANEL_FX_EMOJI: Partial<Record<FxKind, string>> = {
   cuffs: '🔒',
   pickpocket: '🧤',
   bomb_fuse: '💣',
+  event_money: '💰',
+  event_tax: '🧾',
+  event_shower: '🪙',
 };
 
 export function PlayerPanel({
@@ -78,7 +81,13 @@ export function PlayerPanel({
         </span>
       )}
       {!player.isAlive && <span className="eliminated-badge">OUT</span>}
-      {floatText && <span className="float-text">{floatText}</span>}
+      {floatText && (
+        <span
+          className={`float-text${floatText.startsWith('-') ? ' loss' : ''}`}
+        >
+          {floatText}
+        </span>
+      )}
       {fxKind && fxKind !== 'active_cast' && (
         <span className="panel-fx-burst" aria-hidden>
           {PANEL_FX_EMOJI[fxKind] ?? '✨'}
