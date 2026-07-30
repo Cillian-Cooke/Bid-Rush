@@ -91,63 +91,67 @@ export function Game() {
         className="game-main"
         style={{ ['--grid-cols' as string]: cols }}
       >
-        <EventBanner worldEvent={game.worldEvent} roundMs={game.roundMs} />
+        <div className="game-stage">
+          <EventBanner worldEvent={game.worldEvent} roundMs={game.roundMs} />
 
-        <div
-          className="shop-grid"
-          style={{
-            gridTemplateColumns: `repeat(${cols}, var(--tile-size))`,
-            gridTemplateRows: `repeat(${cols}, var(--tile-size))`,
-          }}
-        >
-          <FxLayer activeFx={activeFx} gridCols={cols} />
-          {game.tiles.map((tile) => {
-            const bidderColor = tile.highBidderId
-              ? (colorById.get(tile.highBidderId) ?? null)
-              : null;
-            const fx = fxForTile(activeFx, tile.index);
-            return (
-              <ShopTile
-                key={tile.index}
-                tile={tile}
-                bidderColor={bidderColor}
-                isYou={tile.highBidderId === human.id}
-                targeting={!!targetingTiles}
-                selected={targeting?.selectedTile === tile.index}
-                fxKind={fx?.kind ?? null}
-                fxLabel={fx?.label}
-                onTap={() => {
-                  if (targetingTiles) selectTargetTile(tile.index);
-                  else if (!targeting) bidTile(tile.index);
-                }}
-              />
-            );
-          })}
+          <div
+            className="shop-grid"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, var(--tile-size))`,
+              gridTemplateRows: `repeat(${cols}, var(--tile-size))`,
+            }}
+          >
+            <FxLayer activeFx={activeFx} gridCols={cols} />
+            {game.tiles.map((tile) => {
+              const bidderColor = tile.highBidderId
+                ? (colorById.get(tile.highBidderId) ?? null)
+                : null;
+              const fx = fxForTile(activeFx, tile.index);
+              return (
+                <ShopTile
+                  key={tile.index}
+                  tile={tile}
+                  bidderColor={bidderColor}
+                  isYou={tile.highBidderId === human.id}
+                  targeting={!!targetingTiles}
+                  selected={targeting?.selectedTile === tile.index}
+                  fxKind={fx?.kind ?? null}
+                  fxLabel={fx?.label}
+                  onTap={() => {
+                    if (targetingTiles) selectTargetTile(tile.index);
+                    else if (!targeting) bidTile(tile.index);
+                  }}
+                />
+              );
+            })}
+          </div>
         </div>
 
-        <div className="player-row">
-          {seatOrder.map((p) => {
-            const fx = fxForPlayer(activeFx, p.id);
-            const castFx = activeFx
-              .filter((f) => f.kind === 'active_cast' && f.playerId === p.id)
-              .at(-1);
-            const showFx = castFx ?? fx;
-            const canTarget =
-              targetingPlayers && p.id !== human.id && p.isAlive;
-            return (
-              <PlayerPanel
-                key={p.id}
-                player={p}
-                isYou={p.id === human.id}
-                compact
-                targeting={!!canTarget}
-                floatText={floatFor(p.id)}
-                fxKind={showFx?.kind ?? null}
-                fxLabel={castFx?.label ?? null}
-                onTap={canTarget ? () => selectTargetPlayer(p.id) : undefined}
-              />
-            );
-          })}
+        <div className="player-band">
+          <div className="player-row">
+            {seatOrder.map((p) => {
+              const fx = fxForPlayer(activeFx, p.id);
+              const castFx = activeFx
+                .filter((f) => f.kind === 'active_cast' && f.playerId === p.id)
+                .at(-1);
+              const showFx = castFx ?? fx;
+              const canTarget =
+                targetingPlayers && p.id !== human.id && p.isAlive;
+              return (
+                <PlayerPanel
+                  key={p.id}
+                  player={p}
+                  isYou={p.id === human.id}
+                  compact
+                  targeting={!!canTarget}
+                  floatText={floatFor(p.id)}
+                  fxKind={showFx?.kind ?? null}
+                  fxLabel={castFx?.label ?? null}
+                  onTap={canTarget ? () => selectTargetPlayer(p.id) : undefined}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
 
