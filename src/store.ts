@@ -27,7 +27,6 @@ import type {
   NameAuctionState,
   Phase,
   TargetingMode,
-  UseTargets,
 } from './game/types';
 
 export type FloatText = {
