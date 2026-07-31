@@ -14,7 +14,7 @@ type Props = {
   onQuit: () => void;
 };
 
-/** Top chrome: large timer, banner underneath when live. */
+/** Top chrome: large timer, banners stacked underneath when live. */
 export function GameChrome({
   roundMs,
   elapsedMs,
@@ -28,7 +28,8 @@ export function GameChrome({
   const showEvent =
     !suddenDeath.active &&
     (worldEvent.phase === 'warning' || worldEvent.phase === 'active');
-  const showBanner = showPace || suddenDeath.active || showEvent;
+  const showSudden = suddenDeath.active;
+  const showStack = showPace || showSudden || showEvent;
 
   return (
     <header className="game-chrome">
@@ -38,13 +39,13 @@ export function GameChrome({
           Quit
         </button>
       </div>
-      {showBanner && (
+      {showStack && (
         <div className="game-chrome-banner">
-          {showPace ? (
-            <PaceBanner elapsedMs={elapsedMs} />
-          ) : suddenDeath.active ? (
+          {showPace && <PaceBanner elapsedMs={elapsedMs} />}
+          {showSudden && (
             <SuddenDeathBanner suddenDeath={suddenDeath} players={players} />
-          ) : (
+          )}
+          {showEvent && (
             <EventBanner worldEvent={worldEvent} roundMs={roundMs} />
           )}
         </div>

@@ -1159,7 +1159,7 @@ function tickRubberBand(state: GameState, dt: number): void {
     state.leaderTaxAccMs = 0;
   }
 
-  // Underdog income — scale with how far behind
+  // Underdog income — light drip only when well behind
   for (const player of alive) {
     const gap = richest.coins - player.coins;
     if (gap < CONFIG.COMEBACK_GAP) {
@@ -1167,7 +1167,8 @@ function tickRubberBand(state: GameState, dt: number): void {
       continue;
     }
     player.comebackAccMs += dt;
-    const amount = gap >= CONFIG.COMEBACK_BIG_GAP ? 2 : 1;
+    // Cap at +1 even on big gaps — catch-up should not snowball
+    const amount = 1;
     while (player.comebackAccMs >= CONFIG.COMEBACK_INTERVAL_MS) {
       player.comebackAccMs -= CONFIG.COMEBACK_INTERVAL_MS;
       player.coins += amount;
