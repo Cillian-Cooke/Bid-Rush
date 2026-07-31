@@ -314,7 +314,9 @@ function ScoreChip({
       {rank != null && <span className="score-rank">#{rank}</span>}
       <span className="score-avatar">{fxLabel || player.avatar}</span>
       {showName && <span className="score-name">{player.name}</span>}
-      <span className="score-coins">🪙{player.coins}</span>
+      <span className="score-coins">
+        {showName ? `🪙${player.coins}` : player.coins}
+      </span>
       {player.handcuffMs > 0 && <span className="score-badge">🔒</span>}
       {fuseSec != null && <span className="score-badge">💣{fuseSec}</span>}
       {!player.isAlive && <span className="score-out">OUT</span>}

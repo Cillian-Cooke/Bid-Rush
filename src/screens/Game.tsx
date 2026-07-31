@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ExplosionFx } from '../components/ExplosionFx';
 import { FxLayer } from '../components/FxLayer';
 import { GameChrome } from '../components/GameChrome';
@@ -10,6 +10,7 @@ import { SpectateHands } from '../components/SpectateHands';
 import { TargetingOverlay } from '../components/TargetingOverlay';
 import { CONFIG } from '../game/constants';
 import { getItem } from '../game/items';
+import { getWorldEvent } from '../game/worldEvents';
 import type { FxKind } from '../game/types';
 import {
   fxForHandItem,
@@ -38,6 +39,7 @@ export function Game() {
   const enterSpectate = useGameStore((s) => s.enterSpectate);
   const replayMatch = useGameStore((s) => s.replayMatch);
   const returnToLobby = useGameStore((s) => s.returnToLobby);
+  const [quitConfirm, setQuitConfirm] = useState(false);
 
   const colorById = useMemo(() => {
     const map = new Map<string, string>();
@@ -72,6 +74,13 @@ export function Game() {
   const sd = game.suddenDeath;
   const humanAtRisk =
     sd.active && human.isAlive && human.coins < sd.bracket;
+  const eventLive =
+    !sd.active &&
+    game.worldEvent.phase === 'active' &&
+    !!game.worldEvent.id;
+  const eventGlow = eventLive
+    ? getWorldEvent(game.worldEvent.id!).accent
+    : null;
 
   const floatFor = (playerId: string) => {
     const f = floats.filter((x) => x.playerId === playerId).at(-1);
@@ -98,10 +107,11 @@ export function Game() {
 
   const cols = game.gridCols;
   const zoomedOut = knockoutOffer || spectating;
+  const live = phase === 'playing' && !knockoutOffer;
   const dockMotion = [
     'status-dock',
     phase === 'countdown' ? 'dock-pre' : '',
-    phase === 'playing' && !knockoutOffer ? 'dock-in' : '',
+    live ? 'dock-in' : '',
     knockoutOffer ? 'dock-out' : '',
   ]
     .filter(Boolean)
@@ -117,18 +127,28 @@ export function Game() {
         inUseMode ? 'use-mode' : '',
         sd.active ? 'sudden-death-live' : '',
         humanAtRisk ? 'sd-human-risk' : '',
+        eventLive ? 'event-live' : '',
         zoomedOut ? 'knocked-out' : '',
         spectating ? 'spectating' : '',
+        live ? 'widgets-in' : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      style={{ ['--grid-cols' as string]: cols }}
+      style={{
+        ['--grid-cols' as string]: cols,
+        ...(eventGlow
+          ? { ['--event-glow' as string]: eventGlow }
+          : {}),
+      }}
     >
       <GameChrome
         roundMs={game.roundMs}
+        elapsedMs={game.elapsedMs}
+        paceBannerMs={game.paceBannerMs}
         suddenDeath={game.suddenDeath}
         worldEvent={game.worldEvent}
         players={game.players}
+        onQuit={() => setQuitConfirm(true)}
       />
 
       {targeting && (
@@ -241,6 +261,33 @@ export function Game() {
       )}
 
       {spectating && <SpectateHands players={game.players} />}
+
+      {quitConfirm && (
+        <div className="quit-overlay" role="dialog" aria-label="Forfeit">
+          <div className="quit-sheet">
+            <p>Are you sure you want to forfeit?</p>
+            <div className="quit-actions">
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => setQuitConfirm(false)}
+              >
+                Keep playing
+              </button>
+              <button
+                type="button"
+                className="btn danger"
+                onClick={() => {
+                  setQuitConfirm(false);
+                  returnToLobby();
+                }}
+              >
+                Forfeit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {knockoutOffer && (
         <KnockoutOverlay

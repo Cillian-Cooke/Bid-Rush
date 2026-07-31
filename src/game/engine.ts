@@ -1,5 +1,6 @@
 import { AVATAR_EMOJIS, CONFIG, MODE_SETUP, PLAYER_COLORS } from './constants';
 import { getItem, pickMatchPool, weightedRandomItem } from './items';
+import { matchPaceMult } from './pace';
 import { createRng } from './rng';
 import type {
   BotArchetype,
@@ -323,6 +324,8 @@ export function createInitialState(
     players,
     tiles,
     roundMs: CONFIG.GAME_LENGTH_MS,
+    elapsedMs: 0,
+    paceBannerMs: 0,
     humanId: human?.id ?? humanId,
     seed: actualSeed,
     events: [],
@@ -833,6 +836,7 @@ function applyActiveEffect(
 }
 
 function tickPassives(state: GameState, dt: number): void {
+  const pace = matchPaceMult(state.elapsedMs);
   for (const player of state.players) {
     if (!player.isAlive) continue;
 
@@ -846,7 +850,7 @@ function tickPassives(state: GameState, dt: number): void {
       if (def.kind !== 'passive' && item.itemId !== 'bomb') continue;
 
       const selfMult = (item.golden ? 2 : 1) * adjacencyMult(player.hand, i);
-      const tick = dt * haste;
+      const tick = dt * haste * pace;
 
       // Bomb fuse (not hasted — real-time danger)
       if (item.itemId === 'bomb' && item.bombFuseMs !== null) {
@@ -1072,6 +1076,15 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
     next.roundMs = Math.max(0, next.roundMs - dtMs);
   }
 
+  const prevPace = matchPaceMult(next.elapsedMs);
+  next.elapsedMs += dtMs;
+  const pace = matchPaceMult(next.elapsedMs);
+  if (pace > prevPace) {
+    next.paceBannerMs = CONFIG.PACE_BANNER_MS;
+  } else if (next.paceBannerMs > 0) {
+    next.paceBannerMs = Math.max(0, next.paceBannerMs - dtMs);
+  }
+
   tickWorldEvent(next, dtMs, rng);
 
   // Status timers
@@ -1085,7 +1098,9 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
   }
 
   const timerScale =
-    worldEventTimerScale(next) * (next.suddenDeath.active ? 1.25 : 1);
+    worldEventTimerScale(next) *
+    (next.suddenDeath.active ? 1.25 : 1) *
+    pace;
 
   // Tile timers & flash
   for (const tile of next.tiles) {

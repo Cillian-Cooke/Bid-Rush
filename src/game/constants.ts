@@ -26,8 +26,6 @@ export const CONFIG = {
   MAX_ACTIVE_BIDS: 3,
   /** Pre-match handle auction length */
   NAME_AUCTION_MS: 5_000,
-  /** Max bids each player may place in Tag Sale */
-  NAME_MAX_BIDS: 3,
   /** Match item pool stays on screen this long (from scheduled start) */
   POOL_REVEAL_MS: 5_000,
   /** Mid-match floor event (warn @ 2:30, live @ 2:00 for 30s) */
@@ -42,6 +40,8 @@ export const CONFIG = {
   SUDDEN_DEATH_PHASE_MS: 30_000,
   /** Sudden death: first coin threshold */
   SUDDEN_DEATH_START_BRACKET: 100,
+  /** How long the pace-change banner stays up */
+  PACE_BANNER_MS: 2_800,
 } as const;
 
 export const MODE_SETUP = {

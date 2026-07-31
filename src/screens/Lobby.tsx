@@ -68,10 +68,9 @@ export function Lobby() {
         <BookOpen size={20} />
       </button>
 
-      <div className="lobby-content">
+        <div className="lobby-content">
         <div className="lobby-hero">
           <h1 className="brand">Bid Rush</h1>
-          <p className="tagline">Outbid. Outearn. Outlast.</p>
         </div>
 
         <div className="mode-pick">
@@ -79,8 +78,6 @@ export function Lobby() {
             <span className="mode-emoji">⚔️</span>
             <span className="mode-copy">
               <span className="mode-title">{MODE_SETUP.duel.label}</span>
-              <span className="mode-blurb">{MODE_SETUP.duel.blurb}</span>
-              <span className="mode-meta">3×3 · 2 players</span>
             </span>
           </button>
           <button
@@ -91,14 +88,12 @@ export function Lobby() {
             <span className="mode-emoji">⚡</span>
             <span className="mode-copy">
               <span className="mode-title">{MODE_SETUP.blitz.label}</span>
-              <span className="mode-blurb">{MODE_SETUP.blitz.blurb}</span>
-              <span className="mode-meta">4×4 · 4 players</span>
             </span>
           </button>
         </div>
 
         <div className="field lobby-diff">
-          <span>Bot table</span>
+          <span>Bots</span>
           <div className="diff-row">
             {DIFFICULTIES.map((d) => (
               <button
@@ -112,10 +107,6 @@ export function Lobby() {
             ))}
           </div>
         </div>
-
-        <p className="lobby-note">
-          Handles are won in a 5-second Tag Sale before kickoff.
-        </p>
       </div>
 
       {codexOpen && <ItemsCodex onClose={() => setCodexOpen(false)} />}

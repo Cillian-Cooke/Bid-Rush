@@ -11,19 +11,29 @@ export default function App() {
   const game = useGameStore((s) => s.game);
   const matchPool = useGameStore((s) => s.matchPool);
   const poolRevealOpen = useGameStore((s) => s.poolRevealOpen);
+  const poolRevealPeeked = useGameStore((s) => s.poolRevealPeeked);
+  const closePoolReveal = useGameStore((s) => s.closePoolReveal);
 
   if (phase === 'lobby') return <Lobby />;
   if (phase === 'results') return <Results />;
 
-  if (phase === 'naming') return <NameAuction />;
+  const pool = game?.itemPool ?? matchPool;
+  const showPool =
+    poolRevealOpen &&
+    !!pool &&
+    (phase === 'naming' || phase === 'countdown');
 
   return (
     <>
+      {phase === 'naming' && <NameAuction />}
       {(phase === 'countdown' || phase === 'playing') && <Game />}
-      {phase === 'countdown' && poolRevealOpen && (game?.itemPool ?? matchPool) && (
+      {showPool && (
         <MatchPoolReveal
           countdown={countdown}
-          itemPool={game?.itemPool ?? matchPool!}
+          itemPool={pool}
+          early={phase === 'naming'}
+          skipEntrance={phase === 'countdown' && poolRevealPeeked}
+          onClose={closePoolReveal}
         />
       )}
     </>

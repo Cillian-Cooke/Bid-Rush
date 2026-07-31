@@ -1,41 +1,54 @@
 import { EventBanner } from './EventBanner';
+import { PaceBanner } from './PaceBanner';
 import { RoundClock } from './RoundClock';
 import { SuddenDeathBanner } from './SuddenDeathBanner';
 import type { Player, SuddenDeathState, WorldEventState } from '../game/types';
 
 type Props = {
   roundMs: number;
+  elapsedMs: number;
+  paceBannerMs: number;
   suddenDeath: SuddenDeathState;
   worldEvent: WorldEventState;
   players: Player[];
+  onQuit: () => void;
 };
 
-/** Compact top chrome: clock + event/sudden-death banner share one band. */
+/** Top chrome: large timer, banner underneath when live. */
 export function GameChrome({
   roundMs,
+  elapsedMs,
+  paceBannerMs,
   suddenDeath,
   worldEvent,
   players,
+  onQuit,
 }: Props) {
+  const showPace = paceBannerMs > 0;
   const showEvent =
     !suddenDeath.active &&
     (worldEvent.phase === 'warning' || worldEvent.phase === 'active');
+  const showBanner = showPace || suddenDeath.active || showEvent;
 
   return (
     <header className="game-chrome">
-      <RoundClock ms={roundMs} suddenDeath={suddenDeath} />
-      <div className="game-chrome-banner">
-        {suddenDeath.active ? (
-          <SuddenDeathBanner suddenDeath={suddenDeath} players={players} />
-        ) : showEvent ? (
-          <EventBanner worldEvent={worldEvent} roundMs={roundMs} />
-        ) : (
-          <div className="chrome-idle" aria-hidden>
-            <span className="chrome-idle-mark">Bid Rush</span>
-            <span className="chrome-idle-line">Shop is live — bid sharp</span>
-          </div>
-        )}
+      <div className="game-chrome-top">
+        <RoundClock ms={roundMs} suddenDeath={suddenDeath} />
+        <button type="button" className="quit-btn" onClick={onQuit}>
+          Quit
+        </button>
       </div>
+      {showBanner && (
+        <div className="game-chrome-banner">
+          {showPace ? (
+            <PaceBanner elapsedMs={elapsedMs} />
+          ) : suddenDeath.active ? (
+            <SuddenDeathBanner suddenDeath={suddenDeath} players={players} />
+          ) : (
+            <EventBanner worldEvent={worldEvent} roundMs={roundMs} />
+          )}
+        </div>
+      )}
     </header>
   );
 }

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { getItem, passiveChargeProgress } from '../game/items';
 import type { FxKind, HandItem } from '../game/types';
 
@@ -11,6 +11,31 @@ type Props = {
   onReorder: (fromIndex: number, toIndex: number) => void;
 };
 
+const DRAG_THRESHOLD_PX = 10;
+
+function slotIndexFromPoint(
+  x: number,
+  y: number,
+  ignoreIndex?: number,
+): number | null {
+  const stack = document.elementsFromPoint(x, y);
+  for (const el of stack) {
+    const slot = el.closest('[data-hand-slot]');
+    if (!slot) continue;
+    const n = Number(slot.getAttribute('data-hand-slot'));
+    if (!Number.isFinite(n)) continue;
+    if (ignoreIndex != null && n === ignoreIndex) continue;
+    return n;
+  }
+  for (const el of stack) {
+    const slot = el.closest('[data-hand-slot]');
+    if (!slot) continue;
+    const n = Number(slot.getAttribute('data-hand-slot'));
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 export function HandSlot({
   item,
   index,
@@ -19,19 +44,107 @@ export function HandSlot({
   onSelect,
   onReorder,
 }: Props) {
-  const dragFrom = useRef<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    dragging: boolean;
+    canDrag: boolean;
+    over: number | null;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const clearDragOverMarks = () => {
+    document
+      .querySelectorAll('.hand-slot.drag-over')
+      .forEach((n) => n.classList.remove('drag-over'));
+  };
+
+  const markOver = (over: number | null) => {
+    clearDragOverMarks();
+    if (over == null || over === index) return;
+    document
+      .querySelector(`[data-hand-slot="${over}"]`)
+      ?.classList.add('drag-over');
+  };
+
+  const endDrag = (clientX: number, clientY: number) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    clearDragOverMarks();
+    setDragging(false);
+    if (!drag) return;
+
+    if (!drag.dragging) {
+      onSelect();
+      return;
+    }
+
+    const to = slotIndexFromPoint(clientX, clientY, index);
+    if (to != null && to !== index) onReorder(index, to);
+  };
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    if (!item) return;
+    if (e.button !== 0) return;
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      dragging: false,
+      canDrag: item.itemId !== 'bomb',
+      over: index,
+    };
+    rootRef.current?.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: ReactPointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (!drag.canDrag) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (
+      !drag.dragging &&
+      dx * dx + dy * dy >= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX
+    ) {
+      drag.dragging = true;
+      setDragging(true);
+    }
+    if (!drag.dragging) return;
+
+    e.preventDefault();
+    const over = slotIndexFromPoint(e.clientX, e.clientY, index);
+    drag.over = over;
+    markOver(over);
+  };
+
+  const onPointerUp = (e: ReactPointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (rootRef.current?.hasPointerCapture(e.pointerId)) {
+      rootRef.current.releasePointerCapture(e.pointerId);
+    }
+    endDrag(e.clientX, e.clientY);
+  };
+
+  const onPointerCancel = (e: ReactPointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    clearDragOverMarks();
+    setDragging(false);
+  };
 
   if (!item) {
     return (
       <div
+        ref={rootRef}
         className="hand-slot empty"
+        data-hand-slot={index}
         aria-label="Empty slot"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const from = Number(e.dataTransfer.getData('text/hand-index'));
-          if (!Number.isNaN(from)) onReorder(from, index);
-        }}
       />
     );
   }
@@ -54,36 +167,31 @@ export function HandSlot({
 
   return (
     <div
+      ref={rootRef}
       className={[
         'hand-slot',
         'filled',
         isBomb ? 'bomb-slot' : '',
         item.golden ? 'golden' : '',
         selected ? 'selected' : '',
+        dragging ? 'dragging' : '',
         fxKind ? `fx-hand fx-${fxKind}` : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      draggable={!isBomb}
-      onDragStart={(e) => {
-        dragFrom.current = index;
-        e.dataTransfer.setData('text/hand-index', String(index));
-        e.dataTransfer.effectAllowed = 'move';
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        const from = Number(e.dataTransfer.getData('text/hand-index'));
-        if (!Number.isNaN(from) && from !== index) onReorder(from, index);
-      }}
+      data-hand-slot={index}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
     >
       <button
         type="button"
         className="hand-slot-btn"
-        onClick={onSelect}
+        tabIndex={-1}
+        onClick={(e) => {
+          e.preventDefault();
+        }}
         aria-label={`${item.golden ? 'Golden ' : ''}${def.name}${selected ? ', selected' : ''}`}
         aria-pressed={selected}
       >
@@ -98,11 +206,7 @@ export function HandSlot({
           <span className="hand-fuse">{Math.ceil(item.bombFuseMs / 1000)}s</span>
         )}
         {charge != null && (
-          <span
-            className="hand-passive-bar"
-            aria-hidden
-            title="Charging"
-          >
+          <span className="hand-passive-bar" aria-hidden title="Charging">
             <span
               className="hand-passive-fill"
               style={{ transform: `scaleX(${charge})` }}

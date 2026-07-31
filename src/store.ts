@@ -73,6 +73,8 @@ type Store = {
   poolRevealOpen: boolean;
   /** Wall-clock ms when pool reveal must end / match starts */
   poolRevealEndsAt: number | null;
+  /** Opened pool during Tag Sale — skip re-entrance on countdown */
+  poolRevealPeeked: boolean;
 
   setMode: (mode: GameMode) => void;
   setDifficulty: (d: DifficultyMode) => void;
@@ -343,6 +345,7 @@ export const useGameStore = create<Store>((set, get) => ({
   matchPool: null,
   poolRevealOpen: false,
   poolRevealEndsAt: null,
+  poolRevealPeeked: false,
 
   setMode: (mode) => set((s) => ({ lobby: { ...s.lobby, mode } })),
   setDifficulty: (d) => set((s) => ({ lobby: { ...s.lobby, difficulty: d } })),
@@ -370,6 +373,7 @@ export const useGameStore = create<Store>((set, get) => ({
       matchPool,
       poolRevealOpen: false,
       poolRevealEndsAt: null,
+      poolRevealPeeked: false,
     });
 
     namingLoopId = setInterval(() => {
@@ -402,6 +406,7 @@ export const useGameStore = create<Store>((set, get) => ({
       set({
         poolRevealOpen: true,
         poolRevealEndsAt: endsAt,
+        poolRevealPeeked: true,
       });
       return;
     }
@@ -442,6 +447,7 @@ export const useGameStore = create<Store>((set, get) => ({
       countdown: 0,
       poolRevealOpen: false,
       poolRevealEndsAt: null,
+      poolRevealPeeked: false,
     });
     startLoop(get);
   },
@@ -466,6 +472,7 @@ export const useGameStore = create<Store>((set, get) => ({
       matchPool: null,
       poolRevealOpen: false,
       poolRevealEndsAt: null,
+      poolRevealPeeked: false,
     });
   },
 
@@ -486,6 +493,7 @@ export const useGameStore = create<Store>((set, get) => ({
     set({
       poolRevealOpen: false,
       poolRevealEndsAt: null,
+      poolRevealPeeked: false,
       matchPool: null,
     });
     if (lobby.identities && lobby.identities.length > 0) {

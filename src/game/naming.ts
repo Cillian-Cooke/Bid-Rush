@@ -62,7 +62,6 @@ export function createNameAuction(
     isHuman: i === 0,
     color: PLAYER_COLORS[i % PLAYER_COLORS.length]!,
     cooldownMs: i === 0 ? 0 : 150 + Math.floor(rng() * 400),
-    bidsUsed: 0,
   }));
 
   return {
@@ -76,27 +75,23 @@ export function createNameAuction(
   };
 }
 
-/** Tap a tag to bid — free chips, price just tracks claim strength. Max 3 bids. */
+/** Tap a tag to bid. At most MAX_ACTIVE_BIDS concurrent leads (like the shop). */
 export function bidOnNameTag(
   state: NameAuctionState,
   bidderId: string,
   tagId: string,
 ): NameAuctionState {
-  const bidder = state.participants.find((p) => p.id === bidderId);
-  if (!bidder) return state;
-  if (bidder.bidsUsed >= CONFIG.NAME_MAX_BIDS) return state;
-
   const tags = state.tags.map((t) => ({ ...t }));
   const tag = tags.find((t) => t.id === tagId);
   if (!tag) return state;
   if (tag.highBidderId === bidderId) return state;
 
+  const leading = tags.filter((t) => t.highBidderId === bidderId).length;
+  if (leading >= CONFIG.MAX_ACTIVE_BIDS) return state;
+
   tag.price += 1;
   tag.highBidderId = bidderId;
-  const participants = state.participants.map((p) =>
-    p.id === bidderId ? { ...p, bidsUsed: p.bidsUsed + 1 } : { ...p },
-  );
-  return { ...state, tags, participants };
+  return { ...state, tags };
 }
 
 export function tickNameAuction(
@@ -119,12 +114,13 @@ export function tickNameAuction(
   // Bots scramble for tags
   for (const p of next.participants) {
     if (p.isHuman || p.cooldownMs > 0) continue;
-    if (p.bidsUsed >= CONFIG.NAME_MAX_BIDS) {
-      p.cooldownMs = 500;
+
+    const leading = next.tags.filter((t) => t.highBidderId === p.id).length;
+    if (leading >= CONFIG.MAX_ACTIVE_BIDS) {
+      p.cooldownMs = 400 + rng() * 400;
       continue;
     }
 
-    const leading = next.tags.filter((t) => t.highBidderId === p.id).length;
     // Prefer grabbing something if empty-handed
     const open = next.tags.filter((t) => t.highBidderId !== p.id);
     if (open.length === 0) {

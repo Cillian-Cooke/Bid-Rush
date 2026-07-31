@@ -39,8 +39,6 @@ export type NameAuctionParticipant = {
   color: string;
   /** Bot bid cooldown */
   cooldownMs: number;
-  /** Bids placed this Tag Sale (cap = NAME_MAX_BIDS) */
-  bidsUsed: number;
 };
 
 export type NameAuctionState = {
@@ -254,6 +252,10 @@ export type GameState = {
   players: Player[];
   tiles: Tile[];
   roundMs: number;
+  /** Wall-clock match time — keeps rising through sudden death */
+  elapsedMs: number;
+  /** Ms left showing the pace-up banner (0 = hidden) */
+  paceBannerMs: number;
   humanId: string;
   seed: number;
   events: GameEvent[];
