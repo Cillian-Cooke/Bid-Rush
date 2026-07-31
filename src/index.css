@@ -1715,50 +1715,21 @@ button {
 }
 
 .purse.heat-critical .purse-value {
-  color: #ff4d3d;
   animation: purse-low-shake 0.45s ease-in-out infinite;
 }
 
-.purse.heat-low .purse-value {
-  color: #ff7a45;
+.purse.heat-award {
+  border-color: color-mix(in srgb, var(--purse-tint, var(--yell)) 55%, var(--line));
+  box-shadow: inset 0 0 20px color-mix(in srgb, var(--purse-tint, var(--yell)) 22%, transparent);
 }
 
-.purse.heat-warm .purse-value {
-  color: var(--yell);
+.purse.heat-award .purse-value {
+  font-weight: 800;
+  letter-spacing: 0.03em;
 }
 
-/* Milestone awards — unlocked every 100 coins */
-.purse.heat-century .purse-value {
-  background: linear-gradient(180deg, #7dffb2, #1ecf6c);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 6px rgba(30, 207, 108, 0.45));
-}
-
-.purse.heat-double .purse-value {
-  background: linear-gradient(180deg, #9ad4ff, #2f7fff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 7px rgba(47, 127, 255, 0.5));
-}
-
-.purse.heat-triple .purse-value {
-  background: linear-gradient(180deg, #e0b3ff, #a855f7);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.55));
-}
-
-.purse.heat-quad .purse-value {
-  background: linear-gradient(180deg, #ffd36a, #ff7a18);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 9px rgba(255, 122, 24, 0.55));
-  animation: purse-blaze 2.2s linear infinite;
+.purse[style*='--purse-tint'] {
+  border-color: color-mix(in srgb, var(--purse-tint) 35%, var(--line));
 }
 
 .purse.heat-rainbow .purse-value {
@@ -1777,15 +1748,6 @@ button {
   color: transparent;
   filter: drop-shadow(0 0 10px rgba(255, 217, 61, 0.55));
   animation: purse-rainbow 2.8s linear infinite;
-}
-
-.purse.heat-century,
-.purse.heat-double,
-.purse.heat-triple,
-.purse.heat-quad,
-.purse.heat-rainbow {
-  border-color: color-mix(in srgb, var(--yell) 40%, var(--line));
-  box-shadow: inset 0 0 18px rgba(255, 210, 80, 0.08);
 }
 
 .purse.heat-rainbow {
