@@ -8,8 +8,9 @@ import {
   sellItem,
   tick,
   applyUseItem,
+  reorderHand,
 } from './game/engine';
-import { getItem } from './game/items';
+import { getItem, pickMatchPool } from './game/items';
 import {
   bidOnNameTag,
   createNameAuction,
@@ -21,6 +22,7 @@ import type {
   FxKind,
   GameEvent,
   GameState,
+  ItemId,
   LobbyConfig,
   NameAuctionState,
   Phase,
@@ -61,6 +63,17 @@ type Store = {
   floats: FloatText[];
   activeFx: FxInstance[];
   lastEvents: GameEvent[];
+  /** Human died mid-match; show play again / spectate / menu */
+  knockoutOffer: boolean;
+  knockoutReason: 'unpaid' | 'bomb' | 'bracket' | null;
+  /** Watching remaining players' hands after knockout */
+  spectating: boolean;
+  /** Match item pool (picked at Tag Sale start) */
+  matchPool: ItemId[] | null;
+  /** Pool reveal visible (early peek or mandatory countdown) */
+  poolRevealOpen: boolean;
+  /** Wall-clock ms when pool reveal must end / match starts */
+  poolRevealEndsAt: number | null;
 
   setMode: (mode: GameMode) => void;
   setDifficulty: (d: DifficultyMode) => void;
@@ -69,9 +82,13 @@ type Store = {
   startNaming: (mode: GameMode) => void;
   bidNameTag: (tagId: string) => void;
   finishNaming: () => void;
+  openPoolReveal: () => void;
+  closePoolReveal: () => void;
 
   beginPlaying: () => void;
   returnToLobby: () => void;
+  enterSpectate: () => void;
+  replayMatch: () => void;
 
   bidTile: (tileIndex: number) => void;
   sellFocused: () => void;
@@ -79,6 +96,7 @@ type Store = {
   cancelTargeting: () => void;
   selectTargetTile: (tileIndex: number) => void;
   selectTargetPlayer: (playerId: string) => void;
+  reorderHandSlots: (fromIndex: number, toIndex: number) => void;
 
   masterTick: () => void;
 };
@@ -127,6 +145,25 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
         id: ++floatSeq,
         playerId: e.playerId,
         text: `+${e.amount} 🪙`,
+        createdAt: now,
+      });
+    } else if (e.type === 'overflow_sell') {
+      next.push({
+        id: ++floatSeq,
+        playerId: e.playerId,
+        text: `${e.emoji} SOLD +${e.amount}`,
+        createdAt: now,
+      });
+    } else if (e.type === 'eliminate') {
+      next.push({
+        id: ++floatSeq,
+        playerId: e.playerId,
+        text:
+          e.reason === 'bomb'
+            ? '💥 OUT'
+            : e.reason === 'bracket'
+              ? '💀 OUT'
+              : '💸 OUT',
         createdAt: now,
       });
     } else if (e.type === 'loss') {
@@ -245,26 +282,48 @@ function startCountdownFromGame(get: () => Store, set: (p: Partial<Store>) => vo
   stopCountdown();
   stopNamingLoop();
   rng = createRng(game.seed);
+
+  const existingEnds = get().poolRevealEndsAt;
+  const endsAt =
+    existingEnds != null && existingEnds > Date.now()
+      ? existingEnds
+      : Date.now() + CONFIG.POOL_REVEAL_MS;
+  const secsLeft = Math.max(1, Math.ceil((endsAt - Date.now()) / 1000));
+
   set({
     phase: 'countdown',
-    countdown: 3,
+    countdown: secsLeft,
     game,
     naming: null,
     targeting: null,
     handFocus: null,
     floats: [],
     activeFx: [],
+    knockoutOffer: false,
+    knockoutReason: null,
+    spectating: false,
+    poolRevealOpen: true,
+    poolRevealEndsAt: endsAt,
+    matchPool: game.itemPool,
   });
 
   countdownId = setInterval(() => {
-    const c = get().countdown;
-    if (c <= 0) {
+    const ends = get().poolRevealEndsAt;
+    if (!ends) {
       stopCountdown();
       get().beginPlaying();
-    } else {
-      set({ countdown: c - 1 });
+      return;
     }
-  }, 1000);
+    const remain = ends - Date.now();
+    if (remain <= 0) {
+      stopCountdown();
+      set({ countdown: 0 });
+      // Brief GO beat then play
+      window.setTimeout(() => get().beginPlaying(), 450);
+      return;
+    }
+    set({ countdown: Math.max(1, Math.ceil(remain / 1000)) });
+  }, CONFIG.TICK_MS);
 }
 
 export const useGameStore = create<Store>((set, get) => ({
@@ -279,6 +338,12 @@ export const useGameStore = create<Store>((set, get) => ({
   floats: [],
   activeFx: [],
   lastEvents: [],
+  knockoutOffer: false,
+  knockoutReason: null,
+  spectating: false,
+  matchPool: null,
+  poolRevealOpen: false,
+  poolRevealEndsAt: null,
 
   setMode: (mode) => set((s) => ({ lobby: { ...s.lobby, mode } })),
   setDifficulty: (d) => set((s) => ({ lobby: { ...s.lobby, difficulty: d } })),
@@ -290,6 +355,8 @@ export const useGameStore = create<Store>((set, get) => ({
     stopNamingLoop();
     const difficulty = get().lobby.difficulty;
     const naming = createNameAuction(mode, difficulty);
+    const poolRng = createRng(naming.seed ^ 0x51ceed);
+    const matchPool = pickMatchPool(poolRng);
     set({
       phase: 'naming',
       lobby: { ...get().lobby, mode },
@@ -298,6 +365,12 @@ export const useGameStore = create<Store>((set, get) => ({
       codexOpen: false,
       floats: [],
       activeFx: [],
+      knockoutOffer: false,
+      knockoutReason: null,
+      spectating: false,
+      matchPool,
+      poolRevealOpen: false,
+      poolRevealEndsAt: null,
     });
 
     namingLoopId = setInterval(() => {
@@ -320,23 +393,57 @@ export const useGameStore = create<Store>((set, get) => ({
     set({ naming: bidOnNameTag(naming, naming.humanId, tagId) });
   },
 
+  openPoolReveal: () => {
+    const { phase, naming, matchPool, poolRevealEndsAt } = get();
+    if (!matchPool) return;
+    if (phase === 'naming') {
+      const endsAt =
+        poolRevealEndsAt ??
+        Date.now() + (naming?.msLeft ?? 0) + CONFIG.POOL_REVEAL_MS;
+      set({
+        poolRevealOpen: true,
+        poolRevealEndsAt: endsAt,
+      });
+      return;
+    }
+    if (phase === 'countdown') {
+      set({ poolRevealOpen: true });
+    }
+  },
+
+  closePoolReveal: () => {
+    const { phase } = get();
+    // Only dismissible during Tag Sale (early peek)
+    if (phase !== 'naming') return;
+    set({ poolRevealOpen: false });
+  },
+
   finishNaming: () => {
     stopNamingLoop();
-    const { naming, lobby } = get();
+    const { naming, lobby, matchPool } = get();
     if (!naming) return;
     const identities = resolveNameAuction(naming);
-    const game = createInitialState({
-      mode: naming.mode,
-      difficulty: naming.difficulty,
-      identities,
-    }, naming.seed);
+    const game = createInitialState(
+      {
+        mode: naming.mode,
+        difficulty: naming.difficulty,
+        identities,
+      },
+      naming.seed,
+      matchPool ?? undefined,
+    );
     startCountdownFromGame(get, set, game);
     set({ lobby: { ...lobby, mode: naming.mode, identities } });
   },
 
   beginPlaying: () => {
     stopCountdown();
-    set({ phase: 'playing', countdown: 0 });
+    set({
+      phase: 'playing',
+      countdown: 0,
+      poolRevealOpen: false,
+      poolRevealEndsAt: null,
+    });
     startLoop(get);
   },
 
@@ -352,20 +459,66 @@ export const useGameStore = create<Store>((set, get) => ({
       handFocus: null,
       floats: [],
       activeFx: [],
-      countdown: 3,
+      countdown: 0,
       codexOpen: false,
+      knockoutOffer: false,
+      knockoutReason: null,
+      spectating: false,
+      matchPool: null,
+      poolRevealOpen: false,
+      poolRevealEndsAt: null,
     });
   },
 
+  enterSpectate: () => {
+    set({
+      knockoutOffer: false,
+      spectating: true,
+      targeting: null,
+      handFocus: null,
+    });
+  },
+
+  replayMatch: () => {
+    const { lobby } = get();
+    stopLoop();
+    stopCountdown();
+    stopNamingLoop();
+    set({
+      poolRevealOpen: false,
+      poolRevealEndsAt: null,
+      matchPool: null,
+    });
+    if (lobby.identities && lobby.identities.length > 0) {
+      const game = createInitialState(
+        {
+          mode: lobby.mode,
+          difficulty: lobby.difficulty,
+          identities: lobby.identities,
+        },
+        Date.now(),
+      );
+      startCountdownFromGame(get, set, game);
+      return;
+    }
+    get().startNaming(lobby.mode);
+  },
+
   bidTile: (tileIndex) => {
-    const { game, phase, targeting } = get();
-    if (!game || phase !== 'playing' || targeting) return;
+    const { game, phase, targeting, spectating, knockoutOffer } = get();
+    if (!game || phase !== 'playing' || targeting || spectating || knockoutOffer)
+      return;
+    const human = game.players.find((p) => p.id === game.humanId);
+    if (!human?.isAlive) return;
     commitGame(set, get, bid(game, game.humanId, tileIndex));
   },
 
   sellFocused: () => {
-    const { game, phase, targeting, handFocus } = get();
-    if (!game || phase !== 'playing') return;
+    const { game, phase, targeting, handFocus, spectating, knockoutOffer } =
+      get();
+    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
+    const human = game.players.find((p) => p.id === game.humanId);
+    if (!human?.isAlive) return;
     const instanceId = targeting?.instanceId ?? handFocus;
     if (!instanceId) return;
     commitGame(set, get, sellItem(game, game.humanId, instanceId, rng), {
@@ -375,11 +528,25 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   selectHandItem: (instanceId) => {
-    const { game, phase, handFocus, targeting } = get();
-    if (!game || phase !== 'playing') return;
+    const { game, phase, handFocus, targeting, spectating, knockoutOffer } =
+      get();
+    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
     const human = game.players.find((p) => p.id === game.humanId);
-    const item = human?.hand.find((h) => h.instanceId === instanceId);
+    if (!human?.isAlive) return;
+    const item = human.hand.find((h) => h.instanceId === instanceId);
     if (!item) return;
+
+    if (
+      targeting?.target === 'hand-then-item' &&
+      targeting.selectedHandInstanceId === undefined &&
+      instanceId !== targeting.instanceId
+    ) {
+      if (item.itemId === 'bomb') return;
+      set({
+        targeting: { ...targeting, selectedHandInstanceId: instanceId },
+      });
+      return;
+    }
 
     if (handFocus === instanceId || targeting?.instanceId === instanceId) {
       set({ handFocus: null, targeting: null });
@@ -393,6 +560,14 @@ export const useGameStore = create<Store>((set, get) => ({
       return;
     }
 
+    if (item.itemId === 'time_freeze' && item.golden) {
+      commitGame(set, get, applyUseItem(game, game.humanId, instanceId, {}, rng), {
+        targeting: null,
+        handFocus: null,
+      });
+      return;
+    }
+
     if (def.target === 'none' || def.target === 'all-items') {
       commitGame(set, get, applyUseItem(game, game.humanId, instanceId, {}, rng), {
         targeting: null,
@@ -401,13 +576,19 @@ export const useGameStore = create<Store>((set, get) => ({
       return;
     }
 
+    const target =
+      item.itemId === 'swap_portal' && item.golden
+        ? ('hand-then-item' as const)
+        : def.target;
+
     set({
       handFocus: instanceId,
       targeting: {
         playerId: game.humanId,
         instanceId,
         itemId: item.itemId,
-        target: def.target,
+        target,
+        golden: item.golden,
       },
     });
   },
@@ -417,6 +598,26 @@ export const useGameStore = create<Store>((set, get) => ({
   selectTargetTile: (tileIndex) => {
     const { game, targeting } = get();
     if (!game || !targeting) return;
+
+    if (targeting.target === 'hand-then-item') {
+      if (!targeting.selectedHandInstanceId) return;
+      commitGame(
+        set,
+        get,
+        applyUseItem(
+          game,
+          targeting.playerId,
+          targeting.instanceId,
+          {
+            tileIndex,
+            handInstanceId: targeting.selectedHandInstanceId,
+          },
+          rng,
+        ),
+        { targeting: null, handFocus: null },
+      );
+      return;
+    }
 
     if (targeting.target === 'item') {
       commitGame(
@@ -466,16 +667,27 @@ export const useGameStore = create<Store>((set, get) => ({
         game,
         targeting.playerId,
         targeting.instanceId,
-        { playerId } satisfies UseTargets,
+        { playerId },
         rng,
       ),
       { targeting: null, handFocus: null },
     );
   },
 
+  reorderHandSlots: (fromIndex, toIndex) => {
+    const { game, phase, spectating, knockoutOffer } = get();
+    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
+    const human = game.players.find((p) => p.id === game.humanId);
+    if (!human?.isAlive) return;
+    commitGame(set, get, reorderHand(game, game.humanId, fromIndex, toIndex));
+  },
+
   masterTick: () => {
-    const { game, phase, handFocus } = get();
+    const { game, phase, handFocus, knockoutOffer, spectating } = get();
     if (!game || phase !== 'playing') return;
+
+    const wasAlive =
+      game.players.find((p) => p.id === game.humanId)?.isAlive ?? false;
 
     let next = tick(game, CONFIG.TICK_MS, rng);
     if (!next.ended) {
@@ -486,10 +698,29 @@ export const useGameStore = create<Store>((set, get) => ({
 
     let focus = handFocus;
     if (focus) {
-      const human = ingested.game.players.find((p) => p.id === ingested.game.humanId);
+      const human = ingested.game.players.find(
+        (p) => p.id === ingested.game.humanId,
+      );
       if (!human?.hand.some((h) => h.instanceId === focus)) {
         focus = null;
       }
+    }
+
+    const humanNow = ingested.game.players.find(
+      (p) => p.id === ingested.game.humanId,
+    );
+    const justDied = wasAlive && humanNow && !humanNow.isAlive;
+
+    let offer = knockoutOffer;
+    let reason = get().knockoutReason;
+    if (justDied && !spectating) {
+      offer = true;
+      focus = null;
+      const elim = ingested.lastEvents.find(
+        (e) => e.type === 'eliminate' && e.playerId === ingested.game.humanId,
+      );
+      reason =
+        elim && elim.type === 'eliminate' ? elim.reason : reason ?? 'unpaid';
     }
 
     if (ingested.game.ended) {
@@ -502,6 +733,7 @@ export const useGameStore = create<Store>((set, get) => ({
         lastEvents: ingested.lastEvents,
         targeting: null,
         handFocus: null,
+        knockoutOffer: false,
       });
       return;
     }
@@ -512,6 +744,9 @@ export const useGameStore = create<Store>((set, get) => ({
       activeFx: ingested.activeFx,
       lastEvents: ingested.lastEvents,
       handFocus: focus,
+      knockoutOffer: offer,
+      knockoutReason: reason,
+      ...(justDied ? { targeting: null } : {}),
     });
   },
 }));

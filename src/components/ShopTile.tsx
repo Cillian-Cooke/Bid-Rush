@@ -49,7 +49,6 @@ export function ShopTile({
   onTap,
 }: Props) {
   const def = getItem(tile.itemId);
-  const isBomb = tile.itemId === 'bomb';
   const ratio = Math.max(0, Math.min(1, tile.timerMs / CONFIG.TILE_TIMER_MS));
   const nearlyExpired = tile.timerMs <= 2000 && tile.freezeMs <= 0;
   const frozen = tile.freezeMs > 0;
@@ -59,7 +58,6 @@ export function ShopTile({
       type="button"
       className={[
         'shop-tile',
-        isBomb && !bidderColor ? 'bomb' : '',
         nearlyExpired ? 'pulse' : '',
         frozen ? 'frozen' : '',
         tile.flash === 'bid' ? 'pop' : '',
@@ -82,10 +80,15 @@ export function ShopTile({
           : undefined
       }
       onClick={onTap}
-      aria-label={`${def.name}, price ${tile.price}`}
+      aria-label={`${def.name}, price ${tile.price}${tile.bidLocked ? ', locked' : ''}`}
     >
       <span className="shop-tile-emoji">{def.emoji}</span>
       <span className="shop-tile-price">🪙 {tile.price}</span>
+      {tile.bidLocked && (
+        <span className="shop-tile-lock" aria-hidden>
+          🔐
+        </span>
+      )}
       {frozen && <span className="shop-tile-frost">❄️</span>}
       {fxKind && (
         <span className="tile-fx-burst" aria-hidden>

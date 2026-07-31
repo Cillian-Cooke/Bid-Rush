@@ -92,7 +92,7 @@ export function Lobby() {
             <span className="mode-copy">
               <span className="mode-title">{MODE_SETUP.blitz.label}</span>
               <span className="mode-blurb">{MODE_SETUP.blitz.blurb}</span>
-              <span className="mode-meta">4×4 · 8 players</span>
+              <span className="mode-meta">4×4 · 4 players</span>
             </span>
           </button>
         </div>

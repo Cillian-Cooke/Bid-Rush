@@ -15,6 +15,8 @@ export const CONFIG = {
   HANDCUFF_MS: 6_000,
   TIME_FREEZE_MS: 6_000,
   OVERTIME_MS: 6_000,
+  MEGA_FREEZE_MS: 4_000,
+  GILDER_MS: 30_000,
   COUNTDOWN_MS: 3_000,
   COMEBACK_GAP: 6,
   COMEBACK_INTERVAL_MS: 5_000,
@@ -24,7 +26,11 @@ export const CONFIG = {
   MAX_ACTIVE_BIDS: 3,
   /** Pre-match handle auction length */
   NAME_AUCTION_MS: 5_000,
-  /** World event: banner warning when clock hits 2:30 */
+  /** Max bids each player may place in Tag Sale */
+  NAME_MAX_BIDS: 3,
+  /** Match item pool stays on screen this long (from scheduled start) */
+  POOL_REVEAL_MS: 5_000,
+  /** Mid-match floor event (warn @ 2:30, live @ 2:00 for 30s) */
   EVENT_WARN_AT_MS: 150_000,
   /** World event: starts when clock hits 2:00 */
   EVENT_START_AT_MS: 120_000,
@@ -32,6 +38,10 @@ export const CONFIG = {
   EVENT_DURATION_MS: 30_000,
   /** Periodic world-event pulse (tax, shower, shuffle, inflate) */
   EVENT_PULSE_MS: 5_000,
+  /** Sudden death: time per coin bracket before cull */
+  SUDDEN_DEATH_PHASE_MS: 30_000,
+  /** Sudden death: first coin threshold */
+  SUDDEN_DEATH_START_BRACKET: 100,
 } as const;
 
 export const MODE_SETUP = {
@@ -47,9 +57,9 @@ export const MODE_SETUP = {
   blitz: {
     id: 'blitz' as const,
     label: 'Blitz',
-    blurb: '8 players, chaotic 4×4 floor',
-    players: 8,
-    botCount: 7,
+    blurb: '4 players, chaotic 4×4 floor',
+    players: 4,
+    botCount: 3,
     gridSize: 16,
     gridCols: 4,
   },

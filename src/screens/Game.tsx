@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
-import { EventBanner } from '../components/EventBanner';
 import { ExplosionFx } from '../components/ExplosionFx';
 import { FxLayer } from '../components/FxLayer';
+import { GameChrome } from '../components/GameChrome';
 import { HandSlot } from '../components/HandSlot';
-import { PlayerPanel } from '../components/PlayerPanel';
-import { RoundClock } from '../components/RoundClock';
+import { KnockoutOverlay } from '../components/KnockoutOverlay';
+import { PurseStrip } from '../components/PurseStrip';
 import { ShopTile } from '../components/ShopTile';
+import { SpectateHands } from '../components/SpectateHands';
 import { TargetingOverlay } from '../components/TargetingOverlay';
 import { CONFIG } from '../game/constants';
 import { getItem } from '../game/items';
+import type { FxKind } from '../game/types';
 import {
   fxForHandItem,
   fxForPlayer,
@@ -22,12 +24,20 @@ export function Game() {
   const handFocus = useGameStore((s) => s.handFocus);
   const floats = useGameStore((s) => s.floats);
   const activeFx = useGameStore((s) => s.activeFx);
+  const knockoutOffer = useGameStore((s) => s.knockoutOffer);
+  const knockoutReason = useGameStore((s) => s.knockoutReason);
+  const spectating = useGameStore((s) => s.spectating);
+  const phase = useGameStore((s) => s.phase);
   const bidTile = useGameStore((s) => s.bidTile);
   const sellFocused = useGameStore((s) => s.sellFocused);
   const selectHandItem = useGameStore((s) => s.selectHandItem);
   const cancelTargeting = useGameStore((s) => s.cancelTargeting);
   const selectTargetTile = useGameStore((s) => s.selectTargetTile);
   const selectTargetPlayer = useGameStore((s) => s.selectTargetPlayer);
+  const reorderHandSlots = useGameStore((s) => s.reorderHandSlots);
+  const enterSpectate = useGameStore((s) => s.enterSpectate);
+  const replayMatch = useGameStore((s) => s.replayMatch);
+  const returnToLobby = useGameStore((s) => s.returnToLobby);
 
   const colorById = useMemo(() => {
     const map = new Map<string, string>();
@@ -36,11 +46,32 @@ export function Game() {
     return map;
   }, [game]);
 
+  const fxByPlayer = useMemo(() => {
+    const map = new Map<string, { kind: FxKind; label?: string | null }>();
+    if (!game) return map;
+    for (const p of game.players) {
+      const fx = fxForPlayer(activeFx, p.id);
+      const castFx = activeFx
+        .filter((f) => f.kind === 'active_cast' && f.playerId === p.id)
+        .at(-1);
+      const show = castFx ?? fx;
+      if (show) {
+        map.set(p.id, {
+          kind: show.kind,
+          label: castFx?.label ?? null,
+        });
+      }
+    }
+    return map;
+  }, [game, activeFx]);
+
   if (!game) return null;
 
   const human = game.players.find((p) => p.id === game.humanId)!;
   const others = game.players.filter((p) => p.id !== game.humanId);
-  const seatOrder = [human, ...others];
+  const sd = game.suddenDeath;
+  const humanAtRisk =
+    sd.active && human.isAlive && human.coins < sd.bracket;
 
   const floatFor = (playerId: string) => {
     const f = floats.filter((x) => x.playerId === playerId).at(-1);
@@ -52,7 +83,7 @@ export function Game() {
     targeting?.target === 'item' || targeting?.target === 'two-items';
 
   const focusedId = targeting?.instanceId ?? handFocus;
-  const inUseMode = !!focusedId;
+  const inUseMode = !!focusedId && !spectating && human.isAlive;
   const focusedItem = focusedId
     ? human.hand.find((h) => h.instanceId === focusedId)
     : null;
@@ -66,17 +97,44 @@ export function Game() {
       : null;
 
   const cols = game.gridCols;
+  const zoomedOut = knockoutOffer || spectating;
+  const dockMotion = [
+    'status-dock',
+    phase === 'countdown' ? 'dock-pre' : '',
+    phase === 'playing' && !knockoutOffer ? 'dock-in' : '',
+    knockoutOffer ? 'dock-out' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div
-      className={`screen game-screen mode-${game.mode}${targeting ? ' targeting-active' : ''}${inUseMode ? ' use-mode' : ''}`}
+      className={[
+        'screen',
+        'game-screen',
+        `mode-${game.mode}`,
+        targeting ? 'targeting-active' : '',
+        inUseMode ? 'use-mode' : '',
+        sd.active ? 'sudden-death-live' : '',
+        humanAtRisk ? 'sd-human-risk' : '',
+        zoomedOut ? 'knocked-out' : '',
+        spectating ? 'spectating' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={{ ['--grid-cols' as string]: cols }}
     >
-      <RoundClock ms={game.roundMs} />
+      <GameChrome
+        roundMs={game.roundMs}
+        suddenDeath={game.suddenDeath}
+        worldEvent={game.worldEvent}
+        players={game.players}
+      />
 
       {targeting && (
         <TargetingOverlay targeting={targeting} onCancel={cancelTargeting} />
       )}
-      {!targeting && handFocus && focusedItem && (
+      {!targeting && handFocus && focusedItem && human.isAlive && !spectating && (
         <div className="use-mode-banner">
           <span>{getItem(focusedItem.itemId).emoji}</span>
           <span>Sell or tap again to cancel</span>
@@ -87,13 +145,8 @@ export function Game() {
       )}
       <ExplosionFx />
 
-      <div
-        className="game-main"
-        style={{ ['--grid-cols' as string]: cols }}
-      >
+      <div className="game-main">
         <div className="game-stage">
-          <EventBanner worldEvent={game.worldEvent} roundMs={game.roundMs} />
-
           <div
             className="shop-grid"
             style={{
@@ -113,11 +166,12 @@ export function Game() {
                   tile={tile}
                   bidderColor={bidderColor}
                   isYou={tile.highBidderId === human.id}
-                  targeting={!!targetingTiles}
+                  targeting={!!targetingTiles && human.isAlive && !spectating}
                   selected={targeting?.selectedTile === tile.index}
                   fxKind={fx?.kind ?? null}
                   fxLabel={fx?.label}
                   onTap={() => {
+                    if (spectating || knockoutOffer || !human.isAlive) return;
                     if (targetingTiles) selectTargetTile(tile.index);
                     else if (!targeting) bidTile(tile.index);
                   }}
@@ -126,70 +180,76 @@ export function Game() {
             })}
           </div>
         </div>
+      </div>
 
-        <div className="player-band">
-          <div className="player-row">
-            {seatOrder.map((p) => {
-              const fx = fxForPlayer(activeFx, p.id);
-              const castFx = activeFx
-                .filter((f) => f.kind === 'active_cast' && f.playerId === p.id)
-                .at(-1);
-              const showFx = castFx ?? fx;
-              const canTarget =
-                targetingPlayers && p.id !== human.id && p.isAlive;
-              return (
-                <PlayerPanel
-                  key={p.id}
-                  player={p}
-                  isYou={p.id === human.id}
-                  compact
-                  targeting={!!canTarget}
-                  floatText={floatFor(p.id)}
-                  fxKind={showFx?.kind ?? null}
-                  fxLabel={castFx?.label ?? null}
-                  onTap={canTarget ? () => selectTargetPlayer(p.id) : undefined}
+      {!spectating && (
+        <div className={dockMotion}>
+          <PurseStrip
+            human={human}
+            others={others}
+            mode={game.mode}
+            atRisk={humanAtRisk}
+            suddenBracket={sd.active ? sd.bracket : null}
+            floatText={floatFor(human.id)}
+            rivalFloatText={others[0] ? floatFor(others[0].id) : null}
+            targetingPlayers={!!targetingPlayers && human.isAlive}
+            fxByPlayer={fxByPlayer}
+            onSelectPlayer={selectTargetPlayer}
+          />
+          <div className="hand-bar">
+            <span className="hand-label">HAND</span>
+            <div className="hand-slots">
+              {handSlots.map((item, i) => {
+                const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
+                return (
+                  <HandSlot
+                    key={item?.instanceId ?? `empty-${i}`}
+                    item={item}
+                    index={i}
+                    selected={!!item && item.instanceId === focusedId}
+                    fxKind={fx?.kind ?? null}
+                    onSelect={() => item && selectHandItem(item.instanceId)}
+                    onReorder={reorderHandSlots}
+                  />
+                );
+              })}
+              {overflowBomb && (
+                <HandSlot
+                  item={overflowBomb}
+                  index={CONFIG.HAND_SLOTS}
+                  selected={overflowBomb.instanceId === focusedId}
+                  fxKind={
+                    fxForHandItem(activeFx, overflowBomb.instanceId)?.kind ?? null
+                  }
+                  onSelect={() => selectHandItem(overflowBomb.instanceId)}
+                  onReorder={reorderHandSlots}
                 />
-              );
-            })}
+              )}
+            </div>
+            {inUseMode && (
+              <button
+                type="button"
+                className="sell-fab"
+                onClick={sellFocused}
+                aria-label="Sell selected item"
+              >
+                💰
+              </button>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="hand-bar">
-        <span className="hand-label">HAND</span>
-        <div className="hand-slots">
-          {handSlots.map((item, i) => {
-            const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
-            return (
-              <HandSlot
-                key={item?.instanceId ?? `empty-${i}`}
-                item={item}
-                selected={!!item && item.instanceId === focusedId}
-                fxKind={fx?.kind ?? null}
-                onSelect={() => item && selectHandItem(item.instanceId)}
-              />
-            );
-          })}
-          {overflowBomb && (
-            <HandSlot
-              item={overflowBomb}
-              selected={overflowBomb.instanceId === focusedId}
-              fxKind={fxForHandItem(activeFx, overflowBomb.instanceId)?.kind ?? null}
-              onSelect={() => selectHandItem(overflowBomb.instanceId)}
-            />
-          )}
-        </div>
-        {inUseMode && (
-          <button
-            type="button"
-            className="sell-fab"
-            onClick={sellFocused}
-            aria-label="Sell selected item"
-          >
-            💰
-          </button>
-        )}
-      </div>
+      {spectating && <SpectateHands players={game.players} />}
+
+      {knockoutOffer && (
+        <KnockoutOverlay
+          reason={knockoutReason}
+          onPlayAgain={replayMatch}
+          onSpectate={enterSpectate}
+          onMenu={returnToLobby}
+        />
+      )}
     </div>
   );
 }

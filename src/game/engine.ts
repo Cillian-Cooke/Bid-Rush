@@ -1,5 +1,5 @@
 import { AVATAR_EMOJIS, CONFIG, MODE_SETUP, PLAYER_COLORS } from './constants';
-import { getItem, weightedRandomItem } from './items';
+import { getItem, pickMatchPool, weightedRandomItem } from './items';
 import { createRng } from './rng';
 import type {
   BotArchetype,
@@ -52,6 +52,8 @@ function cloneState(state: GameState): GameState {
     tiles: state.tiles.map((t) => ({ ...t })),
     events: [...state.events],
     worldEvent: { ...state.worldEvent },
+    suddenDeath: { ...state.suddenDeath },
+    itemPool: [...state.itemPool],
   };
 }
 
@@ -63,6 +65,7 @@ function makeTile(index: number, itemId: ItemId): Tile {
     timerMs: CONFIG.TILE_TIMER_MS,
     highBidderId: null,
     freezeMs: 0,
+    bidLocked: false,
     flash: null,
     flashMs: 0,
   };
@@ -79,12 +82,150 @@ function makeHandItem(
   return {
     instanceId,
     itemId,
+    golden: false,
     passiveAccMs: 0,
     dividendGrowAccMs: 0,
     currentSellValue: def.sellValue,
     stored: 0,
     bombFuseMs: withBombFuse || itemId === 'bomb' ? CONFIG.BOMB_FUSE_MS : null,
+    gilderAccMs: 0,
   };
+}
+
+function sellValueOf(item: HandItem): number {
+  if (item.itemId === 'bomb') return item.golden ? 100 : 0;
+  if (item.itemId === 'mystery_box') return item.currentSellValue;
+  if (item.itemId === 'piggy_bank') return 2 + item.stored;
+  return item.currentSellValue;
+}
+
+function adjacencyMult(hand: HandItem[], index: number): number {
+  let m = 1;
+  const left = hand[index - 1];
+  const right = hand[index + 1];
+  // Echo to the left doubles this item (its right neighbor)
+  if (left?.itemId === 'echo_lens') m *= 2;
+  // Golden echo to the right also doubles this item (its left neighbor)
+  if (right?.itemId === 'echo_lens' && right.golden) m *= 2;
+  return m;
+}
+
+/** Tip Jar aura: +1 (golden +2) to every passive coin output. */
+function tipBonus(player: Player): number {
+  let bonus = 0;
+  for (const h of player.hand) {
+    if (h.itemId === 'tip_jar') bonus += h.golden ? 2 : 1;
+  }
+  return bonus;
+}
+
+/** Haste Gear aura: speeds up ticking passives (stacks multiplicatively). */
+function hasteFactor(player: Player): number {
+  let factor = 1;
+  for (const h of player.hand) {
+    if (h.itemId === 'haste_gear') factor *= h.golden ? 2 : 1.5;
+  }
+  return factor;
+}
+
+function grantCoins(
+  state: GameState,
+  player: Player,
+  amount: number,
+  emoji: string,
+): void {
+  if (amount <= 0) return;
+  const pay = amount + tipBonus(player);
+  player.coins += pay;
+  state.events.push({
+    type: 'income',
+    playerId: player.id,
+    amount: pay,
+    emoji,
+  });
+}
+
+function makeGoldenFrom(
+  state: GameState,
+  itemId: ItemId,
+  parts: HandItem[],
+): HandItem {
+  const golden = makeHandItem(state, itemId);
+  golden.golden = true;
+  golden.currentSellValue = parts.reduce((s, h) => s + sellValueOf(h), 0);
+  golden.stored = parts.reduce((s, h) => s + h.stored, 0);
+  if (itemId === 'piggy_bank') {
+    golden.currentSellValue = 2 + golden.stored;
+  }
+  if (itemId === 'bomb') {
+    golden.bombFuseMs = parts.reduce((s, h) => s + (h.bombFuseMs ?? 0), 0);
+    golden.currentSellValue = 100;
+  }
+  return golden;
+}
+
+/** Merge every set of 3 non-golden copies of the same item into one golden. */
+function tryAutoMerge(state: GameState, player: Player): void {
+  let merged = true;
+  while (merged) {
+    merged = false;
+    const groups = new Map<ItemId, number[]>();
+    for (let i = 0; i < player.hand.length; i++) {
+      const h = player.hand[i]!;
+      if (h.golden) continue;
+      const list = groups.get(h.itemId) ?? [];
+      list.push(i);
+      groups.set(h.itemId, list);
+    }
+    for (const [itemId, idxs] of groups) {
+      if (idxs.length < 3) continue;
+      const take = idxs.slice(0, 3);
+      const parts = take.map((i) => player.hand[i]!);
+      const golden = makeGoldenFrom(state, itemId, parts);
+      // Remove highest indices first
+      for (const i of [...take].sort((a, b) => b - a)) {
+        player.hand.splice(i, 1);
+      }
+      player.hand.push(golden);
+      emitFx(state, 'gold_spark', {
+        playerId: player.id,
+        instanceId: golden.instanceId,
+        label: 'GOLD',
+      });
+      merged = true;
+      break;
+    }
+  }
+}
+
+/**
+ * When receiving an item: if 2 matches already held, merge with the new one
+ * even when the hand is full (no free slot needed for the third).
+ */
+function tryMergeIncoming(
+  state: GameState,
+  player: Player,
+  itemId: ItemId,
+): boolean {
+  const matches = player.hand
+    .map((h, i) => ({ h, i }))
+    .filter(({ h }) => h.itemId === itemId && !h.golden);
+  if (matches.length < 2) return false;
+
+  const take = matches.slice(0, 2);
+  const incoming = makeHandItem(state, itemId, itemId === 'bomb');
+  const parts = [...take.map((t) => t.h), incoming];
+  const golden = makeGoldenFrom(state, itemId, parts);
+  for (const t of [...take].sort((a, b) => b.i - a.i)) {
+    player.hand.splice(t.i, 1);
+  }
+  player.hand.push(golden);
+  emitFx(state, 'gold_spark', {
+    playerId: player.id,
+    instanceId: golden.instanceId,
+    label: 'GOLD',
+  });
+  return true;
 }
 
 function assignArchetypes(
@@ -112,7 +253,11 @@ function botName(archetype: BotArchetype, index: number): string {
   return `${list[index % list.length]} Bot ${index + 1}`;
 }
 
-export function createInitialState(config: LobbyConfig, seed?: number): GameState {
+export function createInitialState(
+  config: LobbyConfig,
+  seed?: number,
+  presetPool?: ItemId[],
+): GameState {
   const actualSeed = seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
   const rng = createRng(actualSeed);
   const setup = MODE_SETUP[config.mode];
@@ -166,8 +311,10 @@ export function createInitialState(config: LobbyConfig, seed?: number): GameStat
   }
 
   const tiles: Tile[] = [];
+  const itemPool =
+    presetPool && presetPool.length > 0 ? [...presetPool] : pickMatchPool(rng);
   for (let i = 0; i < setup.gridSize; i++) {
-    tiles.push(makeTile(i, weightedRandomItem(rng)));
+    tiles.push(makeTile(i, weightedRandomItem(rng, itemPool)));
   }
 
   return {
@@ -184,6 +331,12 @@ export function createInitialState(config: LobbyConfig, seed?: number): GameStat
     winnerId: null,
     leaderTaxAccMs: 0,
     worldEvent: createWorldEventState(),
+    suddenDeath: {
+      active: false,
+      bracket: CONFIG.SUDDEN_DEATH_START_BRACKET,
+      phaseMs: CONFIG.SUDDEN_DEATH_PHASE_MS,
+    },
+    itemPool,
   };
 }
 
@@ -204,13 +357,13 @@ function richestOpponent(state: GameState, selfId: string): Player | null {
 function restockTile(state: GameState, tileIndex: number, rng: () => number): void {
   const tile = state.tiles[tileIndex];
   if (!tile) return;
-  Object.assign(tile, makeTile(tileIndex, weightedRandomItem(rng)));
+  Object.assign(tile, makeTile(tileIndex, weightedRandomItem(rng, state.itemPool)));
 }
 
 function eliminate(
   state: GameState,
   playerId: string,
-  reason: 'unpaid' | 'bomb',
+  reason: 'unpaid' | 'bomb' | 'bracket',
 ): void {
   const player = getPlayer(state, playerId);
   if (!player || !player.isAlive) return;
@@ -230,9 +383,16 @@ function eliminate(
 }
 
 function giveItem(state: GameState, player: Player, itemId: ItemId): void {
+  // 2 held + incoming → golden immediately (even with a full hand / for bombs)
+  if (tryMergeIncoming(state, player, itemId)) {
+    tryAutoMerge(state, player);
+    return;
+  }
+
   if (itemId === 'bomb') {
     // Bomb always attaches, even beyond hand slots
     player.hand.push(makeHandItem(state, itemId, true));
+    tryAutoMerge(state, player);
     return;
   }
 
@@ -245,7 +405,7 @@ function giveItem(state: GameState, player: Player, itemId: ItemId): void {
     }
     player.coins += sell;
     state.events.push({
-      type: 'income',
+      type: 'overflow_sell',
       playerId: player.id,
       amount: sell,
       emoji: def.emoji,
@@ -254,11 +414,41 @@ function giveItem(state: GameState, player: Player, itemId: ItemId): void {
   }
 
   player.hand.push(makeHandItem(state, itemId));
+  tryAutoMerge(state, player);
+}
+
+export function reorderHand(
+  state: GameState,
+  playerId: string,
+  fromIndex: number,
+  toIndex: number,
+): GameState {
+  const next = cloneState(state);
+  if (next.ended) return next;
+  const player = getPlayer(next, playerId);
+  if (!player || !player.isAlive) return next;
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= player.hand.length ||
+    fromIndex === toIndex
+  ) {
+    return next;
+  }
+  const to = Math.min(toIndex, player.hand.length - 1);
+  if (to === fromIndex) return next;
+  const [moved] = player.hand.splice(fromIndex, 1);
+  if (!moved) return next;
+  player.hand.splice(to, 0, moved);
+  return next;
 }
 
 export function computeSellValue(item: HandItem, rng: () => number): number {
-  if (item.itemId === 'bomb') return 0;
-  if (item.itemId === 'mystery_box') return 1 + Math.floor(rng() * 20);
+  if (item.itemId === 'bomb') return item.golden ? 100 : 0;
+  if (item.itemId === 'mystery_box') {
+    const roll = () => 1 + Math.floor(rng() * 20);
+    return item.golden ? roll() + roll() : roll();
+  }
   if (item.itemId === 'piggy_bank') return 2 + item.stored;
   if (item.itemId === 'dividend_stock') return item.currentSellValue;
   return item.currentSellValue;
@@ -276,6 +466,7 @@ export function bid(
   const tile = next.tiles[tileIndex];
   if (!player || !tile || !player.isAlive) return next;
   if (player.handcuffMs > 0) return next;
+  if (tile.bidLocked) return next;
   if (tile.highBidderId === playerId) return next;
 
   const activeBids = next.tiles.filter((t) => t.highBidderId === playerId).length;
@@ -379,13 +570,13 @@ export function applyUseItem(
 
   if (def.kind !== 'active') return next;
 
-  // Apply effect then consume
+  // Apply effect then consume (remove first so golden-swap hand indices stay valid)
   emitFx(next, 'active_cast', {
     playerId: player.id,
-    label: def.emoji,
+    label: item.golden ? `🌟${def.emoji}` : def.emoji,
   });
-  applyActiveEffect(next, player, item.itemId, targets, rng);
   player.hand.splice(idx, 1);
+  applyActiveEffect(next, player, item, targets, rng);
 
   return next;
 }
@@ -393,15 +584,20 @@ export function applyUseItem(
 function applyActiveEffect(
   state: GameState,
   player: Player,
-  itemId: ItemId,
+  item: HandItem,
   targets: UseTargets,
   rng: () => number,
 ): void {
+  const itemId = item.itemId;
+  const mult = item.golden ? 2 : 1;
+
   switch (itemId) {
     case 'price_doubler': {
       const tile = state.tiles[targets.tileIndex ?? -1];
       if (!tile) return;
-      tile.price = Math.max(1, tile.price * 2);
+      for (let i = 0; i < mult; i++) {
+        tile.price = Math.max(1, tile.price * 2);
+      }
       tile.flash = 'double';
       tile.flashMs = 500;
       emitFx(state, 'double', { tileIndex: tile.index });
@@ -410,7 +606,9 @@ function applyActiveEffect(
     case 'discount_tag': {
       const tile = state.tiles[targets.tileIndex ?? -1];
       if (!tile) return;
-      tile.price = Math.max(1, Math.ceil(tile.price / 2));
+      for (let i = 0; i < mult; i++) {
+        tile.price = Math.max(1, Math.ceil(tile.price / 2));
+      }
       emitFx(state, 'discount', { tileIndex: tile.index, label: '½' });
       break;
     }
@@ -419,21 +617,39 @@ function applyActiveEffect(
       if (!tile) return;
       tile.price = CONFIG.START_PRICE;
       tile.highBidderId = null;
+      tile.bidLocked = false;
       emitFx(state, 'hammer', { tileIndex: tile.index });
+      if (item.golden) {
+        const others = state.tiles.filter((t) => t.index !== tile.index);
+        if (others.length > 0) {
+          const pick = others[Math.floor(rng() * others.length)]!;
+          pick.price = CONFIG.START_PRICE;
+          pick.highBidderId = null;
+          pick.bidLocked = false;
+          emitFx(state, 'hammer', { tileIndex: pick.index });
+        }
+      }
       break;
     }
     case 'inflation': {
       for (const tile of state.tiles) {
-        tile.price += 2;
+        tile.price += 2 * mult;
         emitFx(state, 'inflate', { tileIndex: tile.index });
       }
       break;
     }
     case 'time_freeze': {
-      const tile = state.tiles[targets.tileIndex ?? -1];
-      if (!tile) return;
-      tile.freezeMs = CONFIG.TIME_FREEZE_MS;
-      emitFx(state, 'freeze', { tileIndex: tile.index });
+      if (item.golden) {
+        for (const tile of state.tiles) {
+          tile.freezeMs = Math.max(tile.freezeMs, CONFIG.MEGA_FREEZE_MS);
+          emitFx(state, 'freeze', { tileIndex: tile.index, label: 'MEGA' });
+        }
+      } else {
+        const tile = state.tiles[targets.tileIndex ?? -1];
+        if (!tile) return;
+        tile.freezeMs = CONFIG.TIME_FREEZE_MS;
+        emitFx(state, 'freeze', { tileIndex: tile.index });
+      }
       break;
     }
     case 'fast_forward': {
@@ -441,39 +657,61 @@ function applyActiveEffect(
       if (ti === undefined) return;
       emitFx(state, 'fastforward', { tileIndex: ti });
       resolveTile(state, ti, rng);
+      if (item.golden) {
+        // Resolve a second random live tile
+        const others = state.tiles.filter((t) => t.index !== ti);
+        if (others.length > 0) {
+          const pick = others[Math.floor(rng() * others.length)]!;
+          emitFx(state, 'fastforward', { tileIndex: pick.index });
+          resolveTile(state, pick.index, rng);
+        }
+      }
       break;
     }
     case 'overtime': {
       const tile = state.tiles[targets.tileIndex ?? -1];
       if (!tile) return;
-      tile.timerMs += CONFIG.OVERTIME_MS;
-      emitFx(state, 'overtime', { tileIndex: tile.index, label: '+6s' });
+      tile.timerMs += CONFIG.OVERTIME_MS * mult;
+      emitFx(state, 'overtime', {
+        tileIndex: tile.index,
+        label: `+${(CONFIG.OVERTIME_MS * mult) / 1000}s`,
+      });
       break;
     }
     case 'swap_portal': {
+      if (item.golden) {
+        const handId = targets.handInstanceId;
+        const ti = targets.tileIndex;
+        if (!handId || ti === undefined) return;
+        const handIdx = player.hand.findIndex((h) => h.instanceId === handId);
+        const tile = state.tiles[ti];
+        if (handIdx < 0 || !tile) return;
+        const handItem = player.hand[handIdx]!;
+        if (handItem.itemId === 'bomb') return;
+        // Swap hand item onto board; board item enters hand
+        const boardId = tile.itemId;
+        tile.itemId = handItem.itemId;
+        player.hand.splice(handIdx, 1);
+        const incoming = makeHandItem(state, boardId);
+        player.hand.push(incoming);
+        tryAutoMerge(state, player);
+        tile.flash = 'bid';
+        tile.flashMs = 300;
+        emitFx(state, 'swap', { tileIndex: ti, playerId: player.id });
+        break;
+      }
       const a = targets.tileIndex;
       const b = targets.tileIndexB;
       if (a === undefined || b === undefined || a === b) return;
       const tileA = state.tiles[a];
       const tileB = state.tiles[b];
       if (!tileA || !tileB) return;
-      const tmp = {
-        itemId: tileA.itemId,
-        price: tileA.price,
-        timerMs: tileA.timerMs,
-        highBidderId: tileA.highBidderId,
-        freezeMs: tileA.freezeMs,
-      };
+      const tmpItem = tileA.itemId;
+      const tmpPrice = tileA.price;
       tileA.itemId = tileB.itemId;
       tileA.price = tileB.price;
-      tileA.timerMs = tileB.timerMs;
-      tileA.highBidderId = tileB.highBidderId;
-      tileA.freezeMs = tileB.freezeMs;
-      tileB.itemId = tmp.itemId;
-      tileB.price = tmp.price;
-      tileB.timerMs = tmp.timerMs;
-      tileB.highBidderId = tmp.highBidderId;
-      tileB.freezeMs = tmp.freezeMs;
+      tileB.itemId = tmpItem;
+      tileB.price = tmpPrice;
       tileA.flash = 'bid';
       tileA.flashMs = 300;
       tileB.flash = 'bid';
@@ -486,6 +724,12 @@ function applyActiveEffect(
         restockTile(state, i, rng);
         emitFx(state, 'refresh', { tileIndex: i });
       }
+      if (item.golden) {
+        for (const tile of state.tiles) {
+          tile.price = Math.max(1, tile.price - 1);
+          tile.timerMs += 2000;
+        }
+      }
       break;
     }
     case 'shuffle': {
@@ -495,6 +739,7 @@ function applyActiveEffect(
         timerMs: t.timerMs,
         highBidderId: t.highBidderId,
         freezeMs: t.freezeMs,
+        bidLocked: t.bidLocked,
       }));
       for (let i = payloads.length - 1; i > 0; i--) {
         const j = Math.floor(rng() * (i + 1));
@@ -510,6 +755,10 @@ function applyActiveEffect(
         t.timerMs = p.timerMs;
         t.highBidderId = p.highBidderId;
         t.freezeMs = p.freezeMs;
+        t.bidLocked = p.bidLocked;
+        if (item.golden) {
+          t.price = Math.max(1, t.price - 1);
+        }
         t.flash = 'bid';
         t.flashMs = 300;
         emitFx(state, 'shuffle', { tileIndex: i });
@@ -519,7 +768,7 @@ function applyActiveEffect(
     case 'handcuffs': {
       const target = getPlayer(state, targets.playerId ?? '');
       if (!target || !target.isAlive || target.id === player.id) return;
-      target.handcuffMs = CONFIG.HANDCUFF_MS;
+      target.handcuffMs = CONFIG.HANDCUFF_MS * mult;
       emitFx(state, 'cuffs', { playerId: target.id });
       break;
     }
@@ -527,7 +776,7 @@ function applyActiveEffect(
       const target = getPlayer(state, targets.playerId ?? '');
       if (!target || !target.isAlive || target.id === player.id) return;
       const gap = Math.max(0, target.coins - player.coins);
-      const want = Math.min(6, 3 + Math.floor(gap / 5));
+      const want = Math.min(6, 3 + Math.floor(gap / 5)) * mult;
       const steal = Math.min(want, target.coins);
       target.coins -= steal;
       player.coins += steal;
@@ -545,6 +794,39 @@ function applyActiveEffect(
       });
       break;
     }
+    case 'bid_lock': {
+      const tile = state.tiles[targets.tileIndex ?? -1];
+      if (!tile) return;
+      tile.bidLocked = true;
+      if (item.golden) {
+        tile.freezeMs = Math.max(tile.freezeMs, CONFIG.TIME_FREEZE_MS);
+      }
+      tile.flash = 'bid';
+      tile.flashMs = 400;
+      emitFx(state, 'cuffs', { tileIndex: tile.index, label: 'LOCK' });
+      break;
+    }
+    case 'blank_slate': {
+      const before = player.coins;
+      const times = item.golden ? 2 : 1;
+      for (let n = 0; n < times; n++) {
+        player.coins *= 2;
+      }
+      const gained = player.coins - before;
+      if (gained > 0) {
+        state.events.push({
+          type: 'income',
+          playerId: player.id,
+          amount: gained,
+          emoji: '⬜',
+        });
+      }
+      emitFx(state, 'gold_spark', {
+        playerId: player.id,
+        label: item.golden ? '×4' : '×2',
+      });
+      break;
+    }
     default:
       break;
   }
@@ -554,14 +836,21 @@ function tickPassives(state: GameState, dt: number): void {
   for (const player of state.players) {
     if (!player.isAlive) continue;
 
-    for (const item of player.hand) {
+    const haste = hasteFactor(player);
+    const tip = tipBonus(player);
+
+    // Snapshot length — merges/gilding may mutate hand
+    for (let i = 0; i < player.hand.length; i++) {
+      const item = player.hand[i]!;
       const def = getItem(item.itemId);
       if (def.kind !== 'passive' && item.itemId !== 'bomb') continue;
 
-      // Bomb fuse
+      const selfMult = (item.golden ? 2 : 1) * adjacencyMult(player.hand, i);
+      const tick = dt * haste;
+
+      // Bomb fuse (not hasted — real-time danger)
       if (item.itemId === 'bomb' && item.bombFuseMs !== null) {
         item.bombFuseMs -= dt;
-        // Pulse about once per second while armed
         if (Math.floor(item.bombFuseMs / 1000) !== Math.floor((item.bombFuseMs + dt) / 1000)) {
           emitFx(state, 'bomb_fuse', {
             playerId: player.id,
@@ -575,14 +864,51 @@ function tickPassives(state: GameState, dt: number): void {
         continue;
       }
 
-      if (item.itemId === 'mystery_box') continue;
+      // Aura / non-ticking passives
+      if (
+        item.itemId === 'mystery_box' ||
+        item.itemId === 'echo_lens' ||
+        item.itemId === 'tip_jar' ||
+        item.itemId === 'haste_gear'
+      ) {
+        continue;
+      }
+
+      // Gilder — turn neighbors golden after 30s
+      if (item.itemId === 'gilder') {
+        item.gilderAccMs += tick;
+        while (item.gilderAccMs >= CONFIG.GILDER_MS) {
+          item.gilderAccMs -= CONFIG.GILDER_MS;
+          const targets: HandItem[] = [];
+          const right = player.hand[i + 1];
+          if (right && !right.golden && right.itemId !== 'bomb') targets.push(right);
+          if (item.golden) {
+            const left = player.hand[i - 1];
+            if (left && !left.golden && left.itemId !== 'bomb') targets.push(left);
+          }
+          for (const t of targets) {
+            t.golden = true;
+            t.currentSellValue = Math.max(t.currentSellValue * 3, sellValueOf(t) * 3);
+            if (t.itemId === 'piggy_bank') t.currentSellValue = 2 + t.stored;
+            if (t.itemId === 'bomb') {
+              t.currentSellValue = 100;
+            }
+            emitFx(state, 'gold_spark', {
+              playerId: player.id,
+              instanceId: t.instanceId,
+              label: 'GOLD',
+            });
+          }
+        }
+        continue;
+      }
 
       // Piggy banks into itself
       if (item.itemId === 'piggy_bank') {
-        item.passiveAccMs += dt;
+        item.passiveAccMs += tick;
         while (item.passiveAccMs >= 1000) {
           item.passiveAccMs -= 1000;
-          item.stored += 1;
+          item.stored += selfMult + tip;
           item.currentSellValue = 2 + item.stored;
           emitFx(state, 'piggy', {
             playerId: player.id,
@@ -594,17 +920,11 @@ function tickPassives(state: GameState, dt: number): void {
 
       // Dividend income + grow sell value
       if (item.itemId === 'dividend_stock') {
-        item.passiveAccMs += dt;
-        item.dividendGrowAccMs += dt;
+        item.passiveAccMs += tick;
+        item.dividendGrowAccMs += tick;
         while (item.passiveAccMs >= (def.passiveIntervalMs ?? 4000)) {
           item.passiveAccMs -= def.passiveIntervalMs ?? 4000;
-          player.coins += 1;
-          state.events.push({
-            type: 'income',
-            playerId: player.id,
-            amount: 1,
-            emoji: def.emoji,
-          });
+          grantCoins(state, player, selfMult, def.emoji);
           emitFx(state, 'dividend', {
             playerId: player.id,
             instanceId: item.instanceId,
@@ -612,7 +932,7 @@ function tickPassives(state: GameState, dt: number): void {
         }
         while (item.dividendGrowAccMs >= 6000) {
           item.dividendGrowAccMs -= 6000;
-          item.currentSellValue += 1;
+          item.currentSellValue += selfMult;
           emitFx(state, 'dividend', {
             playerId: player.id,
             instanceId: item.instanceId,
@@ -624,13 +944,13 @@ function tickPassives(state: GameState, dt: number): void {
 
       // Coin leech
       if (item.itemId === 'coin_leech') {
-        item.passiveAccMs += dt;
+        item.passiveAccMs += tick;
         while (item.passiveAccMs >= (def.passiveIntervalMs ?? 4000)) {
           item.passiveAccMs -= def.passiveIntervalMs ?? 4000;
           const victim = richestOpponent(state, player.id);
           if (victim && victim.coins > 0) {
             const gap = victim.coins - player.coins;
-            const want = gap >= CONFIG.COMEBACK_BIG_GAP ? 2 : 1;
+            const want = (gap >= CONFIG.COMEBACK_BIG_GAP ? 2 : 1) * selfMult + tip;
             const steal = Math.min(want, victim.coins);
             victim.coins -= steal;
             player.coins += steal;
@@ -652,16 +972,10 @@ function tickPassives(state: GameState, dt: number): void {
 
       // Standard money engines
       if (def.passiveIntervalMs && def.passiveAmount) {
-        item.passiveAccMs += dt;
+        item.passiveAccMs += tick;
         while (item.passiveAccMs >= def.passiveIntervalMs) {
           item.passiveAccMs -= def.passiveIntervalMs;
-          player.coins += def.passiveAmount;
-          state.events.push({
-            type: 'income',
-            playerId: player.id,
-            amount: def.passiveAmount,
-            emoji: def.emoji,
-          });
+          grantCoins(state, player, def.passiveAmount * selfMult, def.emoji);
           const kind: FxKind =
             item.itemId === 'money_printer'
               ? 'print'
@@ -678,23 +992,72 @@ function tickPassives(state: GameState, dt: number): void {
   }
 }
 
-function checkWinConditions(state: GameState, rng: () => number): void {
+function checkWinConditions(state: GameState): void {
   const alive = livingPlayers(state);
   if (alive.length <= 1) {
     state.ended = true;
     state.winnerId = alive[0]?.id ?? null;
     return;
   }
-  if (state.roundMs <= 0) {
+
+  // Clock expired → enter sudden death (do not crown richest yet)
+  if (!state.suddenDeath.active && state.roundMs <= 0) {
     state.roundMs = 0;
+    state.suddenDeath = {
+      active: true,
+      bracket: CONFIG.SUDDEN_DEATH_START_BRACKET,
+      phaseMs: CONFIG.SUDDEN_DEATH_PHASE_MS,
+    };
+    emitFx(state, 'bomb_fuse', { label: '💀 SD' });
+  }
+}
+
+function applySuddenDeathCull(state: GameState): void {
+  const sd = state.suddenDeath;
+  const alive = livingPlayers(state);
+  const under = alive.filter((p) => p.coins < sd.bracket);
+  const safe = alive.filter((p) => p.coins >= sd.bracket);
+
+  if (under.length === 0) {
+    sd.bracket *= 2;
+    sd.phaseMs = CONFIG.SUDDEN_DEATH_PHASE_MS;
+    emitFx(state, 'inflate', { label: `≥${sd.bracket}` });
+    return;
+  }
+
+  if (safe.length === 0) {
+    // Nobody meets the bar — keep the richest, cull the rest
+    const sorted = [...alive].sort((a, b) => b.coins - a.coins);
+    const keeper = sorted[0]!;
+    for (const p of alive) {
+      if (p.id !== keeper.id) eliminate(state, p.id, 'bracket');
+    }
+  } else {
+    for (const p of under) {
+      eliminate(state, p.id, 'bracket');
+    }
+  }
+
+  const still = livingPlayers(state);
+  if (still.length <= 1) {
     state.ended = true;
-    // Richest living; tie-break: most items, then random
-    const sorted = [...alive].sort((a, b) => {
-      if (b.coins !== a.coins) return b.coins - a.coins;
-      if (b.hand.length !== a.hand.length) return b.hand.length - a.hand.length;
-      return rng() - 0.5;
-    });
-    state.winnerId = sorted[0]?.id ?? null;
+    state.winnerId = still[0]?.id ?? null;
+    return;
+  }
+
+  sd.bracket *= 2;
+  sd.phaseMs = CONFIG.SUDDEN_DEATH_PHASE_MS;
+  emitFx(state, 'inflate', { label: `≥${sd.bracket}` });
+}
+
+function tickSuddenDeath(state: GameState, dtMs: number): void {
+  const sd = state.suddenDeath;
+  if (!sd.active || state.ended) return;
+
+  sd.phaseMs -= dtMs;
+  while (sd.phaseMs <= 0 && !state.ended && sd.active) {
+    applySuddenDeathCull(state);
+    if (state.ended) break;
   }
 }
 
@@ -705,7 +1068,9 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
   // Clear old events each tick (UI consumes via store)
   next.events = [];
 
-  next.roundMs = Math.max(0, next.roundMs - dtMs);
+  if (!next.suddenDeath.active) {
+    next.roundMs = Math.max(0, next.roundMs - dtMs);
+  }
 
   tickWorldEvent(next, dtMs, rng);
 
@@ -719,7 +1084,8 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
     }
   }
 
-  const timerScale = worldEventTimerScale(next);
+  const timerScale =
+    worldEventTimerScale(next) * (next.suddenDeath.active ? 1.25 : 1);
 
   // Tile timers & flash
   for (const tile of next.tiles) {
@@ -749,7 +1115,10 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
 
   tickPassives(next, dtMs);
   tickRubberBand(next, dtMs);
-  checkWinConditions(next, rng);
+  checkWinConditions(next);
+  tickSuddenDeath(next, dtMs);
+  // Re-check after cull
+  if (!next.ended) checkWinConditions(next);
 
   return next;
 }

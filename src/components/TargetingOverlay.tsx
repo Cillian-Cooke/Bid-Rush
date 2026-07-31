@@ -17,6 +17,11 @@ export function TargetingOverlay({ targeting, onCancel }: Props) {
       : 'Tap second tile';
   }
   if (targeting.target === 'player') hint = 'Tap a player';
+  if (targeting.target === 'hand-then-item') {
+    hint = targeting.selectedHandInstanceId
+      ? 'Tap a shop tile to place it'
+      : 'Tap a hand item to swap onto the board';
+  }
 
   return (
     <div className="targeting-banner">

@@ -1,4 +1,5 @@
-import type { ItemDef, ItemId } from './types';
+import { CONFIG } from './constants';
+import type { HandItem, ItemDef, ItemId } from './types';
 
 export const ITEMS: Record<ItemId, ItemDef> = {
   coin_mine: {
@@ -193,9 +194,66 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     sellValue: 0,
     spawnWeight: 2,
   },
+  bid_lock: {
+    id: 'bid_lock',
+    name: 'Bid Lock',
+    emoji: '🔐',
+    kind: 'active',
+    target: 'item',
+    sellValue: 3,
+    spawnWeight: 3,
+  },
+  blank_slate: {
+    id: 'blank_slate',
+    name: 'Blank Slate',
+    emoji: '⬜',
+    kind: 'active',
+    target: 'none',
+    sellValue: 2,
+    spawnWeight: 2,
+  },
+  echo_lens: {
+    id: 'echo_lens',
+    name: 'Echo Lens',
+    emoji: '🪞',
+    kind: 'passive',
+    target: 'none',
+    sellValue: 4,
+    spawnWeight: 3,
+  },
+  gilder: {
+    id: 'gilder',
+    name: 'Gilder',
+    emoji: '✨',
+    kind: 'passive',
+    target: 'none',
+    sellValue: 5,
+    spawnWeight: 2,
+  },
+  tip_jar: {
+    id: 'tip_jar',
+    name: 'Tip Jar',
+    emoji: '🫙',
+    kind: 'passive',
+    target: 'none',
+    sellValue: 3,
+    spawnWeight: 3,
+  },
+  haste_gear: {
+    id: 'haste_gear',
+    name: 'Haste Gear',
+    emoji: '⚙️',
+    kind: 'passive',
+    target: 'none',
+    sellValue: 4,
+    spawnWeight: 3,
+  },
 };
 
 export const ITEM_LIST: ItemDef[] = Object.values(ITEMS);
+
+/** How many item types appear in a single match */
+export const MATCH_POOL_SIZE = 16;
 
 export function getItem(id: ItemId): ItemDef {
   return ITEMS[id];
@@ -212,12 +270,51 @@ export function isMoneyEngine(id: ItemId): boolean {
   );
 }
 
-export function weightedRandomItem(rng: () => number): ItemId {
-  const total = ITEM_LIST.reduce((s, i) => s + i.spawnWeight, 0);
+/** Progress 0–1 for ticking passives; null if no bar. */
+export function passiveChargeProgress(item: HandItem): number | null {
+  const def = getItem(item.itemId);
+  if (item.itemId === 'gilder') {
+    return Math.min(1, item.gilderAccMs / CONFIG.GILDER_MS);
+  }
+  if (item.itemId === 'piggy_bank') {
+    return Math.min(1, item.passiveAccMs / 1000);
+  }
+  if (item.itemId === 'dividend_stock' || item.itemId === 'coin_leech') {
+    const interval = def.passiveIntervalMs ?? 4000;
+    return Math.min(1, item.passiveAccMs / interval);
+  }
+  if (def.kind === 'passive' && def.passiveIntervalMs && def.passiveAmount) {
+    return Math.min(1, item.passiveAccMs / def.passiveIntervalMs);
+  }
+  return null;
+}
+
+/** Pick a unique random subset of item types for this match. */
+export function pickMatchPool(rng: () => number): ItemId[] {
+  const ids = ITEM_LIST.map((i) => i.id);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = ids[i]!;
+    ids[i] = ids[j]!;
+    ids[j] = tmp;
+  }
+  const size = Math.min(MATCH_POOL_SIZE, ids.length);
+  return ids.slice(0, size).sort((a, b) => a.localeCompare(b));
+}
+
+export function weightedRandomItem(
+  rng: () => number,
+  pool?: readonly ItemId[],
+): ItemId {
+  const list =
+    pool && pool.length > 0
+      ? pool.map((id) => ITEMS[id]).filter(Boolean)
+      : ITEM_LIST;
+  const total = list.reduce((s, i) => s + i.spawnWeight, 0);
   let roll = rng() * total;
-  for (const item of ITEM_LIST) {
+  for (const item of list) {
     roll -= item.spawnWeight;
     if (roll <= 0) return item.id;
   }
-  return ITEM_LIST[ITEM_LIST.length - 1]!.id;
+  return list[list.length - 1]!.id;
 }

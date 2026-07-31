@@ -10,6 +10,8 @@ type Props = {
   fxKind?: FxKind | null;
   /** Emoji shown when this player just cast an active item */
   fxLabel?: string | null;
+  /** Sudden-death: under the current bracket */
+  atRisk?: boolean;
   onTap?: () => void;
 };
 
@@ -37,6 +39,7 @@ export function PlayerPanel({
   floatText,
   fxKind,
   fxLabel,
+  atRisk,
   onTap,
 }: Props) {
   const bomb = player.hand.find((h) => h.itemId === 'bomb');
@@ -54,6 +57,7 @@ export function PlayerPanel({
     targeting ? 'targetable' : '',
     player.handcuffMs > 0 ? 'cuffed' : '',
     fuseSec != null ? 'has-bomb' : '',
+    atRisk ? 'sd-at-risk' : '',
     fxKind ? `fx-panel fx-${fxKind}` : '',
     casting ? 'casting' : '',
   ]
@@ -83,7 +87,13 @@ export function PlayerPanel({
       {!player.isAlive && <span className="eliminated-badge">OUT</span>}
       {floatText && (
         <span
-          className={`float-text${floatText.startsWith('-') ? ' loss' : ''}`}
+          className={`float-text${
+            floatText.startsWith('-')
+              ? ' loss'
+              : floatText.includes('SOLD')
+                ? ' sold'
+                : ''
+          }`}
         >
           {floatText}
         </span>

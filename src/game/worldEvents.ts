@@ -1,4 +1,5 @@
 import { CONFIG } from './constants';
+import { weightedRandomItem } from './items';
 import type {
   FxKind,
   GameState,
@@ -15,6 +16,26 @@ const MONEY_IDS: ItemId[] = [
   'piggy_bank',
   'coin_leech',
 ];
+
+function inPool(state: GameState, id: ItemId): boolean {
+  return state.itemPool.includes(id);
+}
+
+function pickFromPool(
+  state: GameState,
+  preferred: ItemId | ItemId[],
+  rng: () => number,
+): ItemId {
+  if (Array.isArray(preferred)) {
+    const avail = preferred.filter((id) => inPool(state, id));
+    if (avail.length > 0) {
+      return avail[Math.floor(rng() * avail.length)]!;
+    }
+  } else if (inPool(state, preferred)) {
+    return preferred;
+  }
+  return weightedRandomItem(rng, state.itemPool);
+}
 
 export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
   money_money_money: {
@@ -158,9 +179,7 @@ function living(state: GameState) {
 
 function forceShopItems(state: GameState, itemId: ItemId | ItemId[], rng: () => number, fx: FxKind): void {
   for (const tile of state.tiles) {
-    tile.itemId = Array.isArray(itemId)
-      ? itemId[Math.floor(rng() * itemId.length)]!
-      : itemId;
+    tile.itemId = pickFromPool(state, itemId, rng);
     tile.flash = 'bid';
     tile.flashMs = 400;
     emitFx(state, fx, { tileIndex: tile.index });
@@ -301,24 +320,26 @@ function pulseEvent(state: GameState, rng: () => number): void {
     case 'money_money_money':
       // Keep the floor on-theme if tiles resolved mid-event
       for (const tile of state.tiles) {
-        if (!MONEY_IDS.includes(tile.itemId)) {
-          tile.itemId = MONEY_IDS[Math.floor(rng() * MONEY_IDS.length)]!;
+        if (!MONEY_IDS.includes(tile.itemId) || !inPool(state, tile.itemId)) {
+          tile.itemId = pickFromPool(state, MONEY_IDS, rng);
           emitFx(state, 'event_money', { tileIndex: tile.index });
         }
       }
       break;
     case 'bomb_bazaar':
       for (const tile of state.tiles) {
-        if (tile.itemId !== 'bomb') {
-          tile.itemId = 'bomb';
+        const next = pickFromPool(state, 'bomb', rng);
+        if (tile.itemId !== next) {
+          tile.itemId = next;
           emitFx(state, 'bomb_fuse', { tileIndex: tile.index });
         }
       }
       break;
     case 'mystery_mall':
       for (const tile of state.tiles) {
-        if (tile.itemId !== 'mystery_box') {
-          tile.itemId = 'mystery_box';
+        const next = pickFromPool(state, 'mystery_box', rng);
+        if (tile.itemId !== next) {
+          tile.itemId = next;
           emitFx(state, 'mystery_sell', { tileIndex: tile.index });
         }
       }

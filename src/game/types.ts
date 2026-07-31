@@ -6,7 +6,8 @@ export type ItemTarget =
   | 'two-items'
   | 'player'
   | 'all-items'
-  | 'special';
+  | 'special'
+  | 'hand-then-item';
 
 export type BotArchetype = 'chill' | 'balanced' | 'ruthless';
 
@@ -38,6 +39,8 @@ export type NameAuctionParticipant = {
   color: string;
   /** Bot bid cooldown */
   cooldownMs: number;
+  /** Bids placed this Tag Sale (cap = NAME_MAX_BIDS) */
+  bidsUsed: number;
 };
 
 export type NameAuctionState = {
@@ -70,7 +73,13 @@ export type ItemId =
   | 'handcuffs'
   | 'pickpocket'
   | 'coin_leech'
-  | 'bomb';
+  | 'bomb'
+  | 'bid_lock'
+  | 'blank_slate'
+  | 'echo_lens'
+  | 'gilder'
+  | 'tip_jar'
+  | 'haste_gear';
 
 export type ItemDef = {
   id: ItemId;
@@ -89,16 +98,20 @@ export type ItemDef = {
 export type HandItem = {
   instanceId: string;
   itemId: ItemId;
+  /** Three-of-a-kind merge — doubles effects, sells for combined value */
+  golden: boolean;
   /** Accumulator for passive tick timing */
   passiveAccMs: number;
   /** Dividend sell-value growth accumulator */
   dividendGrowAccMs: number;
-  /** Current sell value (Dividend / Piggy override base) */
+  /** Current sell value (Dividend / Piggy / golden merge override) */
   currentSellValue: number;
   /** Piggy bank stored coins */
   stored: number;
   /** Bomb fuse remaining ms */
   bombFuseMs: number | null;
+  /** Gilder: ms toward making a neighbor golden */
+  gilderAccMs: number;
 };
 
 export type Tile = {
@@ -109,6 +122,8 @@ export type Tile = {
   highBidderId: string | null;
   /** Remaining freeze ms; timer doesn't tick while > 0 */
   freezeMs: number;
+  /** Nobody can outbid this tile until it resolves */
+  bidLocked: boolean;
   /** Visual flash: 'resolve' | 'double' | 'bid' | null */
   flash: string | null;
   flashMs: number;
@@ -198,7 +213,17 @@ export type WorldEventDef = {
 export type GameEvent =
   | { type: 'income'; playerId: string; amount: number; emoji: string }
   | { type: 'loss'; playerId: string; amount: number; emoji: string }
-  | { type: 'eliminate'; playerId: string; reason: 'unpaid' | 'bomb' }
+  | {
+      type: 'overflow_sell';
+      playerId: string;
+      amount: number;
+      emoji: string;
+    }
+  | {
+      type: 'eliminate';
+      playerId: string;
+      reason: 'unpaid' | 'bomb' | 'bracket';
+    }
   | { type: 'resolve'; tileIndex: number; winnerId: string | null }
   | { type: 'explosion'; playerId: string }
   | {
@@ -214,6 +239,14 @@ export type GameEvent =
       /** Hand item instance for hand-slot pulses */
       instanceId?: string;
     };
+
+export type SuddenDeathState = {
+  active: boolean;
+  /** Current coin threshold players must meet */
+  bracket: number;
+  /** Ms left in this bracket phase before cull */
+  phaseMs: number;
+};
 
 export type GameState = {
   mode: GameMode;
@@ -232,6 +265,9 @@ export type GameState = {
   leaderTaxAccMs: number;
   /** Mid-match floor event (warn @ 2:30, live @ 2:00 for 30s) */
   worldEvent: WorldEventState;
+  suddenDeath: SuddenDeathState;
+  /** 16 item types available in this match */
+  itemPool: ItemId[];
 };
 
 export type LobbyConfig = {
@@ -251,6 +287,8 @@ export type UseTargets = {
   tileIndex?: number;
   tileIndexB?: number;
   playerId?: string;
+  /** Hand item to swap onto the board (golden swap portal) */
+  handInstanceId?: string;
 };
 
 export type TargetingMode = {
@@ -259,6 +297,10 @@ export type TargetingMode = {
   itemId: ItemId;
   target: ItemTarget;
   selectedTile?: number;
+  /** Golden swap: hand item chosen to place on the board */
+  selectedHandInstanceId?: string;
+  /** Runtime golden flag of the casting item */
+  golden?: boolean;
 };
 
 export type RankingEntry = {

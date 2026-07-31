@@ -45,7 +45,8 @@ export function createNameAuction(
   const actualSeed = seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
   const rng = createRng(actualSeed);
   const setup = MODE_SETUP[mode];
-  const handles = shuffle(HANDLE_POOL, rng).slice(0, setup.players);
+  const tagCount = setup.gridSize;
+  const handles = shuffle(HANDLE_POOL, rng).slice(0, tagCount);
 
   const tags: NameTag[] = handles.map((h, i) => ({
     id: `tag_${i}`,
@@ -61,6 +62,7 @@ export function createNameAuction(
     isHuman: i === 0,
     color: PLAYER_COLORS[i % PLAYER_COLORS.length]!,
     cooldownMs: i === 0 ? 0 : 150 + Math.floor(rng() * 400),
+    bidsUsed: 0,
   }));
 
   return {
@@ -74,12 +76,16 @@ export function createNameAuction(
   };
 }
 
-/** Tap a tag to bid — free chips, price just tracks claim strength. */
+/** Tap a tag to bid — free chips, price just tracks claim strength. Max 3 bids. */
 export function bidOnNameTag(
   state: NameAuctionState,
   bidderId: string,
   tagId: string,
 ): NameAuctionState {
+  const bidder = state.participants.find((p) => p.id === bidderId);
+  if (!bidder) return state;
+  if (bidder.bidsUsed >= CONFIG.NAME_MAX_BIDS) return state;
+
   const tags = state.tags.map((t) => ({ ...t }));
   const tag = tags.find((t) => t.id === tagId);
   if (!tag) return state;
@@ -87,7 +93,10 @@ export function bidOnNameTag(
 
   tag.price += 1;
   tag.highBidderId = bidderId;
-  return { ...state, tags };
+  const participants = state.participants.map((p) =>
+    p.id === bidderId ? { ...p, bidsUsed: p.bidsUsed + 1 } : { ...p },
+  );
+  return { ...state, tags, participants };
 }
 
 export function tickNameAuction(
@@ -110,6 +119,10 @@ export function tickNameAuction(
   // Bots scramble for tags
   for (const p of next.participants) {
     if (p.isHuman || p.cooldownMs > 0) continue;
+    if (p.bidsUsed >= CONFIG.NAME_MAX_BIDS) {
+      p.cooldownMs = 500;
+      continue;
+    }
 
     const leading = next.tags.filter((t) => t.highBidderId === p.id).length;
     // Prefer grabbing something if empty-handed
