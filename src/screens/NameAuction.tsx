@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { PoolToggleButton } from '../components/PoolToggleButton';
 import { CONFIG, MODE_SETUP } from '../game/constants';
 import { useGameStore } from '../store';
 
@@ -6,7 +7,9 @@ export function NameAuction() {
   const naming = useGameStore((s) => s.naming);
   const bidNameTag = useGameStore((s) => s.bidNameTag);
   const matchPool = useGameStore((s) => s.matchPool);
+  const poolRevealOpen = useGameStore((s) => s.poolRevealOpen);
   const openPoolReveal = useGameStore((s) => s.openPoolReveal);
+  const closePoolReveal = useGameStore((s) => s.closePoolReveal);
 
   if (!naming) return null;
 
@@ -19,7 +22,7 @@ export function NameAuction() {
 
   return (
     <div
-      className={`screen naming-screen mode-${naming.mode}`}
+      className={`screen naming-screen mode-${naming.mode}${poolRevealOpen ? ' pool-peek-open' : ''}`}
       style={{ ['--grid-cols' as string]: cols }}
     >
       <div className="naming-header">
@@ -83,13 +86,22 @@ export function NameAuction() {
       </div>
 
       {matchPool && (
-        <button
-          type="button"
-          className="btn secondary naming-pool-btn"
-          onClick={openPoolReveal}
-        >
-          See the items
-        </button>
+        <div className="status-dock naming-pool-dock">
+          <div className="dock-actions" aria-label="Match items">
+            <div className="dock-action-slot dock-action-slot-full">
+              {!poolRevealOpen && (
+                <PoolToggleButton
+                  open={false}
+                  onOpen={openPoolReveal}
+                  onClose={closePoolReveal}
+                />
+              )}
+            </div>
+          </div>
+          {/* Invisible stand-ins so the toggle aligns with in-game Sell/Use */}
+          <div className="purse-strip naming-dock-ghost" aria-hidden />
+          <div className="hand-bar naming-dock-ghost" aria-hidden />
+        </div>
       )}
     </div>
   );

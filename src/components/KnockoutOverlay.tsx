@@ -1,5 +1,5 @@
 type Props = {
-  reason: 'unpaid' | 'bomb' | 'bracket' | null;
+  reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech' | null;
   onPlayAgain: () => void;
   onSpectate: () => void;
   onMenu: () => void;
@@ -8,6 +8,8 @@ type Props = {
 function reasonLine(reason: Props['reason']): string {
   if (reason === 'bomb') return 'The bomb went off.';
   if (reason === 'bracket') return 'You fell under the coin bracket.';
+  if (reason === 'roi') return 'ROI failed — you couldn’t hit the target.';
+  if (reason === 'leech') return 'Drained dry.';
   if (reason === 'unpaid') return 'You couldn’t pay your bid.';
   return 'You’re out of the match.';
 }

@@ -102,7 +102,7 @@ function scoreTile(
   arch: BotArchetype,
   rng: () => number,
 ): number {
-  if (tile.itemId === 'bomb') return -Infinity;
+  if (tile.itemId === 'bomb' || tile.itemId === 'dynamite') return -Infinity;
   if (tile.highBidderId === player.id) return -Infinity;
 
   const activeBids = state.tiles.filter((t) => t.highBidderId === player.id).length;
@@ -160,7 +160,9 @@ function isRichest(state: GameState, playerId: string): boolean {
 }
 
 function weakestHeld(player: Player): string | null {
-  const candidates = player.hand.filter((h) => h.itemId !== 'bomb');
+  const candidates = player.hand.filter(
+    (h) => h.itemId !== 'bomb' && h.itemId !== 'dynamite',
+  );
   if (candidates.length === 0) return null;
   let worst = candidates[0]!;
   for (const h of candidates) {
@@ -287,42 +289,36 @@ function decideUse(
     };
   }
 
-  // Discount / reset — never on a doomed rival (would save them)
-  const discount = findHeld(player, 'discount_tag');
-  if (discount) {
-    const expensive = [...state.tiles]
+  const hammer = findHeld(player, 'reset_hammer');
+  if (hammer) {
+    const ownExpensive = [...state.tiles]
       .filter(
         (t) =>
           t.itemId !== 'bomb' &&
           isMoneyEngine(t.itemId) &&
           !isDoomedLead(state, t) &&
-          // Prefer tiles we want to buy ourselves
           (t.highBidderId === null || t.highBidderId === player.id),
       )
       .sort((a, b) => b.price - a.price)[0];
-    if (expensive && expensive.price >= 4) {
+    if (ownExpensive && ownExpensive.price >= 5 && rng() < 0.35) {
       return {
         kind: 'use',
-        instanceId: discount.instanceId,
-        targets: { tileIndex: expensive.index },
+        instanceId: hammer.instanceId,
+        targets: { tileIndex: ownExpensive.index },
       };
     }
-  }
-
-  const hammer = findHeld(player, 'reset_hammer');
-  if (hammer) {
-    const target = state.tiles.find(
+    const rival = state.tiles.find(
       (t) =>
         t.price >= 5 &&
         !isDoomedLead(state, t) &&
         t.highBidderId !== null &&
         t.highBidderId !== player.id,
     );
-    if (target && rng() < 0.35) {
+    if (rival && rng() < 0.35) {
       return {
         kind: 'use',
         instanceId: hammer.instanceId,
-        targets: { tileIndex: target.index },
+        targets: { tileIndex: rival.index },
       };
     }
   }
@@ -332,6 +328,38 @@ function decideUse(
     const good = state.tiles.filter((t) => isMoneyEngine(t.itemId) && t.price <= 3).length;
     if (good === 0 && rng() < 0.4) {
       return { kind: 'use', instanceId: refresh.instanceId, targets: {} };
+    }
+  }
+
+  const die = findHeld(player, 'chaos_die');
+  if (die && rng() < 0.22) {
+    return { kind: 'use', instanceId: die.instanceId, targets: {} };
+  }
+
+  const ipo = findHeld(player, 'ipo');
+  if (ipo && rng() < 0.35) {
+    if (ipo.golden) {
+      return { kind: 'use', instanceId: ipo.instanceId, targets: {} };
+    }
+    const cashables = player.hand.filter(
+      (h) =>
+        h.instanceId !== ipo.instanceId &&
+        h.itemId !== 'bomb' &&
+        h.itemId !== 'dynamite' &&
+        h.itemId !== 'ipo',
+    );
+    if (cashables.length > 0) {
+      let best = cashables[0]!;
+      for (const h of cashables) {
+        if (h.currentSellValue > best.currentSellValue) best = h;
+      }
+      if (best.currentSellValue >= 3) {
+        return {
+          kind: 'use',
+          instanceId: ipo.instanceId,
+          targets: { handInstanceId: best.instanceId },
+        };
+      }
     }
   }
 

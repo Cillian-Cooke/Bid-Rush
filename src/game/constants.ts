@@ -8,15 +8,36 @@ export const CONFIG = {
   TILE_TIMER_MS: 10_000,
   START_PRICE: 1,
   BID_INCREMENT: 1,
-  HAND_SLOTS: 5,
+  HAND_SLOTS: 7,
+  /** Coin Mine base interval (1 mine). Stacks divide this (2 → half, 3 → third, …) */
+  MINE_BASE_MS: 4_800,
+  /** Golden Goose tick */
+  GOOSE_MS: 2_000,
+  /** Money Printer: spawn a Bank Note */
+  PRINTER_NOTE_MS: 10_000,
   GAME_LENGTH_MS: 180_000,
-  BOMB_FUSE_MS: 12_000,
+  BOMB_FUSE_MS: 5_000,
+  /** Minimum coins to defuse a regular bomb */
+  BOMB_SELL_MIN: 30,
+  /** Or this fraction of current wallet — whichever is higher */
+  BOMB_SELL_PCT: 0.1,
+  DYNAMITE_TICK_MS: 2_000,
+  MUTE_MS: 8_000,
+  COLD_MARKET_MS: 10_000,
+  ROI_MS: 30_000,
+  CURSE_TICK_MS: 3_000,
+  KICKBACK_COINS: 3,
   TICK_MS: 100,
   HANDCUFF_MS: 6_000,
   TIME_FREEZE_MS: 6_000,
-  OVERTIME_MS: 6_000,
   MEGA_FREEZE_MS: 4_000,
   GILDER_MS: 30_000,
+  /** Chrysalis → random golden pool item */
+  CHRYSALIS_MS: 20_000,
+  /** Interest: +sell value to whole hand */
+  INTEREST_TICK_MS: 5_000,
+  /** Stock Market: multiply sell value */
+  STOCK_MARKET_MS: 20_000,
   COUNTDOWN_MS: 3_000,
   COMEBACK_GAP: 12,
   COMEBACK_INTERVAL_MS: 9_000,

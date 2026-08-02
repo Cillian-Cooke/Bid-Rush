@@ -8,11 +8,11 @@ import type {
   WorldEventId,
 } from './types';
 
-const MONEY_IDS: ItemId[] = [
+  const MONEY_IDS: ItemId[] = [
   'coin_mine',
   'money_printer',
   'golden_goose',
-  'dividend_stock',
+  'stock_market',
   'piggy_bank',
   'coin_leech',
 ];
@@ -138,9 +138,24 @@ export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
     accent: '#c084fc',
     fxKind: 'mystery_sell',
   },
+  golden_chaos: {
+    id: 'golden_chaos',
+    name: 'Golden Chaos',
+    emoji: '🌟',
+    blurb: 'Gilded mayhem — gold rain, wild shelves, and wild prices',
+    warnLine: 'Something gilded stirs…',
+    activeLine: 'Golden Chaos reigns!',
+    accent: '#fbbf24',
+    fxKind: 'event_money',
+  },
 };
 
 export const WORLD_EVENT_IDS = Object.keys(WORLD_EVENTS) as WorldEventId[];
+
+/** Random pool — excludes Chaos Die’s unique golden event */
+export const RANDOM_WORLD_EVENT_IDS = WORLD_EVENT_IDS.filter(
+  (id) => id !== 'golden_chaos',
+);
 
 export function getWorldEvent(id: WorldEventId): WorldEventDef {
   return WORLD_EVENTS[id];
@@ -169,8 +184,8 @@ function emitFx(
 }
 
 function pickEvent(rng: () => number): WorldEventId {
-  const i = Math.floor(rng() * WORLD_EVENT_IDS.length);
-  return WORLD_EVENT_IDS[i]!;
+  const i = Math.floor(rng() * RANDOM_WORLD_EVENT_IDS.length);
+  return RANDOM_WORLD_EVENT_IDS[i]!;
 }
 
 function living(state: GameState) {
@@ -261,6 +276,23 @@ function startEvent(state: GameState, rng: () => number): void {
       for (const tile of state.tiles) {
         tile.price += 2;
         emitFx(state, 'inflate', { tileIndex: tile.index, label: '+2' });
+      }
+      break;
+    case 'golden_chaos':
+      for (const p of living(state)) {
+        p.coins += 12;
+        state.events.push({
+          type: 'income',
+          playerId: p.id,
+          amount: 12,
+          emoji: '🌟',
+        });
+        emitFx(state, 'event_money', { playerId: p.id, label: '+12' });
+      }
+      forceShopItems(state, MONEY_IDS, rng, 'event_money');
+      for (const tile of state.tiles) {
+        tile.price = Math.max(1, tile.price + 3);
+        emitFx(state, 'inflate', { tileIndex: tile.index, label: '+3' });
       }
       break;
   }
@@ -357,6 +389,24 @@ function pulseEvent(state: GameState, rng: () => number): void {
         emitFx(state, def.fxKind, { tileIndex: tile.index });
       }
       break;
+    case 'golden_chaos': {
+      for (const p of living(state)) {
+        p.coins += 4;
+        state.events.push({
+          type: 'income',
+          playerId: p.id,
+          amount: 4,
+          emoji: '🌟',
+        });
+        emitFx(state, 'event_money', { playerId: p.id, label: '+4' });
+      }
+      shuffleBoard(state, rng);
+      for (const tile of state.tiles) {
+        tile.price += 1;
+        emitFx(state, 'inflate', { tileIndex: tile.index, label: '+1' });
+      }
+      break;
+    }
   }
 }
 
@@ -397,7 +447,33 @@ export function worldEventTimerScale(state: GameState): number {
   if (we.phase !== 'active' || !we.id) return 1;
   if (we.id === 'deep_freeze') return 0;
   if (we.id === 'turbo_market') return 2;
+  if (we.id === 'golden_chaos') return 1.5;
   return 1;
+}
+
+/**
+ * Immediately start a world event (Chaos Die). Replaces any live event.
+ * Pass `golden_chaos` for the unique golden-die event; otherwise picks random.
+ */
+export function forceTriggerWorldEvent(
+  state: GameState,
+  rng: () => number,
+  id?: WorldEventId,
+): void {
+  const we = state.worldEvent;
+  if (we.phase === 'active') {
+    endEvent(state);
+  }
+  we.id = id ?? pickEvent(rng);
+  we.phase = 'active';
+  we.activeMs = CONFIG.EVENT_DURATION_MS;
+  we.pulseAccMs = 0;
+  we.fxAccMs = 0;
+  const def = getWorldEvent(we.id);
+  for (const tile of state.tiles) {
+    emitFx(state, def.fxKind, { tileIndex: tile.index });
+  }
+  startEvent(state, rng);
 }
 
 export function tickWorldEvent(
@@ -406,25 +482,8 @@ export function tickWorldEvent(
   rng: () => number,
 ): void {
   const we = state.worldEvent;
-  if (we.phase === 'done') return;
 
-  if (we.phase === 'pending' && state.roundMs <= CONFIG.EVENT_WARN_AT_MS) {
-    we.phase = 'warning';
-    we.id = pickEvent(rng);
-    const def = getWorldEvent(we.id);
-    for (const tile of state.tiles) {
-      emitFx(state, def.fxKind, { tileIndex: tile.index });
-    }
-  }
-
-  if (we.phase === 'warning' && state.roundMs <= CONFIG.EVENT_START_AT_MS) {
-    we.phase = 'active';
-    we.activeMs = CONFIG.EVENT_DURATION_MS;
-    we.pulseAccMs = 0;
-    we.fxAccMs = 0;
-    startEvent(state, rng);
-  }
-
+  // Forced Chaos Die events set phase back to active after 'done'
   if (we.phase === 'active') {
     we.activeMs = Math.max(0, we.activeMs - dtMs);
     we.pulseAccMs += dtMs;
@@ -445,5 +504,25 @@ export function tickWorldEvent(
       we.phase = 'done';
       we.activeMs = 0;
     }
+    return;
+  }
+
+  if (we.phase === 'done') return;
+
+  if (we.phase === 'pending' && state.roundMs <= CONFIG.EVENT_WARN_AT_MS) {
+    we.phase = 'warning';
+    we.id = pickEvent(rng);
+    const def = getWorldEvent(we.id);
+    for (const tile of state.tiles) {
+      emitFx(state, def.fxKind, { tileIndex: tile.index });
+    }
+  }
+
+  if (we.phase === 'warning' && state.roundMs <= CONFIG.EVENT_START_AT_MS) {
+    we.phase = 'active';
+    we.activeMs = CONFIG.EVENT_DURATION_MS;
+    we.pulseAccMs = 0;
+    we.fxAccMs = 0;
+    startEvent(state, rng);
   }
 }

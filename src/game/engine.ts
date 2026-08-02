@@ -1,5 +1,5 @@
 import { AVATAR_EMOJIS, CONFIG, MODE_SETUP, PLAYER_COLORS } from './constants';
-import { getItem, pickMatchPool, weightedRandomItem } from './items';
+import { getItem, pickMatchPool, startPriceOf, bombDefuseCost, weightedRandomItem, coinMineIntervalMs } from './items';
 import { matchPaceMult } from './pace';
 import { createRng } from './rng';
 import type {
@@ -18,11 +18,12 @@ import type {
 } from './types';
 import {
   createWorldEventState,
+  forceTriggerWorldEvent,
   tickWorldEvent,
   worldEventTimerScale,
 } from './worldEvents';
 
-export { createRng };
+export { createRng, bombDefuseCost };
 
 function emitFx(
   state: GameState,
@@ -62,7 +63,7 @@ function makeTile(index: number, itemId: ItemId): Tile {
   return {
     index,
     itemId,
-    price: CONFIG.START_PRICE,
+    price: startPriceOf(itemId),
     timerMs: CONFIG.TILE_TIMER_MS,
     highBidderId: null,
     freezeMs: 0,
@@ -86,18 +87,62 @@ function makeHandItem(
     golden: false,
     passiveAccMs: 0,
     dividendGrowAccMs: 0,
-    currentSellValue: def.sellValue,
+    currentSellValue: itemId === 'stock_market' ? 1 : def.sellValue,
     stored: 0,
     bombFuseMs: withBombFuse || itemId === 'bomb' ? CONFIG.BOMB_FUSE_MS : null,
     gilderAccMs: 0,
   };
 }
 
-function sellValueOf(item: HandItem): number {
+function sellValueOf(item: HandItem, itemsSold = 0): number {
   if (item.itemId === 'bomb') return item.golden ? 100 : 0;
+  if (item.itemId === 'dynamite') return 0;
+  if (item.itemId === 'bank_note') {
+    return itemsSold * (item.golden ? 2 : 1);
+  }
   if (item.itemId === 'mystery_box') return item.currentSellValue;
   if (item.itemId === 'piggy_bank') return 2 + item.stored;
   return item.currentSellValue;
+}
+
+function syncBankNotes(player: Player): void {
+  for (const h of player.hand) {
+    if (h.itemId === 'bank_note') {
+      h.currentSellValue = sellValueOf(h, player.itemsSold);
+    }
+  }
+}
+
+function recordItemsSold(player: Player, count: number): void {
+  if (count <= 0) return;
+  player.itemsSold += count;
+  syncBankNotes(player);
+}
+
+function brokerBonus(player: Player): number {
+  let bonus = 0;
+  for (const h of player.hand) {
+    if (h.itemId === 'broker') bonus += h.golden ? 6 : 3;
+  }
+  return bonus;
+}
+
+function hasCurseIdol(player: Player): boolean {
+  return player.hand.some((h) => h.itemId === 'curse_idol');
+}
+
+function passivesBlocked(state: GameState, player: Player): boolean {
+  return state.coldMarketMs > 0 || player.muteMs > 0;
+}
+
+function randomOpponent(
+  state: GameState,
+  selfId: string,
+  rng: () => number,
+): Player | null {
+  const others = livingPlayers(state).filter((p) => p.id !== selfId);
+  if (others.length === 0) return null;
+  return others[Math.floor(rng() * others.length)]!;
 }
 
 function adjacencyMult(hand: HandItem[], index: number): number {
@@ -105,9 +150,9 @@ function adjacencyMult(hand: HandItem[], index: number): number {
   const left = hand[index - 1];
   const right = hand[index + 1];
   // Echo to the left doubles this item (its right neighbor)
-  if (left?.itemId === 'echo_lens') m *= 2;
-  // Golden echo to the right also doubles this item (its left neighbor)
-  if (right?.itemId === 'echo_lens' && right.golden) m *= 2;
+  if (left?.itemId === 'mirror') m *= 2;
+  // Golden mirror to the right also doubles this item (its left neighbor)
+  if (right?.itemId === 'mirror' && right.golden) m *= 2;
   return m;
 }
 
@@ -134,8 +179,10 @@ function grantCoins(
   player: Player,
   amount: number,
   emoji: string,
+  opts: { skipMagnet?: boolean } = {},
 ): void {
   if (amount <= 0) return;
+  if (passivesBlocked(state, player) || hasCurseIdol(player)) return;
   const pay = amount + tipBonus(player);
   player.coins += pay;
   state.events.push({
@@ -144,16 +191,39 @@ function grantCoins(
     amount: pay,
     emoji,
   });
+  if (opts.skipMagnet) return;
+  for (const other of state.players) {
+    if (!other.isAlive || other.id === player.id) continue;
+    if (passivesBlocked(state, other) || hasCurseIdol(other)) continue;
+    let mag = 0;
+    for (const h of other.hand) {
+      if (h.itemId === 'magnet') mag += h.golden ? 2 : 1;
+    }
+    if (mag > 0) {
+      other.coins += mag;
+      state.events.push({
+        type: 'income',
+        playerId: other.id,
+        amount: mag,
+        emoji: '🧲',
+      });
+      emitFx(state, 'magnet', { playerId: other.id });
+    }
+  }
 }
 
 function makeGoldenFrom(
   state: GameState,
+  player: Player,
   itemId: ItemId,
   parts: HandItem[],
 ): HandItem {
   const golden = makeHandItem(state, itemId);
   golden.golden = true;
-  golden.currentSellValue = parts.reduce((s, h) => s + sellValueOf(h), 0);
+  golden.currentSellValue = parts.reduce(
+    (s, h) => s + sellValueOf(h, player.itemsSold),
+    0,
+  );
   golden.stored = parts.reduce((s, h) => s + h.stored, 0);
   if (itemId === 'piggy_bank') {
     golden.currentSellValue = 2 + golden.stored;
@@ -161,6 +231,9 @@ function makeGoldenFrom(
   if (itemId === 'bomb') {
     golden.bombFuseMs = parts.reduce((s, h) => s + (h.bombFuseMs ?? 0), 0);
     golden.currentSellValue = 100;
+  }
+  if (itemId === 'bank_note') {
+    golden.currentSellValue = player.itemsSold * 2;
   }
   return golden;
 }
@@ -182,7 +255,7 @@ function tryAutoMerge(state: GameState, player: Player): void {
       if (idxs.length < 3) continue;
       const take = idxs.slice(0, 3);
       const parts = take.map((i) => player.hand[i]!);
-      const golden = makeGoldenFrom(state, itemId, parts);
+      const golden = makeGoldenFrom(state, player, itemId, parts);
       // Remove highest indices first
       for (const i of [...take].sort((a, b) => b - a)) {
         player.hand.splice(i, 1);
@@ -216,7 +289,7 @@ function tryMergeIncoming(
   const take = matches.slice(0, 2);
   const incoming = makeHandItem(state, itemId, itemId === 'bomb');
   const parts = [...take.map((t) => t.h), incoming];
-  const golden = makeGoldenFrom(state, itemId, parts);
+  const golden = makeGoldenFrom(state, player, itemId, parts);
   for (const t of [...take].sort((a, b) => b.i - a.i)) {
     player.hand.splice(t.i, 1);
   }
@@ -300,9 +373,13 @@ export function createInitialState(
     isAlive: true,
     archetype: id.archetype,
     handcuffMs: 0,
+    muteMs: 0,
+    roiMs: 0,
+    roiTargetCoins: 0,
     botCooldownMs: id.isHuman ? 0 : 200 + Math.floor(rng() * 600),
     eliminatedAt: null,
     comebackAccMs: 0,
+    itemsSold: 0,
   }));
 
   // Ensure human id is player_0
@@ -339,6 +416,7 @@ export function createInitialState(
       bracket: CONFIG.SUDDEN_DEATH_START_BRACKET,
       phaseMs: CONFIG.SUDDEN_DEATH_PHASE_MS,
     },
+    coldMarketMs: 0,
     itemPool,
   };
 }
@@ -366,13 +444,15 @@ function restockTile(state: GameState, tileIndex: number, rng: () => number): vo
 function eliminate(
   state: GameState,
   playerId: string,
-  reason: 'unpaid' | 'bomb' | 'bracket',
+  reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech',
 ): void {
   const player = getPlayer(state, playerId);
   if (!player || !player.isAlive) return;
   player.isAlive = false;
   player.eliminatedAt = Date.now();
   player.hand = [];
+  player.roiMs = 0;
+  player.roiTargetCoins = 0;
   // Clear their high bids
   for (const tile of state.tiles) {
     if (tile.highBidderId === playerId) {
@@ -406,6 +486,9 @@ function giveItem(state: GameState, player: Player, itemId: ItemId): void {
     if (itemId === 'mystery_box') {
       sell = 1 + ((state.nextInstance * 17 + state.seed) % 20);
     }
+    if (itemId === 'bank_note') {
+      sell = player.itemsSold;
+    }
     player.coins += sell;
     state.events.push({
       type: 'overflow_sell',
@@ -413,10 +496,22 @@ function giveItem(state: GameState, player: Player, itemId: ItemId): void {
       amount: sell,
       emoji: def.emoji,
     });
+    recordItemsSold(player, 1);
+    const tip = brokerBonus(player);
+    if (tip > 0) {
+      player.coins += tip;
+      state.events.push({
+        type: 'income',
+        playerId: player.id,
+        amount: tip,
+        emoji: '🤝',
+      });
+    }
     return;
   }
 
   player.hand.push(makeHandItem(state, itemId));
+  if (itemId === 'bank_note') syncBankNotes(player);
   tryAutoMerge(state, player);
 }
 
@@ -446,14 +541,21 @@ export function reorderHand(
   return next;
 }
 
-export function computeSellValue(item: HandItem, rng: () => number): number {
+export function computeSellValue(
+  item: HandItem,
+  rng: () => number,
+  itemsSold = 0,
+): number {
   if (item.itemId === 'bomb') return item.golden ? 100 : 0;
+  if (item.itemId === 'dynamite') return 0;
+  if (item.itemId === 'bank_note') {
+    return itemsSold * (item.golden ? 2 : 1);
+  }
   if (item.itemId === 'mystery_box') {
     const roll = () => 1 + Math.floor(rng() * 20);
     return item.golden ? roll() + roll() : roll();
   }
   if (item.itemId === 'piggy_bank') return 2 + item.stored;
-  if (item.itemId === 'dividend_stock') return item.currentSellValue;
   return item.currentSellValue;
 }
 
@@ -500,21 +602,51 @@ export function sellItem(
   if (idx < 0) return next;
 
   const item = player.hand[idx]!;
-  const value = computeSellValue(item, rng);
-  player.coins += value;
-  player.hand.splice(idx, 1);
 
-  if (value > 0) {
+  // Regular bomb: pay to defuse. Golden: +100 bonus.
+  if (item.itemId === 'bomb') {
+    if (item.golden) {
+      player.coins += 100;
+      next.events.push({
+        type: 'income',
+        playerId,
+        amount: 100,
+        emoji: '💣',
+      });
+    } else {
+      const cost = bombDefuseCost(player.coins);
+      if (player.coins < cost) return next;
+      player.coins -= cost;
+      next.events.push({
+        type: 'loss',
+        playerId,
+        amount: cost,
+        emoji: '💣',
+      });
+    }
+    player.hand.splice(idx, 1);
+    return next;
+  }
+
+  const value = computeSellValue(item, rng, player.itemsSold);
+  player.hand.splice(idx, 1);
+  let payout = value;
+  const tip = brokerBonus(player);
+  payout += tip;
+  player.coins += payout;
+
+  if (value > 0 || tip > 0) {
     next.events.push({
       type: 'income',
       playerId,
-      amount: value,
-      emoji: getItem(item.itemId).emoji,
+      amount: payout,
+      emoji: tip > 0 ? '🤝' : getItem(item.itemId).emoji,
     });
   }
   if (item.itemId === 'mystery_box') {
     emitFx(next, 'mystery_sell', { playerId });
   }
+  recordItemsSold(player, 1);
 
   return next;
 }
@@ -537,6 +669,21 @@ function resolveTile(
       if (winner.coins >= tile.price) {
         winner.coins -= tile.price;
         giveItem(state, winner, tile.itemId);
+        // Kickback: +3 (golden +6) per held card on every purchase
+        let kick = 0;
+        for (const h of winner.hand) {
+          if (h.itemId === 'kickback') kick += h.golden ? 6 : CONFIG.KICKBACK_COINS;
+        }
+        if (kick > 0 && !passivesBlocked(state, winner) && !hasCurseIdol(winner)) {
+          winner.coins += kick;
+          state.events.push({
+            type: 'income',
+            playerId: winner.id,
+            amount: kick,
+            emoji: '🤝',
+          });
+          emitFx(state, 'kickback', { playerId: winner.id });
+        }
       } else {
         eliminate(state, winnerId, 'unpaid');
       }
@@ -566,8 +713,12 @@ export function applyUseItem(
   const item = player.hand[idx]!;
   const def = getItem(item.itemId);
 
-  // Bomb is only sellable (defuse), not "used" as active with special target
-  if (item.itemId === 'bomb' || item.itemId === 'mystery_box') {
+  // Bomb / mystery are only sellable, not "used"
+  if (
+    item.itemId === 'bomb' ||
+    item.itemId === 'dynamite' ||
+    item.itemId === 'mystery_box'
+  ) {
     return next;
   }
 
@@ -606,19 +757,10 @@ function applyActiveEffect(
       emitFx(state, 'double', { tileIndex: tile.index });
       break;
     }
-    case 'discount_tag': {
-      const tile = state.tiles[targets.tileIndex ?? -1];
-      if (!tile) return;
-      for (let i = 0; i < mult; i++) {
-        tile.price = Math.max(1, Math.ceil(tile.price / 2));
-      }
-      emitFx(state, 'discount', { tileIndex: tile.index, label: '½' });
-      break;
-    }
     case 'reset_hammer': {
       const tile = state.tiles[targets.tileIndex ?? -1];
       if (!tile) return;
-      tile.price = CONFIG.START_PRICE;
+      tile.price = startPriceOf(tile.itemId);
       tile.highBidderId = null;
       tile.bidLocked = false;
       emitFx(state, 'hammer', { tileIndex: tile.index });
@@ -626,7 +768,7 @@ function applyActiveEffect(
         const others = state.tiles.filter((t) => t.index !== tile.index);
         if (others.length > 0) {
           const pick = others[Math.floor(rng() * others.length)]!;
-          pick.price = CONFIG.START_PRICE;
+          pick.price = startPriceOf(pick.itemId);
           pick.highBidderId = null;
           pick.bidLocked = false;
           emitFx(state, 'hammer', { tileIndex: pick.index });
@@ -636,8 +778,56 @@ function applyActiveEffect(
     }
     case 'inflation': {
       for (const tile of state.tiles) {
-        tile.price += 2 * mult;
-        emitFx(state, 'inflate', { tileIndex: tile.index });
+        tile.price += 3 * mult;
+        emitFx(state, 'inflate', {
+          tileIndex: tile.index,
+          label: `+${3 * mult}`,
+        });
+      }
+      break;
+    }
+    case 'ipo': {
+      if (item.golden) {
+        let total = 0;
+        for (const h of player.hand) {
+          if (h.itemId === 'bomb' || h.itemId === 'dynamite') continue;
+          total += sellValueOf(h, player.itemsSold);
+        }
+        if (total > 0) {
+          player.coins += total;
+          state.events.push({
+            type: 'income',
+            playerId: player.id,
+            amount: total,
+            emoji: '📢',
+          });
+        }
+        emitFx(state, 'gold_spark', {
+          playerId: player.id,
+          label: `IPO +${total}`,
+        });
+      } else {
+        const handId = targets.handInstanceId;
+        if (!handId) return;
+        const target = player.hand.find((h) => h.instanceId === handId);
+        if (!target || target.itemId === 'bomb' || target.itemId === 'dynamite') {
+          return;
+        }
+        const payout = sellValueOf(target, player.itemsSold);
+        if (payout > 0) {
+          player.coins += payout;
+          state.events.push({
+            type: 'income',
+            playerId: player.id,
+            amount: payout,
+            emoji: '📢',
+          });
+        }
+        emitFx(state, 'gold_spark', {
+          playerId: player.id,
+          instanceId: target.instanceId,
+          label: `IPO +${payout}`,
+        });
       }
       break;
     }
@@ -669,16 +859,6 @@ function applyActiveEffect(
           resolveTile(state, pick.index, rng);
         }
       }
-      break;
-    }
-    case 'overtime': {
-      const tile = state.tiles[targets.tileIndex ?? -1];
-      if (!tile) return;
-      tile.timerMs += CONFIG.OVERTIME_MS * mult;
-      emitFx(state, 'overtime', {
-        tileIndex: tile.index,
-        label: `+${(CONFIG.OVERTIME_MS * mult) / 1000}s`,
-      });
       break;
     }
     case 'swap_portal': {
@@ -735,39 +915,6 @@ function applyActiveEffect(
       }
       break;
     }
-    case 'shuffle': {
-      const payloads = state.tiles.map((t) => ({
-        itemId: t.itemId,
-        price: t.price,
-        timerMs: t.timerMs,
-        highBidderId: t.highBidderId,
-        freezeMs: t.freezeMs,
-        bidLocked: t.bidLocked,
-      }));
-      for (let i = payloads.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
-        const tmp = payloads[i]!;
-        payloads[i] = payloads[j]!;
-        payloads[j] = tmp;
-      }
-      for (let i = 0; i < state.tiles.length; i++) {
-        const t = state.tiles[i]!;
-        const p = payloads[i]!;
-        t.itemId = p.itemId;
-        t.price = p.price;
-        t.timerMs = p.timerMs;
-        t.highBidderId = p.highBidderId;
-        t.freezeMs = p.freezeMs;
-        t.bidLocked = p.bidLocked;
-        if (item.golden) {
-          t.price = Math.max(1, t.price - 1);
-        }
-        t.flash = 'bid';
-        t.flashMs = 300;
-        emitFx(state, 'shuffle', { tileIndex: i });
-      }
-      break;
-    }
     case 'handcuffs': {
       const target = getPlayer(state, targets.playerId ?? '');
       if (!target || !target.isAlive || target.id === player.id) return;
@@ -797,6 +944,60 @@ function applyActiveEffect(
       });
       break;
     }
+    case 'heist_kit': {
+      const target = getPlayer(state, targets.playerId ?? '');
+      if (!target || !target.isAlive || target.id === player.id) return;
+      const lootPool = target.hand.filter(
+        (h) => h.itemId !== 'bomb' && h.itemId !== 'dynamite',
+      );
+      if (lootPool.length === 0) return;
+      const times = item.golden ? 2 : 1;
+      for (let n = 0; n < times; n++) {
+        const pool = target.hand.filter(
+          (h) => h.itemId !== 'bomb' && h.itemId !== 'dynamite',
+        );
+        if (pool.length === 0) break;
+        const stolen = pool[Math.floor(rng() * pool.length)]!;
+        target.hand = target.hand.filter((h) => h.instanceId !== stolen.instanceId);
+        player.hand.push(stolen);
+        tryAutoMerge(state, player);
+      }
+      emitFx(state, 'heist', {
+        playerId: player.id,
+        targetPlayerId: target.id,
+      });
+      break;
+    }
+    case 'mute': {
+      const target = getPlayer(state, targets.playerId ?? '');
+      if (!target || !target.isAlive || target.id === player.id) return;
+      target.muteMs = Math.max(target.muteMs, CONFIG.MUTE_MS * mult);
+      emitFx(state, 'mute', { playerId: target.id });
+      break;
+    }
+    case 'cold_market': {
+      state.coldMarketMs = Math.max(state.coldMarketMs, CONFIG.COLD_MARKET_MS * mult);
+      emitFx(state, 'cold_market', { label: 'COLD' });
+      break;
+    }
+    case 'roi': {
+      const baseline = player.coins;
+      const boosted = Math.floor(baseline * 1.5);
+      const gained = boosted - baseline;
+      player.coins = boosted;
+      player.roiTargetCoins = baseline * 2;
+      player.roiMs = CONFIG.ROI_MS * (item.golden ? 2 : 1);
+      if (gained > 0) {
+        state.events.push({
+          type: 'income',
+          playerId: player.id,
+          amount: gained,
+          emoji: '📉',
+        });
+      }
+      emitFx(state, 'roi', { playerId: player.id, label: '1.5×' });
+      break;
+    }
     case 'bid_lock': {
       const tile = state.tiles[targets.tileIndex ?? -1];
       if (!tile) return;
@@ -809,24 +1010,15 @@ function applyActiveEffect(
       emitFx(state, 'cuffs', { tileIndex: tile.index, label: 'LOCK' });
       break;
     }
-    case 'blank_slate': {
-      const before = player.coins;
-      const times = item.golden ? 2 : 1;
-      for (let n = 0; n < times; n++) {
-        player.coins *= 2;
-      }
-      const gained = player.coins - before;
-      if (gained > 0) {
-        state.events.push({
-          type: 'income',
-          playerId: player.id,
-          amount: gained,
-          emoji: '⬜',
-        });
-      }
-      emitFx(state, 'gold_spark', {
+    case 'chaos_die': {
+      forceTriggerWorldEvent(
+        state,
+        rng,
+        item.golden ? 'golden_chaos' : undefined,
+      );
+      emitFx(state, 'shuffle', {
         playerId: player.id,
-        label: item.golden ? '×4' : '×2',
+        label: item.golden ? '🌟🎲' : '🎲',
       });
       break;
     }
@@ -835,24 +1027,32 @@ function applyActiveEffect(
   }
 }
 
-function tickPassives(state: GameState, dt: number): void {
+function tickPassives(state: GameState, dt: number, rng: () => number = Math.random): void {
   const pace = matchPaceMult(state.elapsedMs);
-  for (const player of state.players) {
+  // Snapshot player ids — eliminations may occur mid-loop
+  for (const player of [...state.players]) {
     if (!player.isAlive) continue;
 
     const haste = hasteFactor(player);
     const tip = tipBonus(player);
+    const blocked = passivesBlocked(state, player);
+    const cursed = hasCurseIdol(player);
 
-    // Snapshot length — merges/gilding may mutate hand
     for (let i = 0; i < player.hand.length; i++) {
       const item = player.hand[i]!;
       const def = getItem(item.itemId);
-      if (def.kind !== 'passive' && item.itemId !== 'bomb') continue;
+      if (
+        def.kind !== 'passive' &&
+        item.itemId !== 'bomb' &&
+        item.itemId !== 'dynamite'
+      ) {
+        continue;
+      }
 
       const selfMult = (item.golden ? 2 : 1) * adjacencyMult(player.hand, i);
       const tick = dt * haste * pace;
 
-      // Bomb fuse (not hasted — real-time danger)
+      // Bomb fuse (real-time, not hasted)
       if (item.itemId === 'bomb' && item.bombFuseMs !== null) {
         item.bombFuseMs -= dt;
         if (Math.floor(item.bombFuseMs / 1000) !== Math.floor((item.bombFuseMs + dt) / 1000)) {
@@ -868,18 +1068,125 @@ function tickPassives(state: GameState, dt: number): void {
         continue;
       }
 
+      // Dynamite — chew left (or whole hand if golden) every 2s
+      if (item.itemId === 'dynamite') {
+        item.passiveAccMs += dt;
+        while (item.passiveAccMs >= CONFIG.DYNAMITE_TICK_MS) {
+          item.passiveAccMs -= CONFIG.DYNAMITE_TICK_MS;
+          if (item.golden) {
+            const kept = player.hand.filter((h) => h.instanceId === item.instanceId);
+            player.hand = kept;
+            i = 0;
+            emitFx(state, 'dynamite', { playerId: player.id, label: 'BOOM' });
+          } else {
+            const leftIdx = player.hand.findIndex((h) => h.instanceId === item.instanceId) - 1;
+            if (leftIdx >= 0) {
+              player.hand.splice(leftIdx, 1);
+              i = Math.max(0, i - 1);
+              emitFx(state, 'dynamite', { playerId: player.id });
+            }
+          }
+        }
+        continue;
+      }
+
       // Aura / non-ticking passives
       if (
         item.itemId === 'mystery_box' ||
-        item.itemId === 'echo_lens' ||
+        item.itemId === 'bank_note' ||
+        item.itemId === 'mirror' ||
         item.itemId === 'tip_jar' ||
-        item.itemId === 'haste_gear'
+        item.itemId === 'haste_gear' ||
+        item.itemId === 'magnet' ||
+        item.itemId === 'kickback' ||
+        item.itemId === 'broker'
       ) {
+        continue;
+      }
+
+      // Chrysalis — after 20s become a random golden pool item (golden: replace whole hand)
+      if (item.itemId === 'chrysalis') {
+        if (blocked) continue;
+        item.passiveAccMs += tick;
+        if (item.passiveAccMs < CONFIG.CHRYSALIS_MS) continue;
+        const pool = state.itemPool.filter((id) => id !== 'chrysalis');
+        const pickPool = pool.length > 0 ? pool : state.itemPool;
+
+        const spawnGolden = (): HandItem => {
+          const newId = weightedRandomItem(rng, pickPool);
+          const spawned = makeHandItem(state, newId, newId === 'bomb');
+          spawned.golden = true;
+          spawned.currentSellValue = Math.max(
+            spawned.currentSellValue * 3,
+            getItem(newId).sellValue * 3,
+          );
+          if (spawned.itemId === 'piggy_bank') {
+            spawned.currentSellValue = 2 + spawned.stored;
+          }
+          if (spawned.itemId === 'bomb') spawned.currentSellValue = 100;
+          return spawned;
+        };
+
+        if (item.golden) {
+          player.hand = [];
+          for (let n = 0; n < CONFIG.HAND_SLOTS; n++) {
+            const spawned = spawnGolden();
+            player.hand.push(spawned);
+            emitFx(state, 'gold_spark', {
+              playerId: player.id,
+              instanceId: spawned.instanceId,
+              label: 'GOLD',
+            });
+          }
+          emitFx(state, 'mystery_sell', {
+            playerId: player.id,
+            label: '🦋✨',
+          });
+          i = -1;
+        } else {
+          const spawned = spawnGolden();
+          player.hand[i] = spawned;
+          emitFx(state, 'gold_spark', {
+            playerId: player.id,
+            instanceId: spawned.instanceId,
+            label: 'GOLD',
+          });
+        }
+        continue;
+      }
+
+      // Curse Idol — no personal income; drain rivals every 3s
+      if (item.itemId === 'curse_idol') {
+        item.passiveAccMs += tick;
+        while (item.passiveAccMs >= CONFIG.CURSE_TICK_MS) {
+          item.passiveAccMs -= CONFIG.CURSE_TICK_MS;
+          const drain = selfMult;
+          for (const rival of livingPlayers(state)) {
+            if (rival.id === player.id) continue;
+            const lost = Math.min(drain, rival.coins);
+            if (lost <= 0) continue;
+            rival.coins -= lost;
+            state.events.push({
+              type: 'loss',
+              playerId: rival.id,
+              amount: lost,
+              emoji: '🧿',
+            });
+            emitFx(state, 'curse', {
+              playerId: player.id,
+              targetPlayerId: rival.id,
+            });
+            if (rival.coins <= 0) {
+              eliminate(state, rival.id, 'leech');
+            }
+          }
+        }
         continue;
       }
 
       // Gilder — turn neighbors golden after 30s
       if (item.itemId === 'gilder') {
+        if (blocked) continue;
         item.gilderAccMs += tick;
         while (item.gilderAccMs >= CONFIG.GILDER_MS) {
           item.gilderAccMs -= CONFIG.GILDER_MS;
@@ -907,6 +1214,8 @@ function tickPassives(state: GameState, dt: number): void {
         continue;
       }
 
+      if (blocked || cursed) continue;
+
       // Piggy banks into itself
       if (item.itemId === 'piggy_bank') {
         item.passiveAccMs += tick;
@@ -922,36 +1231,102 @@ function tickPassives(state: GameState, dt: number): void {
         continue;
       }
 
-      // Dividend income + grow sell value
-      if (item.itemId === 'dividend_stock') {
+      // Interest — every 5s add sell value to every hand item (no coins)
+      if (item.itemId === 'interest') {
         item.passiveAccMs += tick;
-        item.dividendGrowAccMs += tick;
-        while (item.passiveAccMs >= (def.passiveIntervalMs ?? 4000)) {
-          item.passiveAccMs -= def.passiveIntervalMs ?? 4000;
-          grantCoins(state, player, selfMult, def.emoji);
-          emitFx(state, 'dividend', {
+        while (item.passiveAccMs >= CONFIG.INTEREST_TICK_MS) {
+          item.passiveAccMs -= CONFIG.INTEREST_TICK_MS;
+          const bump = selfMult;
+          for (const h of player.hand) {
+            if (h.itemId === 'bomb' || h.itemId === 'dynamite') continue;
+            if (h.itemId === 'piggy_bank') {
+              h.stored += bump;
+            } else {
+              h.currentSellValue += bump;
+            }
+          }
+          emitFx(state, 'interest', {
             playerId: player.id,
             instanceId: item.instanceId,
-          });
-        }
-        while (item.dividendGrowAccMs >= 6000) {
-          item.dividendGrowAccMs -= 6000;
-          item.currentSellValue += selfMult;
-          emitFx(state, 'dividend', {
-            playerId: player.id,
-            instanceId: item.instanceId,
-            label: '↑',
+            label: `+${bump}💰`,
           });
         }
         continue;
       }
 
-      // Coin leech
+      // Stock Market — sell value ×2 every 20s (golden ×3), starts at 1
+      if (item.itemId === 'stock_market') {
+        item.passiveAccMs += tick;
+        while (item.passiveAccMs >= CONFIG.STOCK_MARKET_MS) {
+          item.passiveAccMs -= CONFIG.STOCK_MARKET_MS;
+          const factor = item.golden ? 3 : 2;
+          item.currentSellValue = Math.max(1, item.currentSellValue * factor);
+          emitFx(state, 'dividend', {
+            playerId: player.id,
+            instanceId: item.instanceId,
+            label: `×${factor}`,
+          });
+        }
+        continue;
+      }
+
+      // Money Printer — every 10s print a Bank Note into hand
+      if (item.itemId === 'money_printer') {
+        item.passiveAccMs += tick;
+        while (item.passiveAccMs >= CONFIG.PRINTER_NOTE_MS) {
+          item.passiveAccMs -= CONFIG.PRINTER_NOTE_MS;
+          const copies = item.golden ? 2 : 1;
+          for (let n = 0; n < copies; n++) {
+            giveItem(state, player, 'bank_note');
+          }
+          emitFx(state, 'print', {
+            playerId: player.id,
+            instanceId: item.instanceId,
+            label: item.golden ? '💵💵' : '💵',
+          });
+        }
+        continue;
+      }
+
+      // Coin Mine — stacks speed up (1 slow, 2 = old pace, 3+ faster)
+      if (item.itemId === 'coin_mine') {
+        item.passiveAccMs += tick;
+        const mines = player.hand.filter((h) => h.itemId === 'coin_mine').length;
+        const interval = coinMineIntervalMs(mines);
+        while (item.passiveAccMs >= interval) {
+          item.passiveAccMs -= interval;
+          grantCoins(state, player, selfMult, def.emoji);
+          emitFx(state, 'gold_spark', {
+            playerId: player.id,
+            instanceId: item.instanceId,
+          });
+        }
+        continue;
+      }
+
+      // Golden Goose — steady fast drip; golden doubles coins only
+      if (item.itemId === 'golden_goose') {
+        item.passiveAccMs += tick;
+        while (item.passiveAccMs >= CONFIG.GOOSE_MS) {
+          item.passiveAccMs -= CONFIG.GOOSE_MS;
+          grantCoins(state, player, selfMult, def.emoji);
+          emitFx(state, 'goose', {
+            playerId: player.id,
+            instanceId: item.instanceId,
+          });
+        }
+        continue;
+      }
+
+      // Coin leech — blitz: random victim; can eliminate at 0
       if (item.itemId === 'coin_leech') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= (def.passiveIntervalMs ?? 4000)) {
           item.passiveAccMs -= def.passiveIntervalMs ?? 4000;
-          const victim = richestOpponent(state, player.id);
+          const victim =
+            state.mode === 'blitz'
+              ? randomOpponent(state, player.id, rng)
+              : richestOpponent(state, player.id);
           if (victim && victim.coins > 0) {
             const gap = victim.coins - player.coins;
             const want = (gap >= CONFIG.COMEBACK_BIG_GAP ? 2 : 1) * selfMult + tip;
@@ -969,6 +1344,9 @@ function tickPassives(state: GameState, dt: number): void {
               targetPlayerId: victim.id,
               instanceId: item.instanceId,
             });
+            if (victim.coins <= 0) {
+              eliminate(state, victim.id, 'leech');
+            }
           }
         }
         continue;
@@ -980,13 +1358,7 @@ function tickPassives(state: GameState, dt: number): void {
         while (item.passiveAccMs >= def.passiveIntervalMs) {
           item.passiveAccMs -= def.passiveIntervalMs;
           grantCoins(state, player, def.passiveAmount * selfMult, def.emoji);
-          const kind: FxKind =
-            item.itemId === 'money_printer'
-              ? 'print'
-              : item.itemId === 'golden_goose'
-                ? 'goose'
-                : 'gold_spark';
-          emitFx(state, kind, {
+          emitFx(state, 'gold_spark', {
             playerId: player.id,
             instanceId: item.instanceId,
           });
@@ -1087,12 +1459,30 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
 
   tickWorldEvent(next, dtMs, rng);
 
+  if (next.coldMarketMs > 0) {
+    next.coldMarketMs = Math.max(0, next.coldMarketMs - dtMs);
+  }
+
   // Status timers
   for (const player of next.players) {
+    if (!player.isAlive) continue;
     if (player.handcuffMs > 0) {
       player.handcuffMs = Math.max(0, player.handcuffMs - dtMs);
     }
-    if (!player.isHuman && player.isAlive) {
+    if (player.muteMs > 0) {
+      player.muteMs = Math.max(0, player.muteMs - dtMs);
+    }
+    if (player.roiMs > 0) {
+      player.roiMs = Math.max(0, player.roiMs - dtMs);
+      if (player.coins >= player.roiTargetCoins) {
+        player.roiMs = 0;
+        player.roiTargetCoins = 0;
+        emitFx(next, 'roi', { playerId: player.id, label: 'SAFE' });
+      } else if (player.roiMs <= 0) {
+        eliminate(next, player.id, 'roi');
+      }
+    }
+    if (!player.isHuman) {
       player.botCooldownMs = Math.max(0, player.botCooldownMs - dtMs);
     }
   }
@@ -1128,7 +1518,7 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
     }
   }
 
-  tickPassives(next, dtMs);
+  tickPassives(next, dtMs, rng);
   tickRubberBand(next, dtMs);
   checkWinConditions(next);
   tickSuddenDeath(next, dtMs);

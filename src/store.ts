@@ -64,7 +64,7 @@ type Store = {
   lastEvents: GameEvent[];
   /** Human died mid-match; show play again / spectate / menu */
   knockoutOffer: boolean;
-  knockoutReason: 'unpaid' | 'bomb' | 'bracket' | null;
+  knockoutReason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech' | null;
   /** Watching remaining players' hands after knockout */
   spectating: boolean;
   /** Match item pool (picked at Tag Sale start) */
@@ -93,6 +93,7 @@ type Store = {
 
   bidTile: (tileIndex: number) => void;
   sellFocused: () => void;
+  useFocused: () => void;
   selectHandItem: (instanceId: string) => void;
   cancelTargeting: () => void;
   selectTargetTile: (tileIndex: number) => void;
@@ -164,7 +165,11 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
             ? '💥 OUT'
             : e.reason === 'bracket'
               ? '💀 OUT'
-              : '💸 OUT',
+              : e.reason === 'roi'
+                ? '📉 OUT'
+                : e.reason === 'leech'
+                  ? '🧛 OUT'
+                  : '💸 OUT',
         createdAt: now,
       });
     } else if (e.type === 'loss') {
@@ -398,6 +403,13 @@ export const useGameStore = create<Store>((set, get) => ({
 
   openPoolReveal: () => {
     const { phase, naming, matchPool, poolRevealEndsAt } = get();
+    if (!matchPool && phase !== 'playing') return;
+    if (phase === 'playing') {
+      const pool = get().game?.itemPool ?? matchPool;
+      if (!pool) return;
+      set({ poolRevealOpen: true, handFocus: null, targeting: null });
+      return;
+    }
     if (!matchPool) return;
     if (phase === 'naming') {
       const endsAt =
@@ -417,8 +429,8 @@ export const useGameStore = create<Store>((set, get) => ({
 
   closePoolReveal: () => {
     const { phase } = get();
-    // Only dismissible during Tag Sale (early peek)
-    if (phase !== 'naming') return;
+    // Dismissible during Tag Sale peek or mid-match peek
+    if (phase !== 'naming' && phase !== 'playing') return;
     set({ poolRevealOpen: false });
   },
 
@@ -534,6 +546,31 @@ export const useGameStore = create<Store>((set, get) => ({
     });
   },
 
+  useFocused: () => {
+    const { game, phase, targeting, handFocus, spectating, knockoutOffer } =
+      get();
+    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
+    if (targeting) return;
+    const human = game.players.find((p) => p.id === game.humanId);
+    if (!human?.isAlive || !handFocus) return;
+    const item = human.hand.find((h) => h.instanceId === handFocus);
+    if (!item) return;
+    const def = getItem(item.itemId);
+    const instant =
+      def.kind === 'active' &&
+      (def.target === 'none' ||
+        def.target === 'all-items' ||
+        (item.itemId === 'time_freeze' && item.golden) ||
+        (item.itemId === 'ipo' && item.golden));
+    if (!instant) return;
+    commitGame(
+      set,
+      get,
+      applyUseItem(game, game.humanId, handFocus, {}, rng),
+      { targeting: null, handFocus: null },
+    );
+  },
+
   selectHandItem: (instanceId) => {
     const { game, phase, handFocus, targeting, spectating, knockoutOffer } =
       get();
@@ -555,6 +592,26 @@ export const useGameStore = create<Store>((set, get) => ({
       return;
     }
 
+    if (
+      targeting?.target === 'hand' &&
+      instanceId !== targeting.instanceId
+    ) {
+      if (item.itemId === 'bomb' || item.itemId === 'dynamite') return;
+      commitGame(
+        set,
+        get,
+        applyUseItem(
+          game,
+          targeting.playerId,
+          targeting.instanceId,
+          { handInstanceId: instanceId },
+          rng,
+        ),
+        { targeting: null, handFocus: null },
+      );
+      return;
+    }
+
     if (handFocus === instanceId || targeting?.instanceId === instanceId) {
       set({ handFocus: null, targeting: null });
       return;
@@ -562,24 +619,16 @@ export const useGameStore = create<Store>((set, get) => ({
 
     const def = getItem(item.itemId);
 
-    if (def.kind !== 'active' || def.target === 'special') {
+    // Passives, bombs, and instant actives: select first (Use / Sell above)
+    if (
+      def.kind !== 'active' ||
+      def.target === 'special' ||
+      def.target === 'none' ||
+      def.target === 'all-items' ||
+      (item.itemId === 'time_freeze' && item.golden) ||
+      (item.itemId === 'ipo' && item.golden)
+    ) {
       set({ handFocus: instanceId, targeting: null });
-      return;
-    }
-
-    if (item.itemId === 'time_freeze' && item.golden) {
-      commitGame(set, get, applyUseItem(game, game.humanId, instanceId, {}, rng), {
-        targeting: null,
-        handFocus: null,
-      });
-      return;
-    }
-
-    if (def.target === 'none' || def.target === 'all-items') {
-      commitGame(set, get, applyUseItem(game, game.humanId, instanceId, {}, rng), {
-        targeting: null,
-        handFocus: null,
-      });
       return;
     }
 

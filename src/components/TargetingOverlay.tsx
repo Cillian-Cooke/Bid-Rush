@@ -11,6 +11,7 @@ export function TargetingOverlay({ targeting, onCancel }: Props) {
   const def = getItem(targeting.itemId);
   let hint = 'Tap a target';
   if (targeting.target === 'item') hint = 'Tap a shop tile';
+  if (targeting.target === 'hand') hint = 'Tap a hand item to cash out';
   if (targeting.target === 'two-items') {
     hint = targeting.selectedTile === undefined
       ? 'Tap first tile'

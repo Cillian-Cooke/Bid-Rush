@@ -4,6 +4,7 @@ import { FxLayer } from '../components/FxLayer';
 import { GameChrome } from '../components/GameChrome';
 import { HandSlot } from '../components/HandSlot';
 import { KnockoutOverlay } from '../components/KnockoutOverlay';
+import { PoolToggleButton } from '../components/PoolToggleButton';
 import { PurseStrip } from '../components/PurseStrip';
 import { ShopTile } from '../components/ShopTile';
 import { SpectateHands } from '../components/SpectateHands';
@@ -29,8 +30,12 @@ export function Game() {
   const knockoutReason = useGameStore((s) => s.knockoutReason);
   const spectating = useGameStore((s) => s.spectating);
   const phase = useGameStore((s) => s.phase);
+  const poolRevealOpen = useGameStore((s) => s.poolRevealOpen);
+  const openPoolReveal = useGameStore((s) => s.openPoolReveal);
+  const closePoolReveal = useGameStore((s) => s.closePoolReveal);
   const bidTile = useGameStore((s) => s.bidTile);
   const sellFocused = useGameStore((s) => s.sellFocused);
+  const useFocused = useGameStore((s) => s.useFocused);
   const selectHandItem = useGameStore((s) => s.selectHandItem);
   const cancelTargeting = useGameStore((s) => s.cancelTargeting);
   const selectTargetTile = useGameStore((s) => s.selectTargetTile);
@@ -96,6 +101,25 @@ export function Game() {
   const focusedItem = focusedId
     ? human.hand.find((h) => h.instanceId === focusedId)
     : null;
+  const focusedDef = focusedItem ? getItem(focusedItem.itemId) : null;
+  const canUse =
+    !!focusedItem &&
+    !!focusedDef &&
+    !targeting &&
+    !poolRevealOpen &&
+    focusedDef.kind === 'active' &&
+    (focusedDef.target === 'none' ||
+      focusedDef.target === 'all-items' ||
+      (focusedItem.itemId === 'time_freeze' && focusedItem.golden) ||
+      (focusedItem.itemId === 'ipo' && focusedItem.golden));
+  const canSell = inUseMode && !!focusedItem && !poolRevealOpen;
+  const showPoolToggle =
+    phase === 'playing' &&
+    !spectating &&
+    human.isAlive &&
+    !knockoutOffer &&
+    !poolRevealOpen &&
+    !inUseMode;
 
   const handSlots = Array.from({ length: CONFIG.HAND_SLOTS }, (_, i) => {
     return human.hand[i] ?? null;
@@ -131,6 +155,7 @@ export function Game() {
         zoomedOut ? 'knocked-out' : '',
         spectating ? 'spectating' : '',
         live ? 'widgets-in' : '',
+        poolRevealOpen ? 'pool-peek-open' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -157,7 +182,11 @@ export function Game() {
       {!targeting && handFocus && focusedItem && human.isAlive && !spectating && (
         <div className="use-mode-banner">
           <span>{getItem(focusedItem.itemId).emoji}</span>
-          <span>Sell or tap again to cancel</span>
+          <span>
+            {canUse
+              ? 'Use or Sell above — tap again to cancel'
+              : 'Sell above — tap again to cancel'}
+          </span>
           <button type="button" className="use-mode-cancel" onClick={cancelTargeting}>
             Cancel
           </button>
@@ -204,6 +233,42 @@ export function Game() {
 
       {!spectating && (
         <div className={dockMotion}>
+          <div className="dock-actions" aria-label="Item actions">
+            {showPoolToggle ? (
+              <div className="dock-action-slot dock-action-slot-full">
+                <PoolToggleButton
+                  open={false}
+                  onOpen={openPoolReveal}
+                  onClose={closePoolReveal}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="dock-action-slot">
+                  {canSell && (
+                    <button
+                      type="button"
+                      className="dock-action sell"
+                      onClick={sellFocused}
+                    >
+                      Sell
+                    </button>
+                  )}
+                </div>
+                <div className="dock-action-slot">
+                  {canUse && (
+                    <button
+                      type="button"
+                      className="dock-action use"
+                      onClick={useFocused}
+                    >
+                      Use
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           <PurseStrip
             human={human}
             others={others}
@@ -214,10 +279,11 @@ export function Game() {
             rivalFloatText={others[0] ? floatFor(others[0].id) : null}
             targetingPlayers={!!targetingPlayers && human.isAlive}
             fxByPlayer={fxByPlayer}
+            activeFx={activeFx}
+            coldMarketMs={game.coldMarketMs}
             onSelectPlayer={selectTargetPlayer}
           />
           <div className="hand-bar">
-            <span className="hand-label">HAND</span>
             <div className="hand-slots">
               {handSlots.map((item, i) => {
                 const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
@@ -228,6 +294,8 @@ export function Game() {
                     index={i}
                     selected={!!item && item.instanceId === focusedId}
                     fxKind={fx?.kind ?? null}
+                    walletCoins={human.coins}
+                    hand={human.hand}
                     onSelect={() => item && selectHandItem(item.instanceId)}
                     onReorder={reorderHandSlots}
                   />
@@ -241,21 +309,13 @@ export function Game() {
                   fxKind={
                     fxForHandItem(activeFx, overflowBomb.instanceId)?.kind ?? null
                   }
+                  walletCoins={human.coins}
+                  hand={human.hand}
                   onSelect={() => selectHandItem(overflowBomb.instanceId)}
                   onReorder={reorderHandSlots}
                 />
               )}
             </div>
-            {inUseMode && (
-              <button
-                type="button"
-                className="sell-fab"
-                onClick={sellFocused}
-                aria-label="Sell selected item"
-              >
-                💰
-              </button>
-            )}
           </div>
         </div>
       )}

@@ -21,7 +21,7 @@ export default function App() {
   const showPool =
     poolRevealOpen &&
     !!pool &&
-    (phase === 'naming' || phase === 'countdown');
+    (phase === 'naming' || phase === 'countdown' || phase === 'playing');
 
   return (
     <>
@@ -31,8 +31,10 @@ export default function App() {
         <MatchPoolReveal
           countdown={countdown}
           itemPool={pool}
-          early={phase === 'naming'}
-          skipEntrance={phase === 'countdown' && poolRevealPeeked}
+          early={phase === 'naming' || phase === 'playing'}
+          skipEntrance={
+            (phase === 'countdown' || phase === 'playing') && poolRevealPeeked
+          }
           onClose={closePoolReveal}
         />
       )}

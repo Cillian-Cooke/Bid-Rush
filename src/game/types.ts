@@ -7,6 +7,7 @@ export type ItemTarget =
   | 'player'
   | 'all-items'
   | 'special'
+  | 'hand'
   | 'hand-then-item';
 
 export type BotArchetype = 'chill' | 'balanced' | 'ruthless';
@@ -55,26 +56,36 @@ export type ItemId =
   | 'coin_mine'
   | 'money_printer'
   | 'golden_goose'
-  | 'dividend_stock'
+  | 'bank_note'
+  | 'stock_market'
   | 'piggy_bank'
+  | 'chaos_die'
+  | 'chrysalis'
+  | 'ipo'
+  | 'broker'
   | 'mystery_box'
   | 'price_doubler'
-  | 'discount_tag'
   | 'reset_hammer'
   | 'inflation'
+  | 'interest'
   | 'time_freeze'
   | 'fast_forward'
-  | 'overtime'
   | 'swap_portal'
   | 'shop_refresh'
-  | 'shuffle'
   | 'handcuffs'
   | 'pickpocket'
+  | 'heist_kit'
+  | 'mute'
+  | 'cold_market'
+  | 'roi'
   | 'coin_leech'
+  | 'magnet'
+  | 'kickback'
+  | 'curse_idol'
   | 'bomb'
+  | 'dynamite'
   | 'bid_lock'
-  | 'blank_slate'
-  | 'echo_lens'
+  | 'mirror'
   | 'gilder'
   | 'tip_jar'
   | 'haste_gear';
@@ -86,6 +97,8 @@ export type ItemDef = {
   kind: ItemKind;
   target: ItemTarget;
   sellValue: number;
+  /** Shop listing price when freshly stocked */
+  startPrice?: number;
   spawnWeight: number;
   /** Passive income interval in ms (if applicable) */
   passiveIntervalMs?: number;
@@ -100,7 +113,7 @@ export type HandItem = {
   golden: boolean;
   /** Accumulator for passive tick timing */
   passiveAccMs: number;
-  /** Dividend sell-value growth accumulator */
+  /** Dividend / Interest sell-value growth accumulator */
   dividendGrowAccMs: number;
   /** Current sell value (Dividend / Piggy / golden merge override) */
   currentSellValue: number;
@@ -139,12 +152,20 @@ export type Player = {
   archetype: BotArchetype | null;
   /** Remaining handcuff ms */
   handcuffMs: number;
+  /** Passives paused (Mute) */
+  muteMs: number;
+  /** ROI challenge: ms left to hit roiTargetCoins */
+  roiMs: number;
+  /** Must reach this coin total before roiMs hits 0 */
+  roiTargetCoins: number;
   /** Bot decision cooldown remaining */
   botCooldownMs: number;
   /** Placement when eliminated (1 = winner later) */
   eliminatedAt: number | null;
   /** Accumulator for underdog catch-up income */
   comebackAccMs: number;
+  /** Items this player has sold this match (Bank Note value) */
+  itemsSold: number;
 };
 
 export type FxKind =
@@ -167,6 +188,15 @@ export type FxKind =
   | 'shuffle'
   | 'cuffs'
   | 'pickpocket'
+  | 'heist'
+  | 'mute'
+  | 'cold_market'
+  | 'roi'
+  | 'magnet'
+  | 'kickback'
+  | 'curse'
+  | 'dynamite'
+  | 'interest'
   | 'bomb_fuse'
   | 'tile_label'
   | 'active_cast'
@@ -184,7 +214,9 @@ export type WorldEventId =
   | 'coin_shower'
   | 'shuffle_storm'
   | 'inflation_wave'
-  | 'mystery_mall';
+  | 'mystery_mall'
+  /** Only triggered by golden Chaos Die — not in the random pool */
+  | 'golden_chaos';
 
 export type WorldEventPhase = 'pending' | 'warning' | 'active' | 'done';
 
@@ -220,7 +252,7 @@ export type GameEvent =
   | {
       type: 'eliminate';
       playerId: string;
-      reason: 'unpaid' | 'bomb' | 'bracket';
+      reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech';
     }
   | { type: 'resolve'; tileIndex: number; winnerId: string | null }
   | { type: 'explosion'; playerId: string }
@@ -268,6 +300,8 @@ export type GameState = {
   /** Mid-match floor event (warn @ 2:30, live @ 2:00 for 30s) */
   worldEvent: WorldEventState;
   suddenDeath: SuddenDeathState;
+  /** All passives paused board-wide */
+  coldMarketMs: number;
   /** 16 item types available in this match */
   itemPool: ItemId[];
 };

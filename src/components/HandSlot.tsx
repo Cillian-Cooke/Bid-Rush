@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { getItem, passiveChargeProgress } from '../game/items';
+import { bombDefuseCost, getItem, passiveChargeProgress } from '../game/items';
 import type { FxKind, HandItem } from '../game/types';
 
 type Props = {
@@ -7,6 +7,8 @@ type Props = {
   index: number;
   selected: boolean;
   fxKind?: FxKind | null;
+  walletCoins?: number;
+  hand?: HandItem[];
   onSelect: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
 };
@@ -41,6 +43,8 @@ export function HandSlot({
   index,
   selected,
   fxKind,
+  walletCoins = 0,
+  hand,
   onSelect,
   onReorder,
 }: Props) {
@@ -93,7 +97,7 @@ export function HandSlot({
       startX: e.clientX,
       startY: e.clientY,
       dragging: false,
-      canDrag: item.itemId !== 'bomb',
+      canDrag: item.itemId !== 'bomb' && item.itemId !== 'dynamite',
       over: index,
     };
     rootRef.current?.setPointerCapture(e.pointerId);
@@ -151,7 +155,8 @@ export function HandSlot({
 
   const def = getItem(item.itemId);
   const isBomb = item.itemId === 'bomb';
-  const charge = passiveChargeProgress(item);
+  const isDynamite = item.itemId === 'dynamite';
+  const charge = passiveChargeProgress(item, hand);
   const sellLabel =
     item.itemId === 'piggy_bank'
       ? 2 + item.stored
@@ -161,9 +166,11 @@ export function HandSlot({
           : '??'
         : item.itemId === 'bomb'
           ? item.golden
-            ? 100
-            : 0
-          : item.currentSellValue;
+            ? '+100'
+            : `-${bombDefuseCost(walletCoins)}`
+          : item.itemId === 'dynamite'
+            ? 0
+            : item.currentSellValue;
 
   return (
     <div
@@ -172,6 +179,7 @@ export function HandSlot({
         'hand-slot',
         'filled',
         isBomb ? 'bomb-slot' : '',
+        isDynamite ? 'dynamite-slot' : '',
         item.golden ? 'golden' : '',
         selected ? 'selected' : '',
         dragging ? 'dragging' : '',

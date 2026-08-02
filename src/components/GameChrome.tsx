@@ -14,7 +14,7 @@ type Props = {
   onQuit: () => void;
 };
 
-/** Top chrome: large timer, banners stacked underneath when live. */
+/** Top chrome: large timer; banners overlay the stage (no layout shift). */
 export function GameChrome({
   roundMs,
   elapsedMs,

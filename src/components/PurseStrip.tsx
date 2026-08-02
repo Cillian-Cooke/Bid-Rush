@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { FxKind, GameMode, Player } from '../game/types';
+import type { FxInstance } from '../store';
+import { PurseEffects } from './PurseEffects';
 
 type Props = {
   human: Player;
@@ -11,6 +13,8 @@ type Props = {
   rivalFloatText?: string | null;
   targetingPlayers: boolean;
   fxByPlayer: Map<string, { kind: FxKind; label?: string | null }>;
+  activeFx: FxInstance[];
+  coldMarketMs?: number;
   onSelectPlayer: (playerId: string) => void;
 };
 
@@ -169,12 +173,18 @@ function AnimatedPurse({
   name,
   avatar,
   floatText,
+  player,
+  activeFx,
+  coldMarketMs,
 }: {
   coins: number;
   atRisk: boolean;
   name: string;
   avatar: string;
   floatText?: string | null;
+  player: Player;
+  activeFx: FxInstance[];
+  coldMarketMs?: number;
 }) {
   const prev = useRef(coins);
   const shownRef = useRef(coins);
@@ -247,27 +257,34 @@ function AnimatedPurse({
       }
       aria-label={`Your coins: ${coins}`}
     >
-      <div className="purse-who">
-        <span className="purse-avatar">{avatar}</span>
-        <div className="purse-who-meta">
-          <span className="purse-kicker">You</span>
-          <span className="purse-name">{name}</span>
+      <div className="purse-main">
+        <div className="purse-who">
+          <span className="purse-avatar">{avatar}</span>
+          <div className="purse-who-meta">
+            <span className="purse-kicker">You</span>
+            <span className="purse-name">{name}</span>
+          </div>
         </div>
+        <div className="purse-amount">
+          <span className="purse-glyph" aria-hidden>
+            🪙
+          </span>
+          <span className="purse-value" style={valueStyle}>
+            {shown}
+          </span>
+        </div>
+        {delta != null && (
+          <span className={`purse-delta ${delta > 0 ? 'gain' : 'loss'}`}>
+            {delta > 0 ? `+${delta}` : delta}
+          </span>
+        )}
+        {floatText && <span className="purse-float">{floatText}</span>}
       </div>
-      <div className="purse-amount">
-        <span className="purse-glyph" aria-hidden>
-          🪙
-        </span>
-        <span className="purse-value" style={valueStyle}>
-          {shown}
-        </span>
-      </div>
-      {delta != null && (
-        <span className={`purse-delta ${delta > 0 ? 'gain' : 'loss'}`}>
-          {delta > 0 ? `+${delta}` : delta}
-        </span>
-      )}
-      {floatText && <span className="purse-float">{floatText}</span>}
+      <PurseEffects
+        player={player}
+        activeFx={activeFx}
+        coldMarketMs={coldMarketMs}
+      />
     </div>
   );
 }
@@ -358,6 +375,8 @@ export function PurseStrip({
   rivalFloatText,
   targetingPlayers,
   fxByPlayer,
+  activeFx,
+  coldMarketMs,
   onSelectPlayer,
 }: Props) {
   const ranked = [...others, human].sort((a, b) => {
@@ -373,6 +392,9 @@ export function PurseStrip({
         name={human.name}
         avatar={human.avatar}
         floatText={floatText}
+        player={human}
+        activeFx={activeFx}
+        coldMarketMs={coldMarketMs}
       />
 
       {mode === 'duel' ? (
