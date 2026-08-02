@@ -253,6 +253,8 @@ function applyBotIntents(game: GameState): GameState {
       state = sellItem(state, player.id, intent.instanceId, rng);
     } else if (intent.kind === 'use') {
       state = applyUseItem(state, player.id, intent.instanceId, intent.targets, rng);
+    } else if (intent.kind === 'reorder') {
+      state = reorderHand(state, player.id, intent.fromIndex, intent.toIndex);
     }
 
     state = {

@@ -1,5 +1,10 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { bombDefuseCost, getItem, passiveChargeProgress } from '../game/items';
+import {
+  bombDefuseCost,
+  getItem,
+  handLinkHints,
+  passiveChargeProgress,
+} from '../game/items';
 import type { FxKind, HandItem } from '../game/types';
 
 type Props = {
@@ -7,6 +12,7 @@ type Props = {
   index: number;
   selected: boolean;
   fxKind?: FxKind | null;
+  fxLabel?: string | null;
   walletCoins?: number;
   hand?: HandItem[];
   onSelect: () => void;
@@ -43,6 +49,7 @@ export function HandSlot({
   index,
   selected,
   fxKind,
+  fxLabel,
   walletCoins = 0,
   hand,
   onSelect,
@@ -156,7 +163,9 @@ export function HandSlot({
   const def = getItem(item.itemId);
   const isBomb = item.itemId === 'bomb';
   const isDynamite = item.itemId === 'dynamite';
-  const charge = passiveChargeProgress(item, hand);
+  const isMirror = item.itemId === 'mirror';
+  const charge = passiveChargeProgress(item, hand, index);
+  const links = hand ? handLinkHints(hand, index) : null;
   const sellLabel =
     item.itemId === 'piggy_bank'
       ? 2 + item.stored
@@ -180,10 +189,13 @@ export function HandSlot({
         'filled',
         isBomb ? 'bomb-slot' : '',
         isDynamite ? 'dynamite-slot' : '',
+        isMirror ? 'mirror-slot' : '',
         item.golden ? 'golden' : '',
         selected ? 'selected' : '',
         dragging ? 'dragging' : '',
         fxKind ? `fx-hand fx-${fxKind}` : '',
+        links?.gildTarget ? 'adj-gild-target' : '',
+        links?.dynamiteThreat ? 'adj-dynamite-threat' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -193,6 +205,11 @@ export function HandSlot({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
+      {links?.dynamiteThreat && (
+        <span className="hand-adj-badge threat" aria-hidden>
+          !
+        </span>
+      )}
       <button
         type="button"
         className="hand-slot-btn"
@@ -214,11 +231,28 @@ export function HandSlot({
           <span className="hand-fuse">{Math.ceil(item.bombFuseMs / 1000)}s</span>
         )}
         {charge != null && (
-          <span className="hand-passive-bar" aria-hidden title="Charging">
+          <span
+            className={`hand-passive-bar${isMirror ? ' mirror-bar' : ''}`}
+            aria-hidden
+            title="Charging"
+          >
             <span
               className="hand-passive-fill"
               style={{ transform: `scaleX(${charge})` }}
             />
+          </span>
+        )}
+        {links?.gildTarget && (
+          <span className="hand-gild-recv" aria-hidden title="Being gilded">
+            <span
+              className="hand-gild-recv-fill"
+              style={{ transform: `scaleX(${links.gildProgress})` }}
+            />
+          </span>
+        )}
+        {fxLabel && (
+          <span className="hand-fx-label" aria-hidden>
+            {fxLabel}
           </span>
         )}
       </button>

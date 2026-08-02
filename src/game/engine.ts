@@ -42,6 +42,29 @@ function emitFx(
   state.events.push({ type: 'fx', kind, ...opts });
 }
 
+/** Mirrors that copy the item at targetIndex (left mirror, or golden mirror on the right). */
+function mirrorsCopying(hand: HandItem[], targetIndex: number): HandItem[] {
+  const out: HandItem[] = [];
+  const left = hand[targetIndex - 1];
+  if (left?.itemId === 'mirror') out.push(left);
+  const right = hand[targetIndex + 1];
+  if (right?.itemId === 'mirror' && right.golden) out.push(right);
+  return out;
+}
+
+function emitMirrorCopy(
+  state: GameState,
+  player: Player,
+  mirror: HandItem,
+  label = '🪞',
+): void {
+  emitFx(state, 'mirror_echo', {
+    playerId: player.id,
+    instanceId: mirror.instanceId,
+    label,
+  });
+}
+
 function uid(prefix: string, n: number): string {
   return `${prefix}_${n}`;
 }
@@ -198,31 +221,40 @@ function randomOpponent(
   return others[Math.floor(rng() * others.length)]!;
 }
 
-function adjacencyMult(hand: HandItem[], index: number): number {
-  let m = 1;
-  const left = hand[index - 1];
-  const right = hand[index + 1];
-  // Echo to the left doubles this item (its right neighbor)
-  if (left?.itemId === 'mirror') m *= 2;
-  // Golden mirror to the right also doubles this item (its left neighbor)
-  if (right?.itemId === 'mirror' && right.golden) m *= 2;
-  return m;
-}
-
-/** Tip Jar aura: +1 (golden +2) to every passive coin output. */
+/** Tip Jar aura: +1 (golden +2) to every passive coin output. Mirrors copy adjacent tip jars. */
 function tipBonus(player: Player): number {
   let bonus = 0;
-  for (const h of player.hand) {
+  const hand = player.hand;
+  for (let i = 0; i < hand.length; i++) {
+    const h = hand[i]!;
     if (h.itemId === 'tip_jar') bonus += h.golden ? 2 : 1;
+    if (h.itemId === 'mirror') {
+      const right = hand[i + 1];
+      if (right?.itemId === 'tip_jar') bonus += right.golden ? 2 : 1;
+      if (h.golden) {
+        const left = hand[i - 1];
+        if (left?.itemId === 'tip_jar') bonus += left.golden ? 2 : 1;
+      }
+    }
   }
   return bonus;
 }
 
-/** Haste Gear aura: speeds up ticking passives (stacks multiplicatively). */
+/** Haste Gear aura: speeds up ticking passives (stacks multiplicatively). Mirrors copy adjacent gears. */
 function hasteFactor(player: Player): number {
   let factor = 1;
-  for (const h of player.hand) {
+  const hand = player.hand;
+  for (let i = 0; i < hand.length; i++) {
+    const h = hand[i]!;
     if (h.itemId === 'haste_gear') factor *= h.golden ? 2 : 1.5;
+    if (h.itemId === 'mirror') {
+      const right = hand[i + 1];
+      if (right?.itemId === 'haste_gear') factor *= right.golden ? 2 : 1.5;
+      if (h.golden) {
+        const left = hand[i - 1];
+        if (left?.itemId === 'haste_gear') factor *= left.golden ? 2 : 1.5;
+      }
+    }
   }
   return factor;
 }
@@ -236,7 +268,8 @@ function grantCoins(
 ): void {
   if (amount <= 0) return;
   if (passivesBlocked(state, player) || hasCurseIdol(player)) return;
-  const pay = amount + tipBonus(player);
+  const tip = tipBonus(player);
+  const pay = amount + tip;
   player.coins += pay;
   state.events.push({
     type: 'income',
@@ -244,6 +277,32 @@ function grantCoins(
     amount: pay,
     emoji,
   });
+  if (tip > 0) {
+    for (let i = 0; i < player.hand.length; i++) {
+      const h = player.hand[i]!;
+      if (h.itemId === 'tip_jar') {
+        emitFx(state, 'dividend', {
+          playerId: player.id,
+          instanceId: h.instanceId,
+          label: `+${h.golden ? 2 : 1}`,
+        });
+      }
+      if (h.itemId === 'mirror') {
+        const right = player.hand[i + 1];
+        const left = player.hand[i - 1];
+        const copyingTip =
+          right?.itemId === 'tip_jar' ||
+          (h.golden && left?.itemId === 'tip_jar');
+        if (copyingTip) {
+          emitFx(state, 'dividend', {
+            playerId: player.id,
+            instanceId: h.instanceId,
+            label: '+🫙',
+          });
+        }
+      }
+    }
+  }
   if (opts.skipMagnet) return;
   for (const other of state.players) {
     if (!other.isAlive || other.id === player.id) continue;
@@ -1275,7 +1334,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      const selfMult = (item.golden ? 2 : 1) * adjacencyMult(player.hand, i);
+      const selfMult = item.golden ? 2 : 1;
       const tick = dt * haste * pace;
 
       // Bomb fuse (real-time, not hasted)
@@ -1300,16 +1359,43 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         while (item.passiveAccMs >= CONFIG.DYNAMITE_TICK_MS) {
           item.passiveAccMs -= CONFIG.DYNAMITE_TICK_MS;
           if (item.golden) {
+            const victims = player.hand.filter(
+              (h) => h.instanceId !== item.instanceId,
+            );
             const kept = player.hand.filter((h) => h.instanceId === item.instanceId);
             player.hand = kept;
             i = 0;
-            emitFx(state, 'dynamite', { playerId: player.id, label: 'BOOM' });
+            for (const v of victims) {
+              emitFx(state, 'dynamite', {
+                playerId: player.id,
+                instanceId: v.instanceId,
+                label: '💥',
+              });
+            }
+            emitFx(state, 'dynamite', {
+              playerId: player.id,
+              instanceId: item.instanceId,
+              label: 'BOOM',
+            });
           } else {
-            const leftIdx = player.hand.findIndex((h) => h.instanceId === item.instanceId) - 1;
+            const dynIdx = player.hand.findIndex(
+              (h) => h.instanceId === item.instanceId,
+            );
+            const leftIdx = dynIdx - 1;
             if (leftIdx >= 0) {
+              const victim = player.hand[leftIdx]!;
               player.hand.splice(leftIdx, 1);
               i = Math.max(0, i - 1);
-              emitFx(state, 'dynamite', { playerId: player.id });
+              emitFx(state, 'dynamite', {
+                playerId: player.id,
+                instanceId: victim.instanceId,
+                label: '💥',
+              });
+              emitFx(state, 'dynamite', {
+                playerId: player.id,
+                instanceId: item.instanceId,
+                label: '💥',
+              });
             }
           }
         }
@@ -1435,6 +1521,13 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
               label: 'GOLD',
             });
           }
+          if (targets.length > 0) {
+            emitFx(state, 'gold_spark', {
+              playerId: player.id,
+              instanceId: item.instanceId,
+              label: '✨',
+            });
+          }
         }
         continue;
       }
@@ -1446,12 +1539,22 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= 1000) {
           item.passiveAccMs -= 1000;
-          item.stored += selfMult + tip;
+          const gain = selfMult + tip;
+          item.stored += gain;
           item.currentSellValue = 2 + item.stored;
           emitFx(state, 'piggy', {
             playerId: player.id,
             instanceId: item.instanceId,
           });
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            mirror.stored += gain;
+            mirror.currentSellValue += gain;
+            emitFx(state, 'piggy', {
+              playerId: player.id,
+              instanceId: mirror.instanceId,
+            });
+            emitMirrorCopy(state, player, mirror, `+${gain}`);
+          }
         }
         continue;
       }
@@ -1462,19 +1565,32 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         while (item.passiveAccMs >= CONFIG.INTEREST_TICK_MS) {
           item.passiveAccMs -= CONFIG.INTEREST_TICK_MS;
           const bump = selfMult;
-          for (const h of player.hand) {
-            if (h.itemId === 'bomb' || h.itemId === 'dynamite') continue;
-            if (h.itemId === 'piggy_bank') {
-              h.stored += bump;
-            } else {
-              h.currentSellValue += bump;
+          const applyBump = (sourceId: string) => {
+            for (const h of player.hand) {
+              if (h.itemId === 'bomb' || h.itemId === 'dynamite') continue;
+              if (h.itemId === 'piggy_bank') {
+                h.stored += bump;
+                h.currentSellValue = 2 + h.stored;
+              } else {
+                h.currentSellValue += bump;
+              }
+              emitFx(state, 'interest', {
+                playerId: player.id,
+                instanceId: h.instanceId,
+                label: `+${bump}`,
+              });
             }
+            emitFx(state, 'interest', {
+              playerId: player.id,
+              instanceId: sourceId,
+              label: `+${bump}💰`,
+            });
+          };
+          applyBump(item.instanceId);
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            applyBump(mirror.instanceId);
+            emitMirrorCopy(state, player, mirror);
           }
-          emitFx(state, 'interest', {
-            playerId: player.id,
-            instanceId: item.instanceId,
-            label: `+${bump}💰`,
-          });
         }
         continue;
       }
@@ -1491,6 +1607,15 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
             instanceId: item.instanceId,
             label: `×${factor}`,
           });
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            mirror.currentSellValue = Math.max(1, mirror.currentSellValue * factor);
+            emitFx(state, 'dividend', {
+              playerId: player.id,
+              instanceId: mirror.instanceId,
+              label: `×${factor}`,
+            });
+            emitMirrorCopy(state, player, mirror, `×${factor}`);
+          }
         }
         continue;
       }
@@ -1509,6 +1634,17 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
             instanceId: item.instanceId,
             label: item.golden ? '💵💵' : '💵',
           });
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            for (let n = 0; n < copies; n++) {
+              giveItem(state, player, 'bank_note');
+            }
+            emitFx(state, 'print', {
+              playerId: player.id,
+              instanceId: mirror.instanceId,
+              label: item.golden ? '💵💵' : '💵',
+            });
+            emitMirrorCopy(state, player, mirror);
+          }
         }
         continue;
       }
@@ -1525,6 +1661,14 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
             playerId: player.id,
             instanceId: item.instanceId,
           });
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            grantCoins(state, player, selfMult, def.emoji);
+            emitFx(state, 'gold_spark', {
+              playerId: player.id,
+              instanceId: mirror.instanceId,
+            });
+            emitMirrorCopy(state, player, mirror, `+${selfMult}`);
+          }
         }
         continue;
       }
@@ -1539,6 +1683,14 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
             playerId: player.id,
             instanceId: item.instanceId,
           });
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            grantCoins(state, player, selfMult, def.emoji);
+            emitFx(state, 'goose', {
+              playerId: player.id,
+              instanceId: mirror.instanceId,
+            });
+            emitMirrorCopy(state, player, mirror, `+${selfMult}`);
+          }
         }
         continue;
       }
@@ -1548,11 +1700,12 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= (def.passiveIntervalMs ?? 4000)) {
           item.passiveAccMs -= def.passiveIntervalMs ?? 4000;
-          const victim =
-            state.mode === 'blitz'
-              ? randomOpponent(state, player.id, rng)
-              : richestOpponent(state, player.id);
-          if (victim && victim.coins > 0) {
+          const runLeech = (source: HandItem) => {
+            const victim =
+              state.mode === 'blitz'
+                ? randomOpponent(state, player.id, rng)
+                : richestOpponent(state, player.id);
+            if (!victim || victim.coins <= 0) return;
             const gap = victim.coins - player.coins;
             const want = (gap >= CONFIG.COMEBACK_BIG_GAP ? 2 : 1) * selfMult + tip;
             const steal = Math.min(want, victim.coins);
@@ -1569,7 +1722,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
             emitFx(state, 'leech', {
               playerId: player.id,
               targetPlayerId: victim.id,
-              instanceId: item.instanceId,
+              instanceId: source.instanceId,
             });
             if (victim.coins <= 0) {
               eliminate(state, victim.id, 'leech', {
@@ -1578,6 +1731,11 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
                 delta: -steal,
               });
             }
+          };
+          runLeech(item);
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            runLeech(mirror);
+            emitMirrorCopy(state, player, mirror);
           }
         }
         continue;
@@ -1588,11 +1746,20 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= def.passiveIntervalMs) {
           item.passiveAccMs -= def.passiveIntervalMs;
-          grantCoins(state, player, def.passiveAmount * selfMult, def.emoji);
+          const pay = def.passiveAmount * selfMult;
+          grantCoins(state, player, pay, def.emoji);
           emitFx(state, 'gold_spark', {
             playerId: player.id,
             instanceId: item.instanceId,
           });
+          for (const mirror of mirrorsCopying(player.hand, i)) {
+            grantCoins(state, player, pay, def.emoji);
+            emitFx(state, 'gold_spark', {
+              playerId: player.id,
+              instanceId: mirror.instanceId,
+            });
+            emitMirrorCopy(state, player, mirror, `+${pay}`);
+          }
         }
       }
     }

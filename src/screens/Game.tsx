@@ -293,6 +293,7 @@ export function Game() {
                     index={i}
                     selected={!!item && item.instanceId === focusedId}
                     fxKind={fx?.kind ?? null}
+                    fxLabel={fx?.label ?? null}
                     walletCoins={human.coins}
                     hand={human.hand}
                     onSelect={() => item && selectHandItem(item.instanceId)}
@@ -307,6 +308,9 @@ export function Game() {
                   selected={overflowBomb.instanceId === focusedId}
                   fxKind={
                     fxForHandItem(activeFx, overflowBomb.instanceId)?.kind ?? null
+                  }
+                  fxLabel={
+                    fxForHandItem(activeFx, overflowBomb.instanceId)?.label ?? null
                   }
                   walletCoins={human.coins}
                   hand={human.hand}

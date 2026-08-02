@@ -420,6 +420,59 @@ export function isHazardItem(id: ItemId): boolean {
   return id === 'bomb' || id === 'dynamite';
 }
 
+export type HandLinkSide = 'left' | 'right';
+
+/** Visual adjacency links for hand slots (gilder / dynamite). */
+export type HandLinkHints = {
+  gildTarget: boolean;
+  gildFrom: HandLinkSide[];
+  gildProgress: number;
+  dynamiteThreat: boolean;
+};
+
+/** Item a mirror is currently copying (right first; golden also uses left if no right). */
+export function mirrorFocusTarget(
+  hand: readonly HandItem[],
+  index: number,
+  mirror: HandItem,
+): HandItem | null {
+  const right = hand[index + 1] ?? null;
+  if (right) return right;
+  if (mirror.golden) return hand[index - 1] ?? null;
+  return null;
+}
+
+export function handLinkHints(
+  hand: readonly HandItem[],
+  index: number,
+): HandLinkHints {
+  const item = hand[index] ?? null;
+  const left = hand[index - 1];
+  const right = hand[index + 1];
+
+  const gildFrom: HandLinkSide[] = [];
+  let gildProgress = 0;
+  if (left?.itemId === 'gilder') {
+    gildFrom.push('left');
+    gildProgress = Math.max(gildProgress, left.gilderAccMs / CONFIG.GILDER_MS);
+  }
+  if (right?.itemId === 'gilder' && right.golden) {
+    gildFrom.push('right');
+    gildProgress = Math.max(gildProgress, right.gilderAccMs / CONFIG.GILDER_MS);
+  }
+  const canGild =
+    !!item && !item.golden && item.itemId !== 'bomb' && gildFrom.length > 0;
+
+  const dynamiteThreat = !!right && right.itemId === 'dynamite' && !right.golden && !!item;
+
+  return {
+    gildTarget: canGild,
+    gildFrom: canGild ? gildFrom : [],
+    gildProgress: canGild ? Math.min(1, gildProgress) : 0,
+    dynamiteThreat,
+  };
+}
+
 /** Mine tick interval from how many mines are in hand. */
 export function coinMineIntervalMs(mineCount: number): number {
   const n = Math.max(1, mineCount);
@@ -430,7 +483,17 @@ export function coinMineIntervalMs(mineCount: number): number {
 export function passiveChargeProgress(
   item: HandItem,
   hand?: readonly HandItem[],
+  index?: number,
 ): number | null {
+  if (item.itemId === 'mirror' && hand && index != null) {
+    const focus = mirrorFocusTarget(hand, index, item);
+    if (!focus || focus.itemId === 'mirror') return null;
+    return passiveChargeProgress(
+      focus,
+      hand,
+      hand.findIndex((h) => h.instanceId === focus.instanceId),
+    );
+  }
   const def = getItem(item.itemId);
   if (item.itemId === 'gilder') {
     return Math.min(1, item.gilderAccMs / CONFIG.GILDER_MS);

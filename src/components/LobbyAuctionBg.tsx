@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { CONFIG, PLAYER_COLORS } from '../game/constants';
 import { getItem, isMoneyEngine, ITEM_LIST } from '../game/items';
 import type { BotArchetype, ItemId, WorldEventId } from '../game/types';
@@ -15,14 +14,13 @@ type Props = {
 };
 
 const COLS = 7;
-const TICK_MS = 100;
+const TICK_MS = 120;
 const TILE_TIMER_MS = 9_000;
 const EVENT_EVERY_MS = 120_000;
 const EVENT_DURATION_MS = 28_000;
 const MAX_LEADS = CONFIG.MAX_ACTIVE_BIDS;
 const SCROLL_SPEED = 26;
 const GAP_PX = 5;
-/** Extra rows above/below the visible window */
 const BUFFER_ROWS = 3;
 
 type LobbyTile = {
@@ -33,11 +31,12 @@ type LobbyTile = {
   timerMs: number;
   freezeMs: number;
   flashMs: number;
+  /** Last painted snapshot — skip DOM work when unchanged */
+  painted?: string;
 };
 
 type LobbyRow = {
   id: number;
-  /** World Y — scroller translates by -scrollY; never reshuffled via scroll reset */
   y: number;
   tiles: LobbyTile[];
 };
@@ -52,6 +51,14 @@ type LobbyBot = {
 type LobbyEvent = {
   id: WorldEventId;
   remainMs: number;
+};
+
+type TileDom = {
+  root: HTMLDivElement;
+  emoji: HTMLSpanElement;
+  price: HTMLSpanElement;
+  timer: HTMLSpanElement;
+  frost: HTMLSpanElement;
 };
 
 function pickItem(rng: () => number, prefer?: ItemId[]): ItemId {
@@ -73,6 +80,7 @@ function restock(
   tile.price = 1 + Math.floor(rng() * 3);
   tile.timerMs = TILE_TIMER_MS * (0.5 + rng() * 0.6);
   tile.flashMs = initial ? 0 : 280;
+  tile.painted = undefined;
   if (eventId === 'deep_freeze') {
     tile.freezeMs = Math.max(tile.freezeMs, 1);
   }
@@ -115,7 +123,6 @@ function makeRow(
   };
 }
 
-/** Restock tiles in place — keep stable React keys to avoid remount hitch. */
 function restockRow(
   row: LobbyRow,
   rng: () => number,
@@ -191,12 +198,16 @@ function scoreTile(
 function applyEventStart(tiles: LobbyTile[], id: WorldEventId, rng: () => number): void {
   switch (id) {
     case 'deep_freeze':
-      for (const t of tiles) t.freezeMs = EVENT_DURATION_MS;
+      for (const t of tiles) {
+        t.freezeMs = EVENT_DURATION_MS;
+        t.painted = undefined;
+      }
       break;
     case 'fire_sale':
       for (const t of tiles) {
         t.price = 1;
         t.flashMs = 400;
+        t.painted = undefined;
       }
       break;
     case 'bomb_bazaar':
@@ -206,6 +217,7 @@ function applyEventStart(tiles: LobbyTile[], id: WorldEventId, rng: () => number
           t.bidderId = null;
           t.price = 1;
           t.flashMs = 350;
+          t.painted = undefined;
         }
       }
       break;
@@ -214,6 +226,7 @@ function applyEventStart(tiles: LobbyTile[], id: WorldEventId, rng: () => number
       for (const t of tiles) {
         t.itemId = pickItem(rng, money);
         t.flashMs = 350;
+        t.painted = undefined;
       }
       break;
     }
@@ -221,12 +234,14 @@ function applyEventStart(tiles: LobbyTile[], id: WorldEventId, rng: () => number
       for (const t of tiles) {
         t.itemId = 'mystery_box';
         t.flashMs = 350;
+        t.painted = undefined;
       }
       break;
     case 'inflation_wave':
       for (const t of tiles) {
         t.price += 2;
         t.flashMs = 300;
+        t.painted = undefined;
       }
       break;
     case 'shuffle_storm': {
@@ -238,6 +253,7 @@ function applyEventStart(tiles: LobbyTile[], id: WorldEventId, rng: () => number
       tiles.forEach((t, i) => {
         t.itemId = items[i]!;
         t.flashMs = 280;
+        t.painted = undefined;
       });
       break;
     }
@@ -247,6 +263,7 @@ function applyEventStart(tiles: LobbyTile[], id: WorldEventId, rng: () => number
         t.itemId = pickItem(rng, money);
         t.price += 3;
         t.flashMs = 350;
+        t.painted = undefined;
       }
       break;
     }
@@ -257,16 +274,25 @@ function applyEventStart(tiles: LobbyTile[], id: WorldEventId, rng: () => number
 
 function pulseEvent(tiles: LobbyTile[], id: WorldEventId, rng: () => number): void {
   if (id === 'inflation_wave') {
-    for (const t of tiles) t.price += 2;
+    for (const t of tiles) {
+      t.price += 2;
+      t.painted = undefined;
+    }
   } else if (id === 'shuffle_storm') {
     applyEventStart(tiles, 'shuffle_storm', rng);
   } else if (id === 'coin_shower' || id === 'tax_collector') {
     for (const t of tiles) {
-      if (rng() < 0.25) t.flashMs = 280;
+      if (rng() < 0.25) {
+        t.flashMs = 280;
+        t.painted = undefined;
+      }
     }
   } else if (id === 'golden_chaos') {
     applyEventStart(tiles, 'shuffle_storm', rng);
-    for (const t of tiles) t.price += 1;
+    for (const t of tiles) {
+      t.price += 1;
+      t.painted = undefined;
+    }
   }
 }
 
@@ -285,10 +311,29 @@ function computeLayout(width: number, height: number) {
   return { tile, rowH, total, visible };
 }
 
+function tileSig(
+  tile: LobbyTile,
+  eventId: WorldEventId | null,
+  ratioBucket: number,
+): string {
+  return [
+    tile.itemId,
+    tile.price,
+    tile.bidderId ?? '',
+    tile.flashMs > 0 ? '1' : '0',
+    tile.freezeMs > 0 || eventId === 'deep_freeze' ? '1' : '0',
+    tile.itemId === 'bomb' ? '1' : '0',
+    eventId === 'turbo_market' ? '1' : '0',
+    eventId === 'bomb_bazaar' && tile.itemId === 'bomb' ? '1' : '0',
+    ratioBucket,
+  ].join('|');
+}
+
 export function LobbyAuctionBg({ onEventChange }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const rowElsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const tileElsRef = useRef<Map<number, TileDom>>(new Map());
   const rngRef = useRef(() => Math.random());
   const botsRef = useRef(makeBots());
   const rowsRef = useRef<LobbyRow[]>([]);
@@ -303,14 +348,89 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
   const pulseAccRef = useRef(0);
   const onEventChangeRef = useRef(onEventChange);
   onEventChangeRef.current = onEventChange;
+  const lastEventPubRef = useRef<{ id: WorldEventId | null; bucket: number }>({
+    id: null,
+    bucket: -1,
+  });
+  const colorByIdRef = useRef(new Map(botsRef.current.map((b) => [b.id, b.color])));
   const [layoutTick, setLayoutTick] = useState(0);
-  const [, setFrame] = useState(0);
 
-  const publishEvent = () => {
+  const publishEvent = (force = false) => {
     const event = eventRef.current;
+    const id = event?.id ?? null;
+    const bucket = event ? Math.ceil(event.remainMs / 1000) : -1;
+    const prev = lastEventPubRef.current;
+    if (!force && prev.id === id && prev.bucket === bucket) return;
+    lastEventPubRef.current = { id, bucket };
     onEventChangeRef.current?.(
       event ? { id: event.id, remainMs: event.remainMs } : null,
     );
+  };
+
+  const paintTile = (tile: LobbyTile, eventId: WorldEventId | null) => {
+    const els = tileElsRef.current.get(tile.key);
+    if (!els) return;
+
+    const ratio = Math.max(0, Math.min(1, tile.timerMs / TILE_TIMER_MS));
+    // Coarse timer buckets keep paint cheap; scroll stays on its own path
+    const ratioBucket = Math.round(ratio * 20);
+    const sig = tileSig(tile, eventId, ratioBucket);
+    if (tile.painted === sig) {
+      els.timer.style.transform = `scaleX(${ratio})`;
+      return;
+    }
+    tile.painted = sig;
+
+    const frozen = tile.freezeMs > 0 || eventId === 'deep_freeze';
+    const bidderColor = tile.bidderId
+      ? (colorByIdRef.current.get(tile.bidderId) ?? null)
+      : null;
+
+    els.root.className = [
+      'lobby-auction-tile',
+      bidderColor ? 'has-bidder' : '',
+      frozen ? 'frozen' : '',
+      tile.flashMs > 0 ? 'pop' : '',
+      tile.itemId === 'bomb' ? 'bomb' : '',
+      eventId === 'turbo_market' ? 'turbo' : '',
+      eventId === 'bomb_bazaar' && tile.itemId === 'bomb' ? 'ticking' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    if (bidderColor) {
+      els.root.style.setProperty('--bidder', bidderColor);
+      els.root.style.background = bidderColor;
+    } else {
+      els.root.style.removeProperty('--bidder');
+      els.root.style.background = '';
+    }
+
+    const def = getItem(tile.itemId);
+    if (els.emoji.textContent !== def.emoji) els.emoji.textContent = def.emoji;
+    const priceText = `🪙${tile.price}`;
+    if (els.price.textContent !== priceText) els.price.textContent = priceText;
+
+    els.timer.style.transform = `scaleX(${ratio})`;
+    els.timer.style.background = ratio > 0.35 ? '#3aaa62' : '#d6453a';
+    els.frost.hidden = !frozen;
+  };
+
+  const paintAll = () => {
+    const eventId = eventRef.current?.id ?? null;
+    for (const row of rowsRef.current) {
+      for (const tile of row.tiles) paintTile(tile, eventId);
+    }
+  };
+
+  const syncScrollerHeight = () => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const bottom =
+      rowsRef.current.length > 0
+        ? Math.max(...rowsRef.current.map((r) => r.y)) + rowHRef.current
+        : rowHRef.current;
+    scroller.style.height = `${Math.max(bottom + viewHRef.current, viewHRef.current)}px`;
   };
 
   const ensureRows = (count: number) => {
@@ -332,7 +452,6 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
     }
   };
 
-  // Init + measure — fixed tile size so every row is identical height
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -349,7 +468,6 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
       root.style.setProperty('--lobby-gap', `${GAP_PX}px`);
       root.style.setProperty('--lobby-row-h', `${rowH}px`);
 
-      // Rebuild strip if row height changed so world Y stays consistent
       if (rowsRef.current.length === 0 || prevH !== rowH) {
         rowsRef.current = [];
         rowIdRef.current = 0;
@@ -381,13 +499,26 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
   }, []);
 
   useEffect(() => {
+    // After React commits row DOM, paint once and size the scroller
+    syncScrollerHeight();
+    paintAll();
+  }, [layoutTick]);
+
+  useEffect(() => {
     let raf = 0;
     let last = performance.now();
     let acc = 0;
+    let paused = false;
 
     const syncRowDom = (row: LobbyRow) => {
       const el = rowElsRef.current.get(row.id);
       if (el) el.style.top = `${row.y}px`;
+    };
+
+    const isPaused = () => {
+      if (document.hidden) return true;
+      const root = rootRef.current;
+      return !!root?.closest('.stack-base.is-buried');
     };
 
     const visibleTilesNow = (): LobbyTile[] => {
@@ -409,7 +540,7 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
       const rows = rowsRef.current;
       const rowH = rowHRef.current;
       if (rowH <= 0 || rows.length === 0) return;
-      // Move fully-above rows to the bottom without resetting scrollY
+      let moved = false;
       while (rows.length > 0 && rows[0]!.y + rowH <= scrollYRef.current) {
         const row = rows.shift()!;
         row.y = nextYRef.current;
@@ -417,9 +548,9 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
         restockRow(row, rng, eventRef.current?.id ?? null);
         rows.push(row);
         syncRowDom(row);
+        moved = true;
       }
 
-      // Keep scrollY from growing without bound (rare long lobby sessions)
       if (scrollYRef.current > rowH * 64) {
         const shift = Math.floor(scrollYRef.current / rowH) * rowH;
         scrollYRef.current -= shift;
@@ -428,7 +559,9 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
           row.y -= shift;
           syncRowDom(row);
         }
+        moved = true;
       }
+      if (moved) syncScrollerHeight();
     };
 
     const tickSim = (dtMs: number) => {
@@ -450,7 +583,13 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
           eventRef.current = event;
           applyEventStart(allTiles(rows), eid, rng);
           pulseAccRef.current = 0;
-          publishEvent();
+          const root = rootRef.current;
+          if (root) {
+            root.classList.add('event-live', `event-${eid}`);
+            const accent = getWorldEvent(eid).accent;
+            root.style.setProperty('--event-glow', accent);
+          }
+          publishEvent(true);
         }
       } else {
         event.remainMs -= dtMs;
@@ -460,11 +599,19 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
           pulseEvent(allTiles(rows), event.id, rng);
         }
         if (event.remainMs <= 0) {
-          for (const t of allTiles(rows)) t.freezeMs = 0;
+          for (const t of allTiles(rows)) {
+            t.freezeMs = 0;
+            t.painted = undefined;
+          }
+          const root = rootRef.current;
+          if (root) {
+            root.classList.remove('event-live', `event-${event.id}`);
+            root.style.removeProperty('--event-glow');
+          }
           eventRef.current = null;
           event = null;
           untilEventRef.current = EVENT_EVERY_MS;
-          publishEvent();
+          publishEvent(true);
         } else {
           publishEvent();
         }
@@ -481,9 +628,13 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
               : 1;
 
       for (const tile of visibleTiles) {
-        if (tile.flashMs > 0) tile.flashMs = Math.max(0, tile.flashMs - dtMs);
+        if (tile.flashMs > 0) {
+          tile.flashMs = Math.max(0, tile.flashMs - dtMs);
+          tile.painted = undefined;
+        }
         if (tile.freezeMs > 0) {
           tile.freezeMs = Math.max(0, tile.freezeMs - dtMs);
+          tile.painted = undefined;
           continue;
         }
         if (timerScale === 0) continue;
@@ -511,11 +662,31 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
           best.bidderId = bot.id;
           best.price += 1;
           best.flashMs = 320;
+          best.painted = undefined;
         }
       }
+
+      paintAll();
     };
 
     const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+
+      const shouldPause = isPaused();
+      if (shouldPause) {
+        last = now;
+        if (!paused && scrollerRef.current) {
+          // Drop will-change while buried so the compositor can rest
+          scrollerRef.current.style.willChange = 'auto';
+        }
+        paused = true;
+        return;
+      }
+      if (paused && scrollerRef.current) {
+        scrollerRef.current.style.willChange = 'transform';
+        paused = false;
+      }
+
       const dt = Math.min(50, now - last);
       last = now;
       const rng = rngRef.current;
@@ -523,55 +694,52 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
       scrollYRef.current += (SCROLL_SPEED * dt) / 1000;
       recycleOffscreen(rng);
 
-      if (scrollerRef.current) {
-        scrollerRef.current.style.transform = `translate3d(0, ${-scrollYRef.current}px, 0)`;
+      const scroller = scrollerRef.current;
+      if (scroller) {
+        // Round to device pixels to avoid thrashing the compositor
+        const y = Math.round(scrollYRef.current * 100) / 100;
+        scroller.style.transform = `translate3d(0, ${-y}px, 0)`;
       }
 
       acc += dt;
       if (acc >= TICK_MS) {
         tickSim(acc);
         acc = 0;
-        setFrame((n) => n + 1);
+      } else {
+        // Cheap timer-bar refresh between sim ticks (visible tiles only)
+        const eventId = eventRef.current?.id ?? null;
+        for (const tile of visibleTilesNow()) {
+          const els = tileElsRef.current.get(tile.key);
+          if (!els) continue;
+          const ratio = Math.max(0, Math.min(1, tile.timerMs / TILE_TIMER_MS));
+          els.timer.style.transform = `scaleX(${ratio})`;
+          // Decay flash clock visually even between ticks
+          if (tile.flashMs > 0) {
+            tile.flashMs = Math.max(0, tile.flashMs - dt);
+            if (tile.flashMs === 0) paintTile(tile, eventId);
+          }
+        }
       }
-
-      raf = requestAnimationFrame(loop);
     };
 
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    const onVis = () => {
+      last = performance.now();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
 
   const rows = rowsRef.current;
-  const event = eventRef.current;
-  const bots = botsRef.current;
-  const colorById = new Map(bots.map((b) => [b.id, b.color]));
-  const accent = event ? getWorldEvent(event.id).accent : null;
   const rowH = rowHRef.current;
   void layoutTick;
 
-  const stripBottom =
-    rows.length > 0 ? Math.max(...rows.map((r) => r.y)) + rowH : rowH;
-  const scrollerH = Math.max(
-    stripBottom - scrollYRef.current + viewHRef.current,
-    viewHRef.current,
-  );
-
   return (
-    <div
-      ref={rootRef}
-      className={`lobby-auction-bg${event ? ' event-live' : ''}${
-        event ? ` event-${event.id}` : ''
-      }`}
-      style={
-        accent ? ({ ['--event-glow' as string]: accent } as CSSProperties) : undefined
-      }
-      aria-hidden
-    >
-      <div
-        ref={scrollerRef}
-        className="lobby-auction-scroller"
-        style={{ height: scrollerH }}
-      >
+    <div ref={rootRef} className="lobby-auction-bg" aria-hidden>
+      <div ref={scrollerRef} className="lobby-auction-scroller">
         {rows.map((row) => (
           <div
             key={row.id}
@@ -582,51 +750,30 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
             className="lobby-auction-row"
             style={{ top: row.y, height: rowH }}
           >
-            {row.tiles.map((tile) => {
-              const def = getItem(tile.itemId);
-              const bidderColor = tile.bidderId
-                ? (colorById.get(tile.bidderId) ?? null)
-                : null;
-              const ratio = Math.max(0, Math.min(1, tile.timerMs / TILE_TIMER_MS));
-              const frozen = tile.freezeMs > 0 || event?.id === 'deep_freeze';
-              return (
-                <div
-                  key={tile.key}
-                  className={[
-                    'lobby-auction-tile',
-                    bidderColor ? 'has-bidder' : '',
-                    frozen ? 'frozen' : '',
-                    tile.flashMs > 0 ? 'pop' : '',
-                    tile.itemId === 'bomb' ? 'bomb' : '',
-                    event?.id === 'turbo_market' ? 'turbo' : '',
-                    event?.id === 'bomb_bazaar' && tile.itemId === 'bomb'
-                      ? 'ticking'
-                      : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  style={
-                    bidderColor
-                      ? ({
-                          ['--bidder' as string]: bidderColor,
-                          background: bidderColor,
-                        } as CSSProperties)
-                      : undefined
+            {row.tiles.map((tile) => (
+              <div
+                key={tile.key}
+                ref={(el) => {
+                  if (!el) {
+                    tileElsRef.current.delete(tile.key);
+                    return;
                   }
-                >
-                  <span className="lobby-auction-emoji">{def.emoji}</span>
-                  <span className="lobby-auction-price">🪙{tile.price}</span>
-                  <span
-                    className="lobby-auction-timer"
-                    style={{
-                      transform: `scaleX(${ratio})`,
-                      background: ratio > 0.35 ? '#3aaa62' : '#d6453a',
-                    }}
-                  />
-                  {frozen && <span className="lobby-auction-frost" aria-hidden />}
-                </div>
-              );
-            })}
+                  tileElsRef.current.set(tile.key, {
+                    root: el,
+                    emoji: el.querySelector('.lobby-auction-emoji')!,
+                    price: el.querySelector('.lobby-auction-price')!,
+                    timer: el.querySelector('.lobby-auction-timer')!,
+                    frost: el.querySelector('.lobby-auction-frost')!,
+                  });
+                }}
+                className="lobby-auction-tile"
+              >
+                <span className="lobby-auction-emoji" />
+                <span className="lobby-auction-price" />
+                <span className="lobby-auction-timer" />
+                <span className="lobby-auction-frost" hidden aria-hidden />
+              </div>
+            ))}
           </div>
         ))}
       </div>

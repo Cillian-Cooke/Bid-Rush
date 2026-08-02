@@ -221,7 +221,8 @@ export type FxKind =
   | 'active_cast'
   | 'event_money'
   | 'event_tax'
-  | 'event_shower';
+  | 'event_shower'
+  | 'mirror_echo';
 
 export type WorldEventId =
   | 'money_money_money'
