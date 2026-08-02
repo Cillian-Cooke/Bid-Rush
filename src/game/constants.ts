@@ -14,7 +14,7 @@ export const CONFIG = {
   /** Golden Goose tick */
   GOOSE_MS: 2_000,
   /** Money Printer: spawn a Bank Note */
-  PRINTER_NOTE_MS: 10_000,
+  PRINTER_NOTE_MS: 20_000,
   GAME_LENGTH_MS: 180_000,
   BOMB_FUSE_MS: 5_000,
   /** Minimum coins to defuse a regular bomb */
@@ -74,6 +74,8 @@ export const MODE_SETUP = {
     botCount: 1,
     gridSize: 9,
     gridCols: 3,
+    /** Max copies of one item type in play (shop + hands) */
+    maxInPlay: 10,
   },
   blitz: {
     id: 'blitz' as const,
@@ -83,6 +85,8 @@ export const MODE_SETUP = {
     botCount: 3,
     gridSize: 16,
     gridCols: 4,
+    /** Max copies of one item type in play (shop + hands) */
+    maxInPlay: 16,
   },
 } as const;
 

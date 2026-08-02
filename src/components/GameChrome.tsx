@@ -1,4 +1,4 @@
-import { EventBanner } from './EventBanner';
+import { EventBannerStack } from './EventBanner';
 import { PaceBanner } from './PaceBanner';
 import { RoundClock } from './RoundClock';
 import { SuddenDeathBanner } from './SuddenDeathBanner';
@@ -25,11 +25,18 @@ export function GameChrome({
   onQuit,
 }: Props) {
   const showPace = paceBannerMs > 0;
-  const showEvent =
-    !suddenDeath.active &&
-    (worldEvent.phase === 'warning' || worldEvent.phase === 'active');
   const showSudden = suddenDeath.active;
+  const showWarning =
+    !suddenDeath.active && worldEvent.phase === 'warning' && !!worldEvent.id;
+  const showLive = !suddenDeath.active && worldEvent.live.length > 0;
+  const showEvent = showWarning || showLive;
+  const bannerCount =
+    (showPace ? 1 : 0) +
+    (showSudden ? 1 : 0) +
+    (showWarning ? 1 : 0) +
+    worldEvent.live.length;
   const showStack = showPace || showSudden || showEvent;
+  const dense = bannerCount >= 2;
 
   return (
     <header className="game-chrome">
@@ -40,13 +47,21 @@ export function GameChrome({
         </button>
       </div>
       {showStack && (
-        <div className="game-chrome-banner">
+        <div
+          className={`game-chrome-banner${dense ? ' dense' : ''}${
+            bannerCount >= 3 ? ' crowded' : ''
+          }`}
+        >
           {showPace && <PaceBanner elapsedMs={elapsedMs} />}
           {showSudden && (
             <SuddenDeathBanner suddenDeath={suddenDeath} players={players} />
           )}
           {showEvent && (
-            <EventBanner worldEvent={worldEvent} roundMs={roundMs} />
+            <EventBannerStack
+              worldEvent={worldEvent}
+              roundMs={roundMs}
+              dense={dense}
+            />
           )}
         </div>
       )}

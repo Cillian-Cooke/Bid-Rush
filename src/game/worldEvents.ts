@@ -4,11 +4,17 @@ import type {
   FxKind,
   GameState,
   ItemId,
+  LiveWorldEvent,
   WorldEventDef,
   WorldEventId,
 } from './types';
 
-  const MONEY_IDS: ItemId[] = [
+/** Max concurrent floor events (scheduled + Chaos Die stacks). */
+const MAX_LIVE_EVENTS = 4;
+
+let liveKeySeq = 0;
+
+const MONEY_IDS: ItemId[] = [
   'coin_mine',
   'money_printer',
   'golden_goose',
@@ -168,7 +174,45 @@ export function createWorldEventState() {
     activeMs: 0,
     pulseAccMs: 0,
     fxAccMs: 0,
+    live: [] as LiveWorldEvent[],
   };
+}
+
+function makeLiveEvent(id: WorldEventId, activeMs = CONFIG.EVENT_DURATION_MS): LiveWorldEvent {
+  liveKeySeq += 1;
+  return {
+    key: `we_${liveKeySeq}`,
+    id,
+    activeMs,
+    pulseAccMs: 0,
+    fxAccMs: 0,
+  };
+}
+
+/** All currently running floor events. */
+export function liveWorldEvents(state: GameState): LiveWorldEvent[] {
+  return state.worldEvent.live;
+}
+
+function syncPrimaryFromLive(we: GameState['worldEvent']): void {
+  const primary = we.live[0];
+  if (!primary) {
+    if (we.phase === 'active') {
+      we.phase = 'done';
+      we.id = null;
+      we.activeMs = 0;
+      we.pulseAccMs = 0;
+      we.fxAccMs = 0;
+    }
+    return;
+  }
+  // Keep timers mirrored for older readers; don't hijack pending/warning phase
+  we.activeMs = primary.activeMs;
+  we.pulseAccMs = primary.pulseAccMs;
+  we.fxAccMs = primary.fxAccMs;
+  if (we.phase === 'active') {
+    we.id = primary.id;
+  }
 }
 
 function emitFx(
@@ -228,10 +272,7 @@ function shuffleBoard(state: GameState, rng: () => number): void {
     emitFx(state, 'shuffle', { tileIndex: i });
   }
 }
-
-function startEvent(state: GameState, rng: () => number): void {
-  const id = state.worldEvent.id;
-  if (!id) return;
+function startEvent(state: GameState, rng: () => number, id: WorldEventId): void {
   const def = getWorldEvent(id);
 
   switch (id) {
@@ -298,9 +339,12 @@ function startEvent(state: GameState, rng: () => number): void {
   }
 }
 
-function pulseEvent(state: GameState, rng: () => number): void {
-  const id = state.worldEvent.id;
-  if (!id) return;
+function pulseEvent(
+  state: GameState,
+  rng: () => number,
+  id: WorldEventId,
+  remainMs: number,
+): void {
   const def = getWorldEvent(id);
 
   switch (id) {
@@ -309,11 +353,16 @@ function pulseEvent(state: GameState, rng: () => number): void {
         const lost = Math.min(10, p.coins);
         if (lost <= 0) continue;
         p.coins -= lost;
+        p.coinTrail = [
+          ...p.coinTrail,
+          { emoji: '🧾', label: 'Tax Collector', delta: -lost },
+        ].slice(-12);
         state.events.push({
           type: 'loss',
           playerId: p.id,
           amount: lost,
           emoji: '🧾',
+          label: 'Tax Collector',
         });
         emitFx(state, 'event_tax', { playerId: p.id, label: `-${lost}` });
       }
@@ -345,12 +394,11 @@ function pulseEvent(state: GameState, rng: () => number): void {
       break;
     case 'deep_freeze':
       for (const tile of state.tiles) {
-        tile.freezeMs = Math.max(tile.freezeMs, state.worldEvent.activeMs);
+        tile.freezeMs = Math.max(tile.freezeMs, remainMs);
         emitFx(state, 'freeze', { tileIndex: tile.index });
       }
       break;
     case 'money_money_money':
-      // Keep the floor on-theme if tiles resolved mid-event
       for (const tile of state.tiles) {
         if (!MONEY_IDS.includes(tile.itemId) || !inPool(state, tile.itemId)) {
           tile.itemId = pickFromPool(state, MONEY_IDS, rng);
@@ -380,7 +428,7 @@ function pulseEvent(state: GameState, rng: () => number): void {
       for (const tile of state.tiles) {
         if (tile.price > CONFIG.START_PRICE) {
           tile.price = CONFIG.START_PRICE;
-          emitFx(state, 'discount', { tileIndex: tile.index });
+          emitFx(state, 'discount', { tileIndex: tile.index, label: '1🪙' });
         }
       }
       break;
@@ -410,9 +458,7 @@ function pulseEvent(state: GameState, rng: () => number): void {
   }
 }
 
-function ambientFx(state: GameState, rng: () => number): void {
-  const id = state.worldEvent.id;
-  if (!id) return;
+function ambientFx(state: GameState, rng: () => number, id: WorldEventId): void {
   const def = getWorldEvent(id);
   const tiles = state.tiles;
   if (tiles.length === 0) return;
@@ -426,33 +472,59 @@ function ambientFx(state: GameState, rng: () => number): void {
   }
 }
 
-function endEvent(state: GameState): void {
-  const id = state.worldEvent.id;
+function endEvent(state: GameState, id: WorldEventId, endingKey?: string): void {
   if (id === 'deep_freeze') {
-    for (const tile of state.tiles) {
-      tile.freezeMs = 0;
+    const stillFrozen = state.worldEvent.live.some(
+      (e) => e.id === 'deep_freeze' && e.key !== endingKey,
+    );
+    if (!stillFrozen) {
+      for (const tile of state.tiles) {
+        tile.freezeMs = 0;
+      }
     }
   }
-  if (id) {
-    const def = getWorldEvent(id);
-    for (const tile of state.tiles) {
-      emitFx(state, def.fxKind, { tileIndex: tile.index, label: 'END' });
-    }
+  const def = getWorldEvent(id);
+  for (const tile of state.tiles) {
+    emitFx(state, def.fxKind, { tileIndex: tile.index, label: 'END' });
   }
 }
 
-/** Timer drain multiplier while a world event is active. */
-export function worldEventTimerScale(state: GameState): number {
+function pushLiveEvent(
+  state: GameState,
+  rng: () => number,
+  id: WorldEventId,
+): LiveWorldEvent {
   const we = state.worldEvent;
-  if (we.phase !== 'active' || !we.id) return 1;
-  if (we.id === 'deep_freeze') return 0;
-  if (we.id === 'turbo_market') return 2;
-  if (we.id === 'golden_chaos') return 1.5;
-  return 1;
+  while (we.live.length >= MAX_LIVE_EVENTS) {
+    const oldest = we.live.shift();
+    if (oldest) endEvent(state, oldest.id, oldest.key);
+  }
+  const entry = makeLiveEvent(id);
+  we.live.push(entry);
+  const def = getWorldEvent(id);
+  for (const tile of state.tiles) {
+    emitFx(state, def.fxKind, { tileIndex: tile.index });
+  }
+  startEvent(state, rng, id);
+  syncPrimaryFromLive(we);
+  return entry;
+}
+
+/** Timer drain multiplier while world events are active. */
+export function worldEventTimerScale(state: GameState): number {
+  const live = state.worldEvent.live;
+  if (live.length === 0) return 1;
+  if (live.some((e) => e.id === 'deep_freeze')) return 0;
+  let scale = 1;
+  for (const e of live) {
+    if (e.id === 'turbo_market') scale = Math.max(scale, 2);
+    if (e.id === 'golden_chaos') scale = Math.max(scale, 1.5);
+  }
+  return scale;
 }
 
 /**
- * Immediately start a world event (Chaos Die). Replaces any live event.
+ * Immediately start a world event (Chaos Die). Stacks with any live event.
  * Pass `golden_chaos` for the unique golden-die event; otherwise picks random.
  */
 export function forceTriggerWorldEvent(
@@ -460,20 +532,34 @@ export function forceTriggerWorldEvent(
   rng: () => number,
   id?: WorldEventId,
 ): void {
-  const we = state.worldEvent;
-  if (we.phase === 'active') {
-    endEvent(state);
+  pushLiveEvent(state, rng, id ?? pickEvent(rng));
+}
+
+function tickLiveEntry(
+  state: GameState,
+  entry: LiveWorldEvent,
+  dtMs: number,
+  rng: () => number,
+): boolean {
+  entry.activeMs = Math.max(0, entry.activeMs - dtMs);
+  entry.pulseAccMs += dtMs;
+  entry.fxAccMs += dtMs;
+
+  while (entry.pulseAccMs >= CONFIG.EVENT_PULSE_MS) {
+    entry.pulseAccMs -= CONFIG.EVENT_PULSE_MS;
+    pulseEvent(state, rng, entry.id, entry.activeMs);
   }
-  we.id = id ?? pickEvent(rng);
-  we.phase = 'active';
-  we.activeMs = CONFIG.EVENT_DURATION_MS;
-  we.pulseAccMs = 0;
-  we.fxAccMs = 0;
-  const def = getWorldEvent(we.id);
-  for (const tile of state.tiles) {
-    emitFx(state, def.fxKind, { tileIndex: tile.index });
+
+  while (entry.fxAccMs >= 700) {
+    entry.fxAccMs -= 700;
+    ambientFx(state, rng, entry.id);
   }
-  startEvent(state, rng);
+
+  if (entry.activeMs <= 0) {
+    endEvent(state, entry.id, entry.key);
+    return false;
+  }
+  return true;
 }
 
 export function tickWorldEvent(
@@ -483,28 +569,9 @@ export function tickWorldEvent(
 ): void {
   const we = state.worldEvent;
 
-  // Forced Chaos Die events set phase back to active after 'done'
-  if (we.phase === 'active') {
-    we.activeMs = Math.max(0, we.activeMs - dtMs);
-    we.pulseAccMs += dtMs;
-    we.fxAccMs += dtMs;
-
-    while (we.pulseAccMs >= CONFIG.EVENT_PULSE_MS) {
-      we.pulseAccMs -= CONFIG.EVENT_PULSE_MS;
-      pulseEvent(state, rng);
-    }
-
-    while (we.fxAccMs >= 700) {
-      we.fxAccMs -= 700;
-      ambientFx(state, rng);
-    }
-
-    if (we.activeMs <= 0) {
-      endEvent(state);
-      we.phase = 'done';
-      we.activeMs = 0;
-    }
-    return;
+  if (we.live.length > 0) {
+    we.live = we.live.filter((entry) => tickLiveEntry(state, entry, dtMs, rng));
+    syncPrimaryFromLive(we);
   }
 
   if (we.phase === 'done') return;
@@ -519,10 +586,9 @@ export function tickWorldEvent(
   }
 
   if (we.phase === 'warning' && state.roundMs <= CONFIG.EVENT_START_AT_MS) {
+    const id = we.id ?? pickEvent(rng);
+    we.id = id;
     we.phase = 'active';
-    we.activeMs = CONFIG.EVENT_DURATION_MS;
-    we.pulseAccMs = 0;
-    we.fxAccMs = 0;
-    startEvent(state, rng);
+    pushLiveEvent(state, rng, id);
   }
 }

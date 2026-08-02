@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { CONFIG } from '../game/constants';
 import { getWorldEvent } from '../game/worldEvents';
-import type { WorldEventId, WorldEventState } from '../game/types';
+import type { LiveWorldEvent, WorldEventId, WorldEventState } from '../game/types';
 
 type Props = {
   worldEvent: WorldEventState;
   roundMs: number;
+  /** Compact stacked layout when many banners are up */
+  dense?: boolean;
 };
 
 type BannerMode = 'warning' | 'active';
@@ -15,6 +17,7 @@ type BannerSlide = {
   mode: BannerMode;
   id: WorldEventId;
   motion: 'in' | 'shown' | 'out';
+  remainMs: number;
 };
 
 const SLIDE_MS = 420;
@@ -23,130 +26,132 @@ function formatSec(ms: number): string {
   return `${Math.max(0, Math.ceil(ms / 1000))}s`;
 }
 
-function desiredFrom(worldEvent: WorldEventState): {
-  mode: BannerMode;
-  id: WorldEventId;
-} | null {
-  if (!worldEvent.id) return null;
-  if (worldEvent.phase === 'warning') {
-    return { mode: 'warning', id: worldEvent.id };
-  }
-  if (worldEvent.phase === 'active') {
-    return { mode: 'active', id: worldEvent.id };
-  }
-  return null;
-}
-
-function sameBanner(
-  a: BannerSlide | null,
-  b: { mode: BannerMode; id: WorldEventId } | null,
-): boolean {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  return a.mode === b.mode && a.id === b.id && a.motion !== 'out';
-}
-
-function liveRemainMs(
-  mode: BannerMode,
+function slidesFrom(
   worldEvent: WorldEventState,
   roundMs: number,
-): number {
-  if (mode === 'warning') {
-    return Math.max(0, roundMs - CONFIG.EVENT_START_AT_MS);
+): BannerSlide[] {
+  const slides: BannerSlide[] = [];
+
+  if (worldEvent.phase === 'warning' && worldEvent.id) {
+    slides.push({
+      key: `warn-${worldEvent.id}`,
+      mode: 'warning',
+      id: worldEvent.id,
+      motion: 'shown',
+      remainMs: Math.max(0, roundMs - CONFIG.EVENT_START_AT_MS),
+    });
   }
-  return Math.max(0, worldEvent.activeMs);
+
+  for (const live of worldEvent.live) {
+    slides.push({
+      key: live.key,
+      mode: 'active',
+      id: live.id,
+      motion: 'shown',
+      remainMs: Math.max(0, live.activeMs),
+    });
+  }
+
+  return slides;
 }
 
-export function EventBanner({ worldEvent, roundMs }: Props) {
-  const [slide, setSlide] = useState<BannerSlide | null>(null);
-  const slideRef = useRef<BannerSlide | null>(null);
-  const frozenRemainRef = useRef(0);
-  const seqRef = useRef(0);
-  const chainRef = useRef(0);
+export function EventBannerStack({ worldEvent, roundMs, dense }: Props) {
+  const desired = slidesFrom(worldEvent, roundMs);
+  const [slides, setSlides] = useState<BannerSlide[]>(desired);
+  const prevKeysRef = useRef<Set<string>>(new Set(desired.map((s) => s.key)));
 
   useEffect(() => {
-    slideRef.current = slide;
-  }, [slide]);
+    const next = slidesFrom(worldEvent, roundMs);
+    const nextKeys = new Set(next.map((s) => s.key));
+    const prevKeys = prevKeysRef.current;
 
-  useEffect(() => {
-    const target = desiredFrom(worldEvent);
-    const current = slideRef.current;
+    const entering = next.filter((s) => !prevKeys.has(s.key));
+    const staying = next.filter((s) => prevKeys.has(s.key));
+    const leavingKeys = [...prevKeys].filter((k) => !nextKeys.has(k));
 
-    if (sameBanner(current, target)) return;
+    setSlides((cur) => {
+      const leaving = cur
+        .filter((s) => leavingKeys.includes(s.key) && s.motion !== 'out')
+        .map((s) => ({ ...s, motion: 'out' as const }));
+      const kept = staying.map((s) => {
+        const old = cur.find((c) => c.key === s.key);
+        return {
+          ...s,
+          motion: old?.motion === 'in' ? ('in' as const) : ('shown' as const),
+        };
+      });
+      const fresh = entering.map((s) => ({ ...s, motion: 'in' as const }));
+      return [...leaving, ...kept, ...fresh];
+    });
 
-    const chain = ++chainRef.current;
-    let exitTimer = 0;
-    let enterTimer = 0;
+    prevKeysRef.current = nextKeys;
 
-    const startEnter = (mode: BannerMode, id: WorldEventId) => {
-      if (chain !== chainRef.current) return;
-      const key = `${mode}-${id}-${++seqRef.current}`;
-      const next: BannerSlide = { key, mode, id, motion: 'in' };
-      frozenRemainRef.current = liveRemainMs(mode, worldEvent, roundMs);
-      slideRef.current = next;
-      setSlide(next);
-      enterTimer = window.setTimeout(() => {
-        if (chain !== chainRef.current) return;
-        setSlide((cur) => {
-          if (!cur || cur.key !== key) return cur;
-          const shown: BannerSlide = { ...cur, motion: 'shown' };
-          slideRef.current = shown;
-          return shown;
-        });
-      }, SLIDE_MS);
-    };
-
-    if (current && current.motion !== 'out') {
-      frozenRemainRef.current = liveRemainMs(
-        current.mode,
-        worldEvent,
-        roundMs,
+    const enterTimer = window.setTimeout(() => {
+      setSlides((cur) =>
+        cur.map((s) => (s.motion === 'in' ? { ...s, motion: 'shown' } : s)),
       );
-      const leaving: BannerSlide = { ...current, motion: 'out' };
-      slideRef.current = leaving;
-      setSlide(leaving);
-      exitTimer = window.setTimeout(() => {
-        if (chain !== chainRef.current) return;
-        slideRef.current = null;
-        setSlide(null);
-        if (target) startEnter(target.mode, target.id);
-      }, SLIDE_MS);
-    } else if (target) {
-      startEnter(target.mode, target.id);
-    } else {
-      slideRef.current = null;
-      setSlide(null);
-    }
+    }, SLIDE_MS);
+
+    const exitTimer = window.setTimeout(() => {
+      setSlides((cur) => cur.filter((s) => s.motion !== 'out'));
+    }, SLIDE_MS);
 
     return () => {
-      window.clearTimeout(exitTimer);
       window.clearTimeout(enterTimer);
+      window.clearTimeout(exitTimer);
     };
-    // Intentionally only phase/id — roundMs/activeMs drive the timer display
+    // remainMs updates every tick via live — refresh timers without remounting
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [worldEvent.phase, worldEvent.id]);
+  }, [
+    worldEvent.phase,
+    worldEvent.id,
+    worldEvent.live.map((e) => `${e.key}:${Math.ceil(e.activeMs / 500)}`).join('|'),
+    roundMs > CONFIG.EVENT_START_AT_MS
+      ? Math.ceil((roundMs - CONFIG.EVENT_START_AT_MS) / 500)
+      : 0,
+  ]);
 
-  const remainMs =
-    slide && slide.motion !== 'out'
-      ? liveRemainMs(slide.mode, worldEvent, roundMs)
-      : frozenRemainRef.current;
+  // Keep remainMs fresh on every render for visible slides
+  const liveByKey = new Map(worldEvent.live.map((e) => [e.key, e]));
+  const rendered = slides.map((s) => {
+    if (s.mode === 'warning') {
+      return {
+        ...s,
+        remainMs: Math.max(0, roundMs - CONFIG.EVENT_START_AT_MS),
+      };
+    }
+    const live = liveByKey.get(s.key);
+    return live ? { ...s, remainMs: live.activeMs } : s;
+  });
+
+  if (rendered.length === 0) return null;
 
   return (
-    <div className="event-banner-slot" aria-live="polite">
-      {slide && (
-        <BannerCard
+    <div
+      className={`event-banner-stack${dense ? ' dense' : ''}${
+        rendered.length >= 3 ? ' crowded' : ''
+      }`}
+      aria-live="polite"
+    >
+      {rendered.map((slide) => (
+        <EventBannerCard
           key={slide.key}
           mode={slide.mode}
           id={slide.id}
           motion={slide.motion}
-          remainMs={remainMs}
+          remainMs={slide.remainMs}
         />
-      )}
+      ))}
     </div>
   );
 }
 
-function BannerCard({
+/** @deprecated single-slot wrapper — prefer EventBannerStack */
+export function EventBanner({ worldEvent, roundMs }: Props) {
+  return <EventBannerStack worldEvent={worldEvent} roundMs={roundMs} />;
+}
+
+export function EventBannerCard({
   mode,
   id,
   motion,
@@ -162,29 +167,35 @@ function BannerCard({
 
   return (
     <div
-      className={`event-banner motion-${motion}${isWarn ? ' warning' : ' active'}`}
-      style={{ ['--event-accent' as string]: def.accent }}
+      className={`event-banner-slot`}
       role="status"
     >
-      <span className="event-banner-rail" aria-hidden />
-      <span className="event-banner-emoji" aria-hidden>
-        {def.emoji}
-      </span>
-      <div className="event-banner-copy">
-        <span className="event-banner-kicker">
-          {isWarn ? 'Next Event' : 'Live Event'}
+      <div
+        className={`event-banner motion-${motion}${isWarn ? ' warning' : ' active'}`}
+        style={{ ['--event-accent' as string]: def.accent }}
+      >
+        <span className="event-banner-rail" aria-hidden />
+        <span className="event-banner-emoji" aria-hidden>
+          {def.emoji}
         </span>
-        <span className="event-banner-title">{def.name}</span>
-        <span className="event-banner-line">
-          {isWarn ? def.warnLine : def.activeLine}
-        </span>
-      </div>
-      <div className="event-banner-timeblock">
-        <span className="event-banner-time-label">
-          {isWarn ? 'Starts in' : 'Ends in'}
-        </span>
-        <span className="event-banner-timer">{formatSec(remainMs)}</span>
+        <div className="event-banner-copy">
+          <span className="event-banner-kicker">
+            {isWarn ? 'Next Event' : 'Live Event'}
+          </span>
+          <span className="event-banner-title">{def.name}</span>
+          <span className="event-banner-line">
+            {isWarn ? def.warnLine : def.activeLine}
+          </span>
+        </div>
+        <div className="event-banner-timeblock">
+          <span className="event-banner-time-label">
+            {isWarn ? 'Starts in' : 'Ends in'}
+          </span>
+          <span className="event-banner-timer">{formatSec(remainMs)}</span>
+        </div>
       </div>
     </div>
   );
 }
+
+export type { LiveWorldEvent };

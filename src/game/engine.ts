@@ -4,6 +4,8 @@ import { matchPaceMult } from './pace';
 import { createRng } from './rng';
 import type {
   BotArchetype,
+  CoinSwing,
+  DeathReport,
   DifficultyMode,
   FxKind,
   GameState,
@@ -50,10 +52,20 @@ function cloneState(state: GameState): GameState {
     players: state.players.map((p) => ({
       ...p,
       hand: p.hand.map((h) => ({ ...h })),
+      coinTrail: p.coinTrail.map((s) => ({ ...s })),
+      deathReport: p.deathReport
+        ? {
+            ...p.deathReport,
+            swings: p.deathReport.swings.map((s) => ({ ...s })),
+          }
+        : null,
     })),
     tiles: state.tiles.map((t) => ({ ...t })),
     events: [...state.events],
-    worldEvent: { ...state.worldEvent },
+    worldEvent: {
+      ...state.worldEvent,
+      live: state.worldEvent.live.map((e) => ({ ...e })),
+    },
     suddenDeath: { ...state.suddenDeath },
     itemPool: [...state.itemPool],
   };
@@ -71,6 +83,47 @@ function makeTile(index: number, itemId: ItemId): Tile {
     flash: null,
     flashMs: 0,
   };
+}
+
+/** How many copies of an item are on the shop or in hands right now. */
+function countInPlay(state: GameState, itemId: ItemId): number {
+  let n = 0;
+  for (const tile of state.tiles) {
+    if (tile.itemId === itemId) n += 1;
+  }
+  for (const player of state.players) {
+    for (const h of player.hand) {
+      if (h.itemId === itemId) n += 1;
+    }
+  }
+  return n;
+}
+
+function maxInPlayFor(state: GameState): number {
+  return MODE_SETUP[state.mode].maxInPlay;
+}
+
+/**
+ * Draw a shop item under the per-type in-play cap
+ * (duel 10 / blitz 16 — e.g. no 11th Coin Mine while 10 are already out).
+ */
+function drawShopItem(state: GameState, rng: () => number): ItemId {
+  const cap = maxInPlayFor(state);
+  const available = state.itemPool.filter((id) => countInPlay(state, id) < cap);
+  if (available.length > 0) {
+    return weightedRandomItem(rng, available);
+  }
+  // Everything at cap — pick the scarcest pool item
+  let best = state.itemPool[0]!;
+  let bestCount = countInPlay(state, best);
+  for (const id of state.itemPool) {
+    const c = countInPlay(state, id);
+    if (c < bestCount) {
+      best = id;
+      bestCount = c;
+    }
+  }
+  return best;
 }
 
 function makeHandItem(
@@ -380,6 +433,8 @@ export function createInitialState(
     eliminatedAt: null,
     comebackAccMs: 0,
     itemsSold: 0,
+    coinTrail: [],
+    deathReport: null,
   }));
 
   // Ensure human id is player_0
@@ -390,12 +445,10 @@ export function createInitialState(
 
   const tiles: Tile[] = [];
   const itemPool =
-    presetPool && presetPool.length > 0 ? [...presetPool] : pickMatchPool(rng);
-  for (let i = 0; i < setup.gridSize; i++) {
-    tiles.push(makeTile(i, weightedRandomItem(rng, itemPool)));
-  }
-
-  return {
+    presetPool && presetPool.length > 0
+      ? [...presetPool]
+      : pickMatchPool(rng);
+  const draft: GameState = {
     mode: config.mode,
     gridCols: setup.gridCols,
     players,
@@ -419,6 +472,11 @@ export function createInitialState(
     coldMarketMs: 0,
     itemPool,
   };
+  for (let i = 0; i < setup.gridSize; i++) {
+    tiles.push(makeTile(i, drawShopItem(draft, rng)));
+  }
+
+  return draft;
 }
 
 function getPlayer(state: GameState, id: string): Player | undefined {
@@ -438,30 +496,175 @@ function richestOpponent(state: GameState, selfId: string): Player | null {
 function restockTile(state: GameState, tileIndex: number, rng: () => number): void {
   const tile = state.tiles[tileIndex];
   if (!tile) return;
-  Object.assign(tile, makeTile(tileIndex, weightedRandomItem(rng, state.itemPool)));
+  Object.assign(tile, makeTile(tileIndex, drawShopItem(state, rng)));
+}
+
+const TRAIL_MAX = 12;
+
+function pushSwing(player: Player, swing: CoinSwing): void {
+  player.coinTrail = [...player.coinTrail, swing].slice(-TRAIL_MAX);
+}
+
+function emitLoss(
+  state: GameState,
+  player: Player,
+  amount: number,
+  emoji: string,
+  label: string,
+): void {
+  if (amount <= 0) return;
+  pushSwing(player, { emoji, label, delta: -amount });
+  state.events.push({
+    type: 'loss',
+    playerId: player.id,
+    amount,
+    emoji,
+    label,
+  });
+}
+
+function deathHeadline(
+  reason: DeathReport['reason'],
+  fatal?: CoinSwing,
+): string {
+  if (reason === 'bomb') return 'A bomb went off in your hand.';
+  if (reason === 'bracket') return 'You fell under the sudden-death bracket.';
+  if (reason === 'roi') return 'You failed the ROI challenge.';
+  if (reason === 'leech') {
+    return fatal?.label
+      ? `Drained to 0 — ${fatal.label}.`
+      : 'You were drained to 0 coins.';
+  }
+  if (reason === 'unpaid') {
+    return fatal?.label
+      ? `Couldn’t pay your bid — ${fatal.label}.`
+      : 'You couldn’t pay your bid.';
+  }
+  return 'You’re out of the match.';
+}
+
+function buildDeathReport(
+  player: Player,
+  reason: DeathReport['reason'],
+  fatal?: CoinSwing,
+): DeathReport {
+  const headline = deathHeadline(reason, fatal);
+
+  if (reason === 'bomb') {
+    return {
+      reason,
+      headline,
+      swings: [{ emoji: '💣', label: 'Bomb fuse ran out', delta: 0 }],
+    };
+  }
+
+  if (reason === 'roi') {
+    const target = player.roiTargetCoins;
+    return {
+      reason,
+      headline,
+      swings: [
+        {
+          emoji: '📈',
+          label: target > 0 ? `Needed ${target}🪙 before time ran out` : 'ROI timer expired',
+          delta: 0,
+        },
+      ],
+    };
+  }
+
+  if (reason === 'bracket') {
+    return {
+      reason,
+      headline,
+      swings: [
+        {
+          emoji: '💀',
+          label: 'Below the coin bracket when the cull hit',
+          delta: 0,
+        },
+      ],
+    };
+  }
+
+  // unpaid / leech — show last harmful swings (up to 3), ensure fatal is included
+  const hurts = player.coinTrail.filter((s) => s.delta < 0);
+  let swings = hurts.slice(-3);
+  if (fatal) {
+    const already = swings.some(
+      (s) => s.label === fatal.label && s.delta === fatal.delta,
+    );
+    if (!already) {
+      swings = [...swings, fatal].slice(-3);
+    }
+  }
+  if (swings.length === 0 && fatal) swings = [fatal];
+  if (swings.length === 0) {
+    swings = [
+      {
+        emoji: reason === 'unpaid' ? '💸' : '🧛',
+        label: reason === 'unpaid' ? 'Unpaid auction' : 'Drained dry',
+        delta: 0,
+      },
+    ];
+  }
+
+  return { reason, headline, swings };
 }
 
 function eliminate(
   state: GameState,
   playerId: string,
   reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech',
+  fatal?: CoinSwing,
 ): void {
   const player = getPlayer(state, playerId);
   if (!player || !player.isAlive) return;
+  if (fatal && fatal.delta < 0) {
+    const last = player.coinTrail[player.coinTrail.length - 1];
+    if (
+      !last ||
+      last.label !== fatal.label ||
+      last.delta !== fatal.delta
+    ) {
+      pushSwing(player, fatal);
+    }
+  }
+  const report = buildDeathReport(player, reason, fatal);
   player.isAlive = false;
   player.eliminatedAt = Date.now();
   player.hand = [];
   player.roiMs = 0;
   player.roiTargetCoins = 0;
+  player.deathReport = report;
   // Clear their high bids
   for (const tile of state.tiles) {
     if (tile.highBidderId === playerId) {
       tile.highBidderId = null;
     }
   }
-  state.events.push({ type: 'eliminate', playerId, reason });
+  state.events.push({ type: 'eliminate', playerId, reason, report });
   if (reason === 'bomb') {
     state.events.push({ type: 'explosion', playerId });
+  }
+}
+
+/** Coins hit 0 → out. Covers pickpocket, tax, leech, curse, bomb defuse, etc. */
+function cullBrokePlayers(state: GameState): void {
+  for (const player of state.players) {
+    if (player.isAlive && player.coins <= 0) {
+      const lastHurt = [...player.coinTrail].reverse().find((s) => s.delta < 0);
+      eliminate(
+        state,
+        player.id,
+        'leech',
+        lastHurt ?? {
+          emoji: '💸',
+          label: 'Ran out of coins',
+          delta: 0,
+        },
+      );
+    }
   }
 }
 
@@ -617,12 +820,9 @@ export function sellItem(
       const cost = bombDefuseCost(player.coins);
       if (player.coins < cost) return next;
       player.coins -= cost;
-      next.events.push({
-        type: 'loss',
-        playerId,
-        amount: cost,
-        emoji: '💣',
-      });
+      // Surviving a defuse never KOs you — leave a single coin if it emptied the purse
+      if (player.coins <= 0) player.coins = 1;
+      emitLoss(next, player, cost, '💣', 'Defused bomb');
     }
     player.hand.splice(idx, 1);
     return next;
@@ -667,7 +867,16 @@ function resolveTile(
     const winner = getPlayer(state, winnerId);
     if (winner && winner.isAlive) {
       if (winner.coins >= tile.price) {
-        winner.coins -= tile.price;
+        const price = tile.price;
+        const def = getItem(tile.itemId);
+        winner.coins -= price;
+        emitLoss(
+          state,
+          winner,
+          price,
+          def.emoji,
+          `Bought ${def.name}`,
+        );
         giveItem(state, winner, tile.itemId);
         // Kickback: +3 (golden +6) per held card on every purchase
         let kick = 0;
@@ -681,11 +890,18 @@ function resolveTile(
             playerId: winner.id,
             amount: kick,
             emoji: '🤝',
+            label: 'Kickback',
           });
           emitFx(state, 'kickback', { playerId: winner.id });
         }
       } else {
-        eliminate(state, winnerId, 'unpaid');
+        const def = getItem(tile.itemId);
+        const short = tile.price - winner.coins;
+        eliminate(state, winnerId, 'unpaid', {
+          emoji: def.emoji,
+          label: `${def.name} cost ${tile.price}🪙 (${short} short)`,
+          delta: -tile.price,
+        });
       }
     }
   }
@@ -731,6 +947,7 @@ export function applyUseItem(
   });
   player.hand.splice(idx, 1);
   applyActiveEffect(next, player, item, targets, rng);
+  cullBrokePlayers(next);
 
   return next;
 }
@@ -931,17 +1148,26 @@ function applyActiveEffect(
       target.coins -= steal;
       player.coins += steal;
       if (steal > 0) {
+        emitLoss(state, target, steal, '🧤', 'Pickpocketed');
         state.events.push({
           type: 'income',
           playerId: player.id,
           amount: steal,
           emoji: '🧤',
+          label: 'Pickpocket',
         });
       }
       emitFx(state, 'pickpocket', {
         playerId: player.id,
         targetPlayerId: target.id,
       });
+      if (target.coins <= 0) {
+        eliminate(state, target.id, 'leech', {
+          emoji: '🧤',
+          label: 'Pickpocketed dry',
+          delta: -steal,
+        });
+      }
       break;
     }
     case 'heist_kit': {
@@ -1166,18 +1392,17 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
             const lost = Math.min(drain, rival.coins);
             if (lost <= 0) continue;
             rival.coins -= lost;
-            state.events.push({
-              type: 'loss',
-              playerId: rival.id,
-              amount: lost,
-              emoji: '🧿',
-            });
+            emitLoss(state, rival, lost, '🧿', 'Curse Idol drain');
             emitFx(state, 'curse', {
               playerId: player.id,
               targetPlayerId: rival.id,
             });
             if (rival.coins <= 0) {
-              eliminate(state, rival.id, 'leech');
+              eliminate(state, rival.id, 'leech', {
+                emoji: '🧿',
+                label: 'Curse Idol',
+                delta: -lost,
+              });
             }
           }
         }
@@ -1333,11 +1558,13 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
             const steal = Math.min(want, victim.coins);
             victim.coins -= steal;
             player.coins += steal;
+            emitLoss(state, victim, steal, def.emoji, 'Coin Leech');
             state.events.push({
               type: 'income',
               playerId: player.id,
               amount: steal,
               emoji: def.emoji,
+              label: 'Coin Leech',
             });
             emitFx(state, 'leech', {
               playerId: player.id,
@@ -1345,7 +1572,11 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
               instanceId: item.instanceId,
             });
             if (victim.coins <= 0) {
-              eliminate(state, victim.id, 'leech');
+              eliminate(state, victim.id, 'leech', {
+                emoji: '🧛',
+                label: 'Coin Leech',
+                delta: -steal,
+              });
             }
           }
         }
@@ -1520,6 +1751,7 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
 
   tickPassives(next, dtMs, rng);
   tickRubberBand(next, dtMs);
+  cullBrokePlayers(next);
   checkWinConditions(next);
   tickSuddenDeath(next, dtMs);
   // Re-check after cull
@@ -1544,13 +1776,18 @@ function tickRubberBand(state: GameState, dt: number): void {
       state.leaderTaxAccMs -= CONFIG.LEADER_TAX_INTERVAL_MS;
       if (richest.coins <= 0) break;
       richest.coins -= 1;
+      emitLoss(state, richest, 1, '👑', 'Leader tax');
     }
   } else {
     state.leaderTaxAccMs = 0;
   }
 
-  // Underdog income — light drip only when well behind
+  // Underdog income — light drip only when well behind (not while muted/frozen)
   for (const player of alive) {
+    if (passivesBlocked(state, player)) {
+      player.comebackAccMs = 0;
+      continue;
+    }
     const gap = richest.coins - player.coins;
     if (gap < CONFIG.COMEBACK_GAP) {
       player.comebackAccMs = 0;

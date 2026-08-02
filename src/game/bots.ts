@@ -384,18 +384,12 @@ export function decideBotAction(
     return { kind: 'sell', instanceId: bomb.instanceId };
   }
 
-  // Sell to cover ALL looming payments (not just the max one)
+  // Sell to cover looming payments about to resolve
   const looming = state.tiles.filter(
     (t) => t.highBidderId === player.id && t.timerMs < 4000,
   );
   const totalDue = looming.reduce((s, t) => s + t.price, 0);
   if (totalDue > player.coins && player.hand.length > 0) {
-    const sellId = weakestHeld(player);
-    if (sellId) return { kind: 'sell', instanceId: sellId };
-  }
-
-  // Also bail: if already overcommitted overall, sell to free cash
-  if (committedSpend(state, player.id) > player.coins && player.hand.length > 0) {
     const sellId = weakestHeld(player);
     if (sellId) return { kind: 'sell', instanceId: sellId };
   }

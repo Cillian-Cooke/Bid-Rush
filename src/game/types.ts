@@ -166,6 +166,25 @@ export type Player = {
   comebackAccMs: number;
   /** Items this player has sold this match (Bank Note value) */
   itemsSold: number;
+  /** Recent score swings (purchases, drains, taxes) for death autopsy */
+  coinTrail: CoinSwing[];
+  /** Filled when eliminated — why they died */
+  deathReport: DeathReport | null;
+};
+
+/** One labeled coin change for the death autopsy trail. */
+export type CoinSwing = {
+  emoji: string;
+  label: string;
+  /** Negative = coins lost / spent */
+  delta: number;
+};
+
+export type DeathReport = {
+  reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech';
+  headline: string;
+  /** Bomb stands alone; otherwise up to 3 recent hits that led here */
+  swings: CoinSwing[];
 };
 
 export type FxKind =
@@ -220,13 +239,25 @@ export type WorldEventId =
 
 export type WorldEventPhase = 'pending' | 'warning' | 'active' | 'done';
 
-export type WorldEventState = {
-  id: WorldEventId | null;
-  phase: WorldEventPhase;
-  /** Remaining duration while phase === 'active' */
+/** One live floor event (scheduled beat or Chaos Die). */
+export type LiveWorldEvent = {
+  key: string;
+  id: WorldEventId;
   activeMs: number;
   pulseAccMs: number;
   fxAccMs: number;
+};
+
+export type WorldEventState = {
+  /** Scheduled / warning pick (also mirrored into `live` while active) */
+  id: WorldEventId | null;
+  phase: WorldEventPhase;
+  /** @deprecated prefer live[0] — kept in sync with primary scheduled live event */
+  activeMs: number;
+  pulseAccMs: number;
+  fxAccMs: number;
+  /** All concurrent live events (scheduled + item-triggered) */
+  live: LiveWorldEvent[];
 };
 
 export type WorldEventDef = {
@@ -241,8 +272,20 @@ export type WorldEventDef = {
 };
 
 export type GameEvent =
-  | { type: 'income'; playerId: string; amount: number; emoji: string }
-  | { type: 'loss'; playerId: string; amount: number; emoji: string }
+  | {
+      type: 'income';
+      playerId: string;
+      amount: number;
+      emoji: string;
+      label?: string;
+    }
+  | {
+      type: 'loss';
+      playerId: string;
+      amount: number;
+      emoji: string;
+      label?: string;
+    }
   | {
       type: 'overflow_sell';
       playerId: string;
@@ -253,6 +296,7 @@ export type GameEvent =
       type: 'eliminate';
       playerId: string;
       reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech';
+      report?: DeathReport;
     }
   | { type: 'resolve'; tileIndex: number; winnerId: string | null }
   | { type: 'explosion'; playerId: string }
@@ -302,7 +346,7 @@ export type GameState = {
   suddenDeath: SuddenDeathState;
   /** All passives paused board-wide */
   coldMarketMs: number;
-  /** 16 item types available in this match */
+  /** Item types available in this match */
   itemPool: ItemId[];
 };
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { coinTint, heatClassName } from '../game/coinHeat';
 import type { FxKind, GameMode, Player } from '../game/types';
 import type { FxInstance } from '../store';
 import { PurseEffects } from './PurseEffects';
@@ -17,155 +18,6 @@ type Props = {
   coldMarketMs?: number;
   onSelectPlayer: (playerId: string) => void;
 };
-
-type RGB = readonly [number, number, number];
-
-const COIN_COLORS = {
-  critical: [255, 77, 61] as RGB,
-  low: [255, 122, 69] as RGB,
-  warm: [232, 184, 74] as RGB,
-  green: [30, 207, 108] as RGB,
-  blue: [47, 127, 255] as RGB,
-  violet: [168, 85, 247] as RGB,
-  amber: [255, 138, 40] as RGB,
-} as const;
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-function lerpRgb(a: RGB, b: RGB, t: number): RGB {
-  const u = Math.max(0, Math.min(1, t));
-  return [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u)];
-}
-
-/** Ease-in so the shift is gentle early and stronger near the milestone. */
-function easeTowardMilestone(t: number): number {
-  const u = Math.max(0, Math.min(1, t));
-  return u * u;
-}
-
-type CoinTint = {
-  mode: 'solid' | 'rainbow';
-  rgb: RGB;
-  glow: number;
-  critical: boolean;
-  /** True at exact milestone hits for a firmer “award” feel */
-  solidAward: boolean;
-};
-
-function coinTint(coins: number): CoinTint {
-  const n = Math.max(0, coins);
-
-  if (n <= 3) {
-    return { mode: 'solid', rgb: COIN_COLORS.critical, glow: 0, critical: true, solidAward: false };
-  }
-  if (n < 8) {
-    return {
-      mode: 'solid',
-      rgb: lerpRgb(COIN_COLORS.critical, COIN_COLORS.low, (n - 3) / 5),
-      glow: 0,
-      critical: false,
-      solidAward: false,
-    };
-  }
-  if (n < 50) {
-    return {
-      mode: 'solid',
-      rgb: lerpRgb(COIN_COLORS.low, COIN_COLORS.warm, (n - 8) / 42),
-      glow: 0,
-      critical: false,
-      solidAward: false,
-    };
-  }
-  // 50 → 100: drift warm → green; solid green at 100
-  if (n < 100) {
-    const t = easeTowardMilestone((n - 50) / 50);
-    return {
-      mode: 'solid',
-      rgb: lerpRgb(COIN_COLORS.warm, COIN_COLORS.green, t),
-      glow: t * 0.55,
-      critical: false,
-      solidAward: false,
-    };
-  }
-  if (n === 100) {
-    return {
-      mode: 'solid',
-      rgb: COIN_COLORS.green,
-      glow: 0.85,
-      critical: false,
-      solidAward: true,
-    };
-  }
-  // 100 → 200: green → blue; solid blue at 200
-  if (n < 200) {
-    const t = easeTowardMilestone((n - 100) / 100);
-    return {
-      mode: 'solid',
-      rgb: lerpRgb(COIN_COLORS.green, COIN_COLORS.blue, t),
-      glow: 0.55 + t * 0.25,
-      critical: false,
-      solidAward: false,
-    };
-  }
-  if (n === 200) {
-    return {
-      mode: 'solid',
-      rgb: COIN_COLORS.blue,
-      glow: 0.9,
-      critical: false,
-      solidAward: true,
-    };
-  }
-  if (n < 300) {
-    const t = easeTowardMilestone((n - 200) / 100);
-    return {
-      mode: 'solid',
-      rgb: lerpRgb(COIN_COLORS.blue, COIN_COLORS.violet, t),
-      glow: 0.55 + t * 0.25,
-      critical: false,
-      solidAward: false,
-    };
-  }
-  if (n === 300) {
-    return {
-      mode: 'solid',
-      rgb: COIN_COLORS.violet,
-      glow: 0.9,
-      critical: false,
-      solidAward: true,
-    };
-  }
-  if (n < 400) {
-    const t = easeTowardMilestone((n - 300) / 100);
-    return {
-      mode: 'solid',
-      rgb: lerpRgb(COIN_COLORS.violet, COIN_COLORS.amber, t),
-      glow: 0.55 + t * 0.25,
-      critical: false,
-      solidAward: false,
-    };
-  }
-  if (n < 500) {
-    // Hold amber award, then open into rainbow territory near 500
-    const t = easeTowardMilestone((n - 400) / 100);
-    return {
-      mode: 'solid',
-      rgb: COIN_COLORS.amber,
-      glow: 0.7 + t * 0.25,
-      critical: false,
-      solidAward: n === 400,
-    };
-  }
-  return {
-    mode: 'rainbow',
-    rgb: COIN_COLORS.amber,
-    glow: 1,
-    critical: false,
-    solidAward: true,
-  };
-}
 
 function AnimatedPurse({
   coins,
@@ -225,37 +77,51 @@ function AnimatedPurse({
 
   const tint = coinTint(shown);
   const [r, g, b] = tint.rgb;
-  const valueStyle =
-    tint.mode === 'rainbow'
-      ? undefined
-      : {
+  const shakeMs = Math.max(0.08, 0.62 - tint.shake * 0.52);
+  const shakeX = (1 + tint.shake * 7).toFixed(2);
+  const shakeY = (0.5 + tint.shake * 3.5).toFixed(2);
+  const shakeR = (0.3 + tint.shake * 3.2).toFixed(2);
+  const shakeS = (tint.shake * 0.1).toFixed(3);
+  const rainbowDur = `${(2.8 / Math.max(0.35, tint.rainbowSpeed)).toFixed(2)}s`;
+
+  const heatVars = {
+    ['--purse-tint' as string]: `rgb(${r}, ${g}, ${b})`,
+    ['--heat-shake' as string]: tint.shake.toFixed(3),
+    ['--heat-shake-ms' as string]: `${shakeMs.toFixed(2)}s`,
+    ['--heat-shake-x' as string]: `${shakeX}px`,
+    ['--heat-shake-y' as string]: `${shakeY}px`,
+    ['--heat-shake-r' as string]: `${shakeR}deg`,
+    ['--heat-shake-s' as string]: shakeS,
+    ['--rainbow-speed' as string]: rainbowDur,
+    ['--rainbow-mix' as string]: tint.rainbowMix.toFixed(3),
+    ['--heat-glow' as string]: tint.glow.toFixed(3),
+    ['--heat-award' as string]: tint.award.toFixed(3),
+  } as CSSProperties;
+
+  const valueStyle: CSSProperties =
+    tint.mode === 'solid'
+      ? {
           color: `rgb(${r}, ${g}, ${b})`,
           textShadow:
             tint.glow > 0.05
               ? `0 0 ${5 + tint.glow * 10}px rgba(${r}, ${g}, ${b}, ${0.25 + tint.glow * 0.55})`
               : undefined,
-        };
+        }
+      : {};
 
   return (
     <div
       className={[
         'purse',
-        tint.mode === 'rainbow' ? 'heat-rainbow' : '',
-        tint.critical ? 'heat-critical' : '',
-        tint.solidAward ? 'heat-award' : '',
+        heatClassName(tint),
         atRisk ? 'at-risk' : '',
         punch ? `punch-${punch}` : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      style={
-        tint.mode === 'solid'
-          ? ({
-              ['--purse-tint' as string]: `rgb(${r}, ${g}, ${b})`,
-            } as CSSProperties)
-          : undefined
-      }
+      style={heatVars}
       aria-label={`Your coins: ${coins}`}
+      title={tint.stage}
     >
       <div className="purse-main">
         <div className="purse-who">

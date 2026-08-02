@@ -28,6 +28,7 @@ export function Game() {
   const activeFx = useGameStore((s) => s.activeFx);
   const knockoutOffer = useGameStore((s) => s.knockoutOffer);
   const knockoutReason = useGameStore((s) => s.knockoutReason);
+  const knockoutReport = useGameStore((s) => s.knockoutReport);
   const spectating = useGameStore((s) => s.spectating);
   const phase = useGameStore((s) => s.phase);
   const poolRevealOpen = useGameStore((s) => s.poolRevealOpen);
@@ -79,12 +80,10 @@ export function Game() {
   const sd = game.suddenDeath;
   const humanAtRisk =
     sd.active && human.isAlive && human.coins < sd.bracket;
-  const eventLive =
-    !sd.active &&
-    game.worldEvent.phase === 'active' &&
-    !!game.worldEvent.id;
+  const eventLive = !sd.active && game.worldEvent.live.length > 0;
   const eventGlow = eventLive
-    ? getWorldEvent(game.worldEvent.id!).accent
+    ? getWorldEvent(game.worldEvent.live[game.worldEvent.live.length - 1]!.id)
+        .accent
     : null;
 
   const floatFor = (playerId: string) => {
@@ -352,6 +351,7 @@ export function Game() {
       {knockoutOffer && (
         <KnockoutOverlay
           reason={knockoutReason}
+          report={knockoutReport}
           onPlayAgain={replayMatch}
           onSpectate={enterSpectate}
           onMenu={returnToLobby}

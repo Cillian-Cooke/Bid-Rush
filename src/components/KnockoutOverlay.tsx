@@ -1,11 +1,14 @@
+import type { DeathReport } from '../game/types';
+
 type Props = {
   reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech' | null;
+  report: DeathReport | null;
   onPlayAgain: () => void;
   onSpectate: () => void;
   onMenu: () => void;
 };
 
-function reasonLine(reason: Props['reason']): string {
+function reasonFallback(reason: Props['reason']): string {
   if (reason === 'bomb') return 'The bomb went off.';
   if (reason === 'bracket') return 'You fell under the coin bracket.';
   if (reason === 'roi') return 'ROI failed — you couldn’t hit the target.';
@@ -14,18 +17,47 @@ function reasonLine(reason: Props['reason']): string {
   return 'You’re out of the match.';
 }
 
+function formatDelta(delta: number): string {
+  if (delta === 0) return '';
+  if (delta > 0) return `+${delta}`;
+  return `${delta}`;
+}
+
 export function KnockoutOverlay({
   reason,
+  report,
   onPlayAgain,
   onSpectate,
   onMenu,
 }: Props) {
+  const headline = report?.headline ?? reasonFallback(reason);
+  const swings = report?.swings ?? [];
+
   return (
     <div className="knockout-overlay" role="dialog" aria-label="Knocked out">
       <div className="knockout-card">
         <span className="knockout-kicker">Knocked Out</span>
         <h2 className="knockout-title">You’re Done</h2>
-        <p className="knockout-line">{reasonLine(reason)}</p>
+        <p className="knockout-line">{headline}</p>
+        {swings.length > 0 && (
+          <ul className="death-trail" aria-label="What hit your score">
+            {swings.map((s, i) => (
+              <li key={`${s.label}-${i}`} className="death-trail-row">
+                <span className="death-trail-emoji" aria-hidden>
+                  {s.emoji}
+                </span>
+                <span className="death-trail-label">{s.label}</span>
+                {s.delta !== 0 && (
+                  <span
+                    className={`death-trail-delta${s.delta < 0 ? ' neg' : ' pos'}`}
+                  >
+                    {formatDelta(s.delta)}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="knockout-sub">The match is still going — pick one:</p>
         <div className="knockout-actions">
           <button type="button" className="btn primary" onClick={onPlayAgain}>

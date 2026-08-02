@@ -5,7 +5,7 @@ export function regularBlurb(id: string): string {
     coin_mine:
       'Slow alone, fast in packs. One mine ticks slowly. Each extra mine in your hand speeds every mine up. Golden doubles coins per tick.',
     money_printer:
-      'Every 10 seconds prints a Bank Note into your hand. Golden prints two notes each time.',
+      'Every 20 seconds prints a Bank Note into your hand. Golden prints two notes each time.',
     golden_goose:
       'Fast steady income. Pays 1 coin about every 2 seconds. Golden doubles coins per tick.',
     bank_note:
@@ -32,7 +32,8 @@ export function regularBlurb(id: string): string {
       'Swap two shop tiles’ items and prices. Bids stay on their tiles.',
     shop_refresh: 'Restocks the whole shop board with new items.',
     handcuffs: 'Stops one player from bidding for a short time.',
-    pickpocket: 'Steals coins from a chosen rival.',
+    pickpocket:
+      'Steals coins from a chosen rival. Draining them to 0 coins eliminates them.',
     heist_kit: 'Steals a random hand item from a rival (not bombs).',
     mute: 'Silences a rival’s passives for 8 seconds.',
     cold_market: 'Freezes all passives for everyone for 10 seconds.',
@@ -60,7 +61,7 @@ export function regularBlurb(id: string): string {
 export function goldenBlurb(id: string): string {
   const map: Record<string, string> = {
     coin_mine: 'Golden: double coins each tick. Merge three to go golden.',
-    money_printer: 'Golden: prints two Bank Notes every 10 seconds.',
+    money_printer: 'Golden: prints two Bank Notes every 20 seconds.',
     golden_goose: 'Golden: double coins each tick.',
     bank_note: 'Golden: worth 2× items you have sold this match.',
     stock_market: 'Golden: sell value triples every 20 seconds.',
@@ -80,7 +81,7 @@ export function goldenBlurb(id: string): string {
     swap_portal: 'Golden: swap a hand item with a board tile.',
     shop_refresh: 'Golden: also -1 price and +2s on every tile.',
     handcuffs: 'Golden: lasts twice as long.',
-    pickpocket: 'Golden: steals twice as much.',
+    pickpocket: 'Golden: steals twice as much. Still eliminates at 0.',
     heist_kit: 'Golden: steals two items.',
     mute: 'Golden: lasts twice as long.',
     cold_market: 'Golden: lasts twice as long.',

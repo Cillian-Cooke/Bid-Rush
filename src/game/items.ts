@@ -28,7 +28,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     sellValue: 6,
     startPrice: 4,
     spawnWeight: 5,
-    passiveIntervalMs: 10_000,
+    passiveIntervalMs: 20_000,
   },
   golden_goose: {
     id: 'golden_goose',
@@ -50,7 +50,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     target: 'special',
     sellValue: 0,
     startPrice: 1,
-    spawnWeight: 0,
+    spawnWeight: 4,
   },
   stock_market: {
     id: 'stock_market',

@@ -18,6 +18,7 @@ import {
   tickNameAuction,
 } from './game/naming';
 import type {
+  DeathReport,
   DifficultyMode,
   FxKind,
   GameEvent,
@@ -65,6 +66,8 @@ type Store = {
   /** Human died mid-match; show play again / spectate / menu */
   knockoutOffer: boolean;
   knockoutReason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech' | null;
+  /** Autopsy of what drained / killed the human */
+  knockoutReport: DeathReport | null;
   /** Watching remaining players' hands after knockout */
   spectating: boolean;
   /** Match item pool (picked at Tag Sale start) */
@@ -307,6 +310,7 @@ function startCountdownFromGame(get: () => Store, set: (p: Partial<Store>) => vo
     activeFx: [],
     knockoutOffer: false,
     knockoutReason: null,
+    knockoutReport: null,
     spectating: false,
     poolRevealOpen: true,
     poolRevealEndsAt: endsAt,
@@ -346,6 +350,7 @@ export const useGameStore = create<Store>((set, get) => ({
   lastEvents: [],
   knockoutOffer: false,
   knockoutReason: null,
+  knockoutReport: null,
   spectating: false,
   matchPool: null,
   poolRevealOpen: false,
@@ -374,6 +379,7 @@ export const useGameStore = create<Store>((set, get) => ({
       activeFx: [],
       knockoutOffer: false,
       knockoutReason: null,
+      knockoutReport: null,
       spectating: false,
       matchPool,
       poolRevealOpen: false,
@@ -480,6 +486,7 @@ export const useGameStore = create<Store>((set, get) => ({
       codexOpen: false,
       knockoutOffer: false,
       knockoutReason: null,
+      knockoutReport: null,
       spectating: false,
       matchPool: null,
       poolRevealOpen: false,
@@ -769,6 +776,7 @@ export const useGameStore = create<Store>((set, get) => ({
 
     let offer = knockoutOffer;
     let reason = get().knockoutReason;
+    let report = get().knockoutReport;
     if (justDied && !spectating) {
       offer = true;
       focus = null;
@@ -777,6 +785,10 @@ export const useGameStore = create<Store>((set, get) => ({
       );
       reason =
         elim && elim.type === 'eliminate' ? elim.reason : reason ?? 'unpaid';
+      report =
+        elim && elim.type === 'eliminate' && elim.report
+          ? elim.report
+          : humanNow?.deathReport ?? report;
     }
 
     if (ingested.game.ended) {
@@ -790,6 +802,7 @@ export const useGameStore = create<Store>((set, get) => ({
         targeting: null,
         handFocus: null,
         knockoutOffer: false,
+        knockoutReport: report ?? humanNow?.deathReport ?? get().knockoutReport,
       });
       return;
     }
@@ -802,6 +815,7 @@ export const useGameStore = create<Store>((set, get) => ({
       handFocus: focus,
       knockoutOffer: offer,
       knockoutReason: reason,
+      knockoutReport: report,
       ...(justDied ? { targeting: null } : {}),
     });
   },

@@ -3,11 +3,16 @@ import type { CSSProperties } from 'react';
 import { CONFIG, PLAYER_COLORS } from '../game/constants';
 import { getItem, isMoneyEngine, ITEM_LIST } from '../game/items';
 import type { BotArchetype, ItemId, WorldEventId } from '../game/types';
-import {
-  getWorldEvent,
-  RANDOM_WORLD_EVENT_IDS,
-  WORLD_EVENTS,
-} from '../game/worldEvents';
+import { getWorldEvent, RANDOM_WORLD_EVENT_IDS } from '../game/worldEvents';
+
+export type LobbyBgEvent = {
+  id: WorldEventId;
+  remainMs: number;
+};
+
+type Props = {
+  onEventChange?: (event: LobbyBgEvent | null) => void;
+};
 
 const COLS = 7;
 const TICK_MS = 100;
@@ -280,7 +285,7 @@ function computeLayout(width: number, height: number) {
   return { tile, rowH, total, visible };
 }
 
-export function LobbyAuctionBg() {
+export function LobbyAuctionBg({ onEventChange }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const rowElsRef = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -296,8 +301,17 @@ export function LobbyAuctionBg() {
   const eventRef = useRef<LobbyEvent | null>(null);
   const untilEventRef = useRef(18_000);
   const pulseAccRef = useRef(0);
+  const onEventChangeRef = useRef(onEventChange);
+  onEventChangeRef.current = onEventChange;
   const [layoutTick, setLayoutTick] = useState(0);
   const [, setFrame] = useState(0);
+
+  const publishEvent = () => {
+    const event = eventRef.current;
+    onEventChangeRef.current?.(
+      event ? { id: event.id, remainMs: event.remainMs } : null,
+    );
+  };
 
   const ensureRows = (count: number) => {
     const rng = rngRef.current;
@@ -436,6 +450,7 @@ export function LobbyAuctionBg() {
           eventRef.current = event;
           applyEventStart(allTiles(rows), eid, rng);
           pulseAccRef.current = 0;
+          publishEvent();
         }
       } else {
         event.remainMs -= dtMs;
@@ -449,6 +464,9 @@ export function LobbyAuctionBg() {
           eventRef.current = null;
           event = null;
           untilEventRef.current = EVENT_EVERY_MS;
+          publishEvent();
+        } else {
+          publishEvent();
         }
       }
 
@@ -528,7 +546,6 @@ export function LobbyAuctionBg() {
   const bots = botsRef.current;
   const colorById = new Map(bots.map((b) => [b.id, b.color]));
   const accent = event ? getWorldEvent(event.id).accent : null;
-  const eventDef = event ? WORLD_EVENTS[event.id] : null;
   const rowH = rowHRef.current;
   void layoutTick;
 
@@ -614,15 +631,6 @@ export function LobbyAuctionBg() {
         ))}
       </div>
       <div className="lobby-auction-veil" />
-      {eventDef && (
-        <div
-          className="lobby-auction-event-chip"
-          style={{ ['--event-accent' as string]: accent! }}
-        >
-          <span>{eventDef.emoji}</span>
-          <span>{eventDef.name}</span>
-        </div>
-      )}
     </div>
   );
 }
