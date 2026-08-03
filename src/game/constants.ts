@@ -2,7 +2,7 @@ import type { GameMode } from './types';
 
 export type { GameMode };
 
-export const CONFIG = {
+const LIVE_CONFIG = {
   MAX_PLAYERS: 8,
   START_COINS: 10,
   TILE_TIMER_MS: 10_000,
@@ -67,6 +67,15 @@ export const CONFIG = {
   PACE_BANNER_MS: 2_800,
 } as const;
 
+export type RuntimeConfig = {
+  -readonly [K in keyof typeof LIVE_CONFIG]: (typeof LIVE_CONFIG)[K] extends number
+    ? number
+    : (typeof LIVE_CONFIG)[K];
+};
+
+/** Mutable runtime config (shorts profile may patch values at boot). */
+export const CONFIG: RuntimeConfig = { ...LIVE_CONFIG };
+
 export const MODE_SETUP = {
   duel: {
     id: 'duel' as const,
@@ -76,7 +85,7 @@ export const MODE_SETUP = {
     botCount: 1,
     gridSize: 9,
     gridCols: 3,
-    /** Max copies of one item type in play (shop + hands) */
+    /** Max weighted copies of one item type in play (shop + hands; golden = 3) */
     maxInPlay: 10,
   },
   blitz: {
@@ -87,7 +96,7 @@ export const MODE_SETUP = {
     botCount: 3,
     gridSize: 16,
     gridCols: 4,
-    /** Max copies of one item type in play (shop + hands) */
+    /** Max weighted copies of one item type in play (shop + hands; golden = 3) */
     maxInPlay: 16,
   },
 } as const;

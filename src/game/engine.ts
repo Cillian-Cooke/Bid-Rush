@@ -109,7 +109,7 @@ function makeTile(index: number, itemId: ItemId): Tile {
   };
 }
 
-/** How many copies of an item are on the shop or in hands right now. */
+/** Weighted in-play count: golden hand copies count as 3. Shop tiles are always 1. */
 function countInPlay(state: GameState, itemId: ItemId): number {
   let n = 0;
   for (const tile of state.tiles) {
@@ -117,7 +117,8 @@ function countInPlay(state: GameState, itemId: ItemId): number {
   }
   for (const player of state.players) {
     for (const h of player.hand) {
-      if (h.itemId === itemId) n += 1;
+      if (h.itemId !== itemId) continue;
+      n += h.golden ? 3 : 1;
     }
   }
   return n;
@@ -129,7 +130,9 @@ function maxInPlayFor(state: GameState): number {
 
 /**
  * Draw a shop item under the per-type in-play cap
- * (duel 10 / blitz 16 — e.g. no 11th Coin Mine while 10 are already out).
+ * (duel 10 / blitz 16). Golden copies already in hand count as 3 each.
+ * Going golden mid-match may push past the cap — that's fine; we just
+ * stop stocking more until the weighted count drops below the limit.
  */
 function drawShopItem(state: GameState, rng: () => number): ItemId {
   const cap = maxInPlayFor(state);
@@ -137,7 +140,7 @@ function drawShopItem(state: GameState, rng: () => number): ItemId {
   if (available.length > 0) {
     return weightedRandomItem(rng, available);
   }
-  // Everything at cap — pick the scarcest pool item
+  // Everything at/over cap — pick the scarcest pool item
   let best = state.itemPool[0]!;
   let bestCount = countInPlay(state, best);
   for (const id of state.itemPool) {

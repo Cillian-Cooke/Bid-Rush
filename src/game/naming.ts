@@ -6,6 +6,7 @@ import {
   type GameMode,
 } from './constants';
 import { createRng } from './rng';
+import { isShortsMode } from './shortsProfile';
 import type {
   BotArchetype,
   DifficultyMode,
@@ -111,9 +112,10 @@ export function tickNameAuction(
 
   if (next.msLeft <= 0) return next;
 
-  // Bots scramble for tags
+  // Bots scramble for tags (Shorts: human seat bids too)
+  const shorts = isShortsMode();
   for (const p of next.participants) {
-    if (p.isHuman || p.cooldownMs > 0) continue;
+    if ((p.isHuman && !shorts) || p.cooldownMs > 0) continue;
 
     const leading = next.tags.filter((t) => t.highBidderId === p.id).length;
     if (leading >= CONFIG.MAX_ACTIVE_BIDS) {

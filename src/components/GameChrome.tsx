@@ -14,7 +14,10 @@ type Props = {
   onQuit: () => void;
 };
 
-/** Top chrome: large timer; banners overlay the stage (no layout shift). */
+/**
+ * Top chrome: large timer + fixed banner strip.
+ * The strip always reserves the same height so the shop grid never shifts.
+ */
 export function GameChrome({
   roundMs,
   elapsedMs,
@@ -35,8 +38,8 @@ export function GameChrome({
     (showSudden ? 1 : 0) +
     (showWarning ? 1 : 0) +
     worldEvent.live.length;
-  const showStack = showPace || showSudden || showEvent;
   const dense = bannerCount >= 2;
+  const crowded = bannerCount >= 3;
 
   return (
     <header className="game-chrome">
@@ -46,25 +49,29 @@ export function GameChrome({
           Quit
         </button>
       </div>
-      {showStack && (
-        <div
-          className={`game-chrome-banner${dense ? ' dense' : ''}${
-            bannerCount >= 3 ? ' crowded' : ''
-          }`}
-        >
-          {showPace && <PaceBanner elapsedMs={elapsedMs} />}
-          {showSudden && (
-            <SuddenDeathBanner suddenDeath={suddenDeath} players={players} />
-          )}
-          {showEvent && (
-            <EventBannerStack
-              worldEvent={worldEvent}
-              roundMs={roundMs}
-              dense={dense}
-            />
-          )}
-        </div>
-      )}
+      <div
+        className={[
+          'game-chrome-banner',
+          dense ? 'dense' : '',
+          crowded ? 'crowded' : '',
+          bannerCount === 0 ? 'is-empty' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        aria-hidden={bannerCount === 0}
+      >
+        {showPace && <PaceBanner elapsedMs={elapsedMs} />}
+        {showSudden && (
+          <SuddenDeathBanner suddenDeath={suddenDeath} players={players} />
+        )}
+        {showEvent && (
+          <EventBannerStack
+            worldEvent={worldEvent}
+            roundMs={roundMs}
+            dense={dense}
+          />
+        )}
+      </div>
     </header>
   );
 }
