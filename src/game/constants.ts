@@ -73,7 +73,7 @@ export type RuntimeConfig = {
     : (typeof LIVE_CONFIG)[K];
 };
 
-/** Mutable runtime config (shorts profile may patch values at boot). */
+/** Mutable runtime config. */
 export const CONFIG: RuntimeConfig = { ...LIVE_CONFIG };
 
 export const MODE_SETUP = {

@@ -17,7 +17,6 @@ import {
   resolveNameAuction,
   tickNameAuction,
 } from './game/naming';
-import { isShortsMode, isStepRecordMode, setStepRecordMode } from './game/shortsProfile';
 import { formatCoinDelta } from './game/formatCoins';
 import type {
   DeathReport,
@@ -106,13 +105,6 @@ type Store = {
   reorderHandSlots: (fromIndex: number, toIndex: number) => void;
 
   masterTick: (dtMs?: number) => void;
-  /** Advance naming / countdown / match by dtMs (step-record mode). */
-  stepRecord: (dtMs: number) => void;
-  /**
-   * Shorts recorder: 'step' pauses wall clocks (FF); 'realtime' runs live loops.
-   * Only meaningful while shorts profile is active.
-   */
-  setRecorderClock: (mode: 'step' | 'realtime') => void;
 };
 
 let loopId: ReturnType<typeof setInterval> | null = null;
@@ -121,10 +113,6 @@ let namingLoopId: ReturnType<typeof setInterval> | null = null;
 let floatSeq = 0;
 let fxSeq = 0;
 let rng = createRng(Date.now());
-/** Step-record: ms left in pool countdown before GO */
-let stepCountdownRemainMs = 0;
-/** Step-record: brief GO beat before beginPlaying */
-let stepGoDelayRemainMs = 0;
 
 function stopLoop() {
   if (loopId !== null) {
@@ -149,7 +137,6 @@ function stopNamingLoop() {
 
 function startLoop(get: () => Store) {
   stopLoop();
-  if (isStepRecordMode()) return; // recorder drives masterTick via stepRecord
   loopId = setInterval(() => {
     get().masterTick();
   }, CONFIG.TICK_MS);
@@ -231,11 +218,9 @@ function ingest(game: GameState, floats: FloatText[], activeFx: FxInstance[]) {
 
 function applyBotIntents(game: GameState): GameState {
   let state = game;
-  const shorts = isShortsMode();
   for (const player of state.players) {
     if (!player.isAlive) continue;
-    // Shorts: drive the camera ("human") seat with bot AI too
-    if (player.isHuman && !shorts) continue;
+    if (player.isHuman) continue;
     if (player.botCooldownMs > 0) continue;
     if (player.handcuffMs > 0) {
       const arch = player.archetype ?? 'balanced';
@@ -251,7 +236,7 @@ function applyBotIntents(game: GameState): GameState {
     }
 
     const intent = decideBotAction(state, player.id, rng);
-    const arch = player.archetype ?? (shorts && player.isHuman ? 'ruthless' : 'balanced');
+    const arch = player.archetype ?? 'balanced';
     const cooldown = nextBotCooldown(arch, rng);
 
     if (!intent) {
@@ -310,29 +295,6 @@ function startCountdownFromGame(get: () => Store, set: (p: Partial<Store>) => vo
   stopCountdown();
   stopNamingLoop();
   rng = createRng(game.seed);
-
-  if (isStepRecordMode()) {
-    stepCountdownRemainMs = CONFIG.POOL_REVEAL_MS;
-    stepGoDelayRemainMs = 0;
-    set({
-      phase: 'countdown',
-      countdown: Math.max(1, Math.ceil(stepCountdownRemainMs / 1000)),
-      game,
-      naming: null,
-      targeting: null,
-      handFocus: null,
-      floats: [],
-      activeFx: [],
-      knockoutOffer: false,
-      knockoutReason: null,
-      knockoutReport: null,
-      spectating: false,
-      poolRevealOpen: true,
-      poolRevealEndsAt: null,
-      matchPool: game.itemPool,
-    });
-    return;
-  }
 
   const existingEnds = get().poolRevealEndsAt;
   const endsAt =
@@ -407,7 +369,7 @@ export const useGameStore = create<Store>((set, get) => ({
     stopLoop();
     stopCountdown();
     stopNamingLoop();
-    const difficulty = isShortsMode() ? 'ruthless' : get().lobby.difficulty;
+    const difficulty = get().lobby.difficulty;
     const naming = createNameAuction(mode, difficulty, seed);
     const poolRng = createRng(naming.seed ^ 0x51ceed);
     const matchPool = pickMatchPool(poolRng);
@@ -428,8 +390,6 @@ export const useGameStore = create<Store>((set, get) => ({
       poolRevealEndsAt: null,
       poolRevealPeeked: false,
     });
-
-    if (isStepRecordMode()) return;
 
     namingLoopId = setInterval(() => {
       const cur = get().naming;
@@ -498,21 +458,6 @@ export const useGameStore = create<Store>((set, get) => ({
       naming.seed,
       matchPool ?? undefined,
     );
-    // Shorts: bot-drive the camera seat while keeping human UI (hand dock)
-    if (isShortsMode()) {
-      game = {
-        ...game,
-        players: game.players.map((p) =>
-          p.isHuman
-            ? {
-                ...p,
-                archetype: 'ruthless',
-                botCooldownMs: 100 + Math.floor(rng() * 200),
-              }
-            : p,
-        ),
-      };
-    }
     startCountdownFromGame(get, set, game);
     set({ lobby: { ...lobby, mode: naming.mode, identities } });
   },
@@ -848,13 +793,7 @@ export const useGameStore = create<Store>((set, get) => ({
         elim && elim.type === 'eliminate' && elim.report
           ? elim.report
           : humanNow?.deathReport ?? report;
-      if (isShortsMode()) {
-        // Keep recording the board; skip knockout modal
-        offer = false;
-        spectate = true;
-      } else {
-        offer = true;
-      }
+      offer = true;
     }
 
     if (ingested.game.ended) {
@@ -887,107 +826,6 @@ export const useGameStore = create<Store>((set, get) => ({
         ? { targeting: null, ...(spectate ? { spectating: true } : {}) }
         : {}),
     });
-  },
-
-  stepRecord: (dtMs) => {
-    if (!isStepRecordMode() || dtMs <= 0) return;
-    const { phase } = get();
-
-    if (phase === 'naming') {
-      const cur = get().naming;
-      if (!cur) return;
-      const next = tickNameAuction(cur, dtMs, rng);
-      if (next.msLeft <= 0) {
-        set({ naming: next });
-        get().finishNaming();
-      } else {
-        set({ naming: next });
-      }
-      return;
-    }
-
-    if (phase === 'countdown') {
-      if (stepGoDelayRemainMs > 0) {
-        stepGoDelayRemainMs -= dtMs;
-        if (stepGoDelayRemainMs <= 0) {
-          stepGoDelayRemainMs = 0;
-          get().beginPlaying();
-        }
-        return;
-      }
-      stepCountdownRemainMs -= dtMs;
-      if (stepCountdownRemainMs <= 0) {
-        stepCountdownRemainMs = 0;
-        set({ countdown: 0 });
-        stepGoDelayRemainMs = 450;
-      } else {
-        set({
-          countdown: Math.max(1, Math.ceil(stepCountdownRemainMs / 1000)),
-        });
-      }
-      return;
-    }
-
-    if (phase === 'playing') {
-      get().masterTick(dtMs);
-    }
-  },
-
-  setRecorderClock: (mode) => {
-    if (!isShortsMode()) return;
-    const wantStep = mode === 'step';
-    if (wantStep === isStepRecordMode()) {
-      if (wantStep) {
-        stopLoop();
-        stopCountdown();
-        stopNamingLoop();
-      }
-      return;
-    }
-    setStepRecordMode(wantStep);
-    if (wantStep) {
-      stopLoop();
-      stopCountdown();
-      stopNamingLoop();
-      return;
-    }
-    // Realtime: resume the appropriate wall-clock driver
-    const { phase, naming, poolRevealEndsAt } = get();
-    if (phase === 'naming' && naming) {
-      namingLoopId = setInterval(() => {
-        const cur = get().naming;
-        if (!cur || get().phase !== 'naming') return;
-        const next = tickNameAuction(cur, CONFIG.TICK_MS, rng);
-        if (next.msLeft <= 0) {
-          stopNamingLoop();
-          set({ naming: next });
-          get().finishNaming();
-          return;
-        }
-        set({ naming: next });
-      }, CONFIG.TICK_MS);
-    } else if (phase === 'countdown') {
-      const endsAt = poolRevealEndsAt ?? Date.now() + CONFIG.POOL_REVEAL_MS;
-      if (poolRevealEndsAt == null) set({ poolRevealEndsAt: endsAt });
-      countdownId = setInterval(() => {
-        const ends = get().poolRevealEndsAt;
-        if (!ends) {
-          stopCountdown();
-          get().beginPlaying();
-          return;
-        }
-        const remain = ends - Date.now();
-        if (remain <= 0) {
-          stopCountdown();
-          set({ countdown: 0 });
-          window.setTimeout(() => get().beginPlaying(), 450);
-          return;
-        }
-        set({ countdown: Math.max(1, Math.ceil(remain / 1000)) });
-      }, CONFIG.TICK_MS);
-    } else if (phase === 'playing') {
-      startLoop(get);
-    }
   },
 }));
 
