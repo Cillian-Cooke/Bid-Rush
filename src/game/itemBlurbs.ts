@@ -11,7 +11,7 @@ export function regularBlurb(id: string): string {
     bank_note:
       'Sell only. Worth 0 plus the number of items you have sold this match. Golden notes are worth double.',
     stock_market:
-      'Starts at sell value 1. Every 20 seconds its sell value doubles.',
+      'Starts at sell value 1. Every 30 seconds its sell value doubles.',
     chaos_die: 'Use to fire a random mid-match world event right now.',
     chrysalis:
       'After 20 seconds it becomes a random golden item from this match pool.',
@@ -65,7 +65,7 @@ export function goldenBlurb(id: string): string {
     money_printer: 'Golden: prints two Bank Notes every 20 seconds.',
     golden_goose: 'Golden: double coins each tick.',
     bank_note: 'Golden: worth 2× items you have sold this match.',
-    stock_market: 'Golden: sell value triples every 20 seconds.',
+    stock_market: 'Golden: sell value triples every 30 seconds.',
     chaos_die: 'Golden: triggers Golden Chaos, a unique gilded world event.',
     chrysalis:
       'Golden: after 20 seconds fills your hand with random golden pool items.',
