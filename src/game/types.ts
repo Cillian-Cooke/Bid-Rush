@@ -88,7 +88,8 @@ export type ItemId =
   | 'mirror'
   | 'gilder'
   | 'tip_jar'
-  | 'haste_gear';
+  | 'haste_gear'
+  | 'quick_swap';
 
 export type ItemDef = {
   id: ItemId;
@@ -203,6 +204,7 @@ export type FxKind =
   | 'fastforward'
   | 'overtime'
   | 'swap'
+  | 'quick_swap'
   | 'refresh'
   | 'shuffle'
   | 'cuffs'
@@ -323,6 +325,14 @@ export type SuddenDeathState = {
   phaseMs: number;
 };
 
+/** Armed Quick Swap — resolves after msLeft against current hand edges / full hands. */
+export type PendingQuickSwap = {
+  casterId: string;
+  targetId: string;
+  msLeft: number;
+  golden: boolean;
+};
+
 export type GameState = {
   mode: GameMode;
   gridCols: number;
@@ -349,6 +359,8 @@ export type GameState = {
   coldMarketMs: number;
   /** Item types available in this match */
   itemPool: ItemId[];
+  /** Delayed Quick Swap countdowns */
+  pendingQuickSwaps: PendingQuickSwap[];
 };
 
 export type LobbyConfig = {

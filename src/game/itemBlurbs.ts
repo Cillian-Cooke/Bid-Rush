@@ -34,6 +34,8 @@ export function regularBlurb(id: string): string {
     handcuffs: 'Stops one player from bidding for a short time.',
     pickpocket: 'Steals coins from a chosen rival.',
     heist_kit: 'Steals a random hand item from a rival (not bombs).',
+    quick_swap:
+      'Pick a rival. After 10 seconds, swap your leftmost hand item with their rightmost.',
     mute: 'Silences a rival’s passives for 8 seconds.',
     cold_market: 'Freezes all passives for everyone for 10 seconds.',
     roi: 'Your coins jump to 1.5× now. Hit 2× your old total in 30s or die.',
@@ -82,6 +84,7 @@ export function goldenBlurb(id: string): string {
     handcuffs: 'Golden: lasts twice as long.',
     pickpocket: 'Golden: steals twice as much.',
     heist_kit: 'Golden: steals two items.',
+    quick_swap: 'Golden: after 10 seconds, swap your entire hand with theirs.',
     mute: 'Golden: lasts twice as long.',
     cold_market: 'Golden: lasts twice as long.',
     roi: 'Golden: 60 seconds to hit the target instead of 30.',

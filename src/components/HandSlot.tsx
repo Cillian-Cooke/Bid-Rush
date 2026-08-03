@@ -15,6 +15,10 @@ type Props = {
   fxLabel?: string | null;
   walletCoins?: number;
   hand?: HandItem[];
+  /** Quick Swap: this slot is about to be stolen/swapped */
+  swapThreatened?: boolean;
+  /** Seconds left on the nearest pending Quick Swap involving this mark */
+  swapThreatSec?: number | null;
   onSelect: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
 };
@@ -52,6 +56,8 @@ export function HandSlot({
   fxLabel,
   walletCoins = 0,
   hand,
+  swapThreatened = false,
+  swapThreatSec = null,
   onSelect,
   onReorder,
 }: Props) {
@@ -196,6 +202,7 @@ export function HandSlot({
         fxKind ? `fx-hand fx-${fxKind}` : '',
         links?.gildTarget ? 'adj-gild-target' : '',
         links?.dynamiteThreat ? 'adj-dynamite-threat' : '',
+        swapThreatened ? 'quick-swap-threat' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -208,6 +215,11 @@ export function HandSlot({
       {links?.dynamiteThreat && (
         <span className="hand-adj-badge threat" aria-hidden>
           !
+        </span>
+      )}
+      {swapThreatened && (
+        <span className="hand-adj-badge quick-swap" aria-hidden>
+          {swapThreatSec != null ? `${swapThreatSec}s` : '🔀'}
         </span>
       )}
       <button

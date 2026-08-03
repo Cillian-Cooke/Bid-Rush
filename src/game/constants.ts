@@ -29,6 +29,8 @@ export const CONFIG = {
   KICKBACK_COINS: 3,
   TICK_MS: 100,
   HANDCUFF_MS: 6_000,
+  /** Quick Swap: delay before leftmost ↔ rightmost (or full hands) */
+  QUICK_SWAP_MS: 10_000,
   TIME_FREEZE_MS: 6_000,
   MEGA_FREEZE_MS: 4_000,
   GILDER_MS: 30_000,

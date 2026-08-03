@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { coinTint, heatClassName } from '../game/coinHeat';
-import type { FxKind, GameMode, Player } from '../game/types';
+import { getItem, quickSwapMarkedIds } from '../game/items';
+import type { FxKind, GameMode, PendingQuickSwap, Player } from '../game/types';
 import type { FxInstance } from '../store';
 import { PurseEffects } from './PurseEffects';
 
@@ -16,6 +17,7 @@ type Props = {
   fxByPlayer: Map<string, { kind: FxKind; label?: string | null }>;
   activeFx: FxInstance[];
   coldMarketMs?: number;
+  pendingQuickSwaps: PendingQuickSwap[];
   onSelectPlayer: (playerId: string) => void;
 };
 
@@ -164,6 +166,8 @@ function ScoreChip({
   floatText,
   fxLabel,
   showName,
+  swapMarks,
+  swapSec,
   onTap,
 }: {
   player: Player;
@@ -174,6 +178,8 @@ function ScoreChip({
   floatText?: string | null;
   fxLabel?: string | null;
   showName: boolean;
+  swapMarks?: { emoji: string; golden: boolean }[];
+  swapSec?: number | null;
   onTap?: () => void;
 }) {
   const bomb = player.hand.find((h) => h.itemId === 'bomb');
@@ -188,6 +194,7 @@ function ScoreChip({
     targeting ? 'targetable' : '',
     player.handcuffMs > 0 ? 'cuffed' : '',
     fuseSec != null ? 'has-bomb' : '',
+    swapMarks && swapMarks.length > 0 ? 'has-quick-swap' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -202,6 +209,24 @@ function ScoreChip({
       </span>
       {player.handcuffMs > 0 && <span className="score-badge">🔒</span>}
       {fuseSec != null && <span className="score-badge">💣{fuseSec}</span>}
+      {swapMarks && swapMarks.length > 0 && (
+        <span className="score-swap-marks" aria-label="Quick Swap pending">
+          {swapMarks.slice(0, 3).map((m, i) => (
+            <span
+              key={`${m.emoji}-${i}`}
+              className={`score-swap-mark${m.golden ? ' golden' : ''}`}
+            >
+              {m.emoji}
+            </span>
+          ))}
+          {swapMarks.length > 3 && (
+            <span className="score-swap-mark more">+{swapMarks.length - 3}</span>
+          )}
+          {swapSec != null && (
+            <span className="score-swap-sec">{swapSec}s</span>
+          )}
+        </span>
+      )}
       {!player.isAlive && <span className="score-out">OUT</span>}
       {floatText && <span className="score-float">{floatText}</span>}
     </>
@@ -243,12 +268,24 @@ export function PurseStrip({
   fxByPlayer,
   activeFx,
   coldMarketMs,
+  pendingQuickSwaps,
   onSelectPlayer,
 }: Props) {
   const ranked = [...others, human].sort((a, b) => {
     if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
     return b.coins - a.coins;
   });
+
+  const swapPreview = (p: Player) => {
+    const mark = quickSwapMarkedIds(pendingQuickSwaps, p.hand, p.id);
+    if (mark.ids.size === 0) return { marks: [], sec: null as number | null };
+    const marks = p.hand
+      .filter((h) => mark.ids.has(h.instanceId))
+      .map((h) => ({ emoji: getItem(h.itemId).emoji, golden: h.golden }));
+    const sec =
+      mark.msLeft != null ? Math.ceil(mark.msLeft / 1000) : null;
+    return { marks, sec };
+  };
 
   return (
     <div className={`purse-strip mode-${mode}`}>
@@ -283,6 +320,8 @@ export function PurseStrip({
                   ? fxByPlayer.get(others[0].id)?.label
                   : null
               }
+              swapMarks={swapPreview(others[0]).marks}
+              swapSec={swapPreview(others[0]).sec}
               onTap={
                 targetingPlayers
                   ? () => onSelectPlayer(others[0]!.id)
@@ -297,6 +336,8 @@ export function PurseStrip({
             const canTarget =
               targetingPlayers && p.id !== human.id && p.isAlive;
             const fx = fxByPlayer.get(p.id);
+            const preview =
+              p.id === human.id ? { marks: [], sec: null } : swapPreview(p);
             return (
               <ScoreChip
                 key={p.id}
@@ -309,6 +350,8 @@ export function PurseStrip({
                 }
                 targeting={canTarget}
                 fxLabel={fx?.kind === 'active_cast' ? fx.label : null}
+                swapMarks={preview.marks}
+                swapSec={preview.sec}
                 onTap={canTarget ? () => onSelectPlayer(p.id) : undefined}
               />
             );

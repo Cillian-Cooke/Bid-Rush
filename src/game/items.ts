@@ -378,6 +378,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     startPrice: 2,
     spawnWeight: 3,
   },
+  quick_swap: {
+    id: 'quick_swap',
+    name: 'Quick Swap',
+    emoji: '🔀',
+    kind: 'active',
+    target: 'player',
+    sellValue: 4,
+    startPrice: 3,
+    spawnWeight: 3,
+  },
 };
 
 export const ITEM_LIST: ItemDef[] = Object.values(ITEMS);
@@ -418,6 +428,34 @@ export function isMoneyEngine(id: ItemId): boolean {
 
 export function isHazardItem(id: ItemId): boolean {
   return id === 'bomb' || id === 'dynamite';
+}
+
+/** Instance ids currently marked by pending Quick Swaps for a player. */
+export function quickSwapMarkedIds(
+  pending: readonly {
+    casterId: string;
+    targetId: string;
+    msLeft: number;
+    golden: boolean;
+  }[],
+  hand: readonly HandItem[],
+  playerId: string,
+): { ids: Set<string>; msLeft: number | null } {
+  const ids = new Set<string>();
+  let msLeft: number | null = null;
+  for (const p of pending) {
+    if (p.casterId !== playerId && p.targetId !== playerId) continue;
+    msLeft = msLeft == null ? p.msLeft : Math.min(msLeft, p.msLeft);
+    if (hand.length === 0) continue;
+    if (p.golden) {
+      for (const h of hand) ids.add(h.instanceId);
+    } else if (p.casterId === playerId) {
+      ids.add(hand[0]!.instanceId);
+    } else {
+      ids.add(hand[hand.length - 1]!.instanceId);
+    }
+  }
+  return { ids, msLeft };
 }
 
 export type HandLinkSide = 'left' | 'right';

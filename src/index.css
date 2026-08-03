@@ -1686,6 +1686,11 @@ button {
   background: color-mix(in srgb, var(--panel) 60%, var(--yell));
 }
 
+.spectate-item.quick-swap-threat {
+  outline: 2px solid #e63946;
+  animation: quick-swap-pulse 0.85s ease-in-out infinite;
+}
+
 .spectate-empty {
   font-size: 0.72rem;
   color: var(--muted);
@@ -2457,6 +2462,14 @@ button {
   z-index: 2;
 }
 
+.hand-slot.quick-swap-threat {
+  outline: 2px solid #e63946;
+  outline-offset: 0;
+  box-shadow: 0 0 0 1px rgba(230, 57, 70, 0.45);
+  animation: quick-swap-pulse 0.85s ease-in-out infinite;
+  z-index: 3;
+}
+
 .hand-slot.mirror-slot .hand-passive-bar.mirror-bar .hand-passive-fill {
   background: linear-gradient(90deg, #6ec8ff, #b8e4ff);
 }
@@ -2477,6 +2490,12 @@ button {
 .hand-adj-badge.threat {
   background: #7a1f0a;
   color: #ffb089;
+  animation: adj-threat-badge 0.55s ease-in-out infinite;
+}
+
+.hand-adj-badge.quick-swap {
+  background: #6b0f1a;
+  color: #ffb3bc;
   animation: adj-threat-badge 0.55s ease-in-out infinite;
 }
 
@@ -2536,6 +2555,18 @@ button {
   }
   50% {
     filter: brightness(1.2);
+  }
+}
+
+@keyframes quick-swap-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 1px rgba(230, 57, 70, 0.35);
+  }
+  50% {
+    filter: brightness(1.15);
+    box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.75);
   }
 }
 
@@ -2984,6 +3015,53 @@ button {
   right: 4px;
   font-size: 0.55rem;
   font-weight: 800;
+}
+
+.score-swap-marks {
+  position: absolute;
+  left: 4px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.score-swap-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.72rem;
+  line-height: 1;
+  border-radius: 3px;
+  outline: 2px solid #e63946;
+  background: color-mix(in srgb, var(--panel) 70%, #e63946);
+  animation: quick-swap-pulse 0.85s ease-in-out infinite;
+}
+
+.score-swap-mark.golden {
+  box-shadow: inset 0 0 0 1px var(--yell);
+}
+
+.score-swap-mark.more {
+  font-size: 0.5rem;
+  font-weight: 800;
+  color: #ffb3bc;
+}
+
+.score-swap-sec {
+  margin-left: 2px;
+  font-size: 0.5rem;
+  font-weight: 900;
+  color: #ff8a95;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-chip.has-quick-swap {
+  outline: 1px solid rgba(230, 57, 70, 0.55);
 }
 
 .score-out {

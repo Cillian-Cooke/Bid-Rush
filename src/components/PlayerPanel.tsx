@@ -25,6 +25,8 @@ const PANEL_FX_EMOJI: Partial<Record<FxKind, string>> = {
   leech: '🧛',
   cuffs: '🔒',
   pickpocket: '🧤',
+  heist: '🥷',
+  quick_swap: '🔀',
   bomb_fuse: '💣',
   event_money: '💰',
   event_tax: '🧾',

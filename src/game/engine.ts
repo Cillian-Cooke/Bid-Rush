@@ -91,6 +91,7 @@ function cloneState(state: GameState): GameState {
     },
     suddenDeath: { ...state.suddenDeath },
     itemPool: [...state.itemPool],
+    pendingQuickSwaps: state.pendingQuickSwaps.map((p) => ({ ...p })),
   };
 }
 
@@ -530,6 +531,7 @@ export function createInitialState(
     },
     coldMarketMs: 0,
     itemPool,
+    pendingQuickSwaps: [],
   };
   for (let i = 0; i < setup.gridSize; i++) {
     tiles.push(makeTile(i, drawShopItem(draft, rng)));
@@ -1234,6 +1236,22 @@ function applyActiveEffect(
       });
       break;
     }
+    case 'quick_swap': {
+      const target = getPlayer(state, targets.playerId ?? '');
+      if (!target || !target.isAlive || target.id === player.id) return;
+      state.pendingQuickSwaps.push({
+        casterId: player.id,
+        targetId: target.id,
+        msLeft: CONFIG.QUICK_SWAP_MS,
+        golden: item.golden,
+      });
+      emitFx(state, 'quick_swap', {
+        playerId: player.id,
+        targetPlayerId: target.id,
+        label: item.golden ? 'ALL' : '10s',
+      });
+      break;
+    }
     case 'mute': {
       const target = getPlayer(state, targets.playerId ?? '');
       if (!target || !target.isAlive || target.id === player.id) return;
@@ -1802,6 +1820,60 @@ function tickSuddenDeath(state: GameState, dtMs: number): void {
   }
 }
 
+function resolveOneQuickSwap(
+  state: GameState,
+  pending: { casterId: string; targetId: string; golden: boolean },
+): void {
+  const caster = getPlayer(state, pending.casterId);
+  const target = getPlayer(state, pending.targetId);
+  if (!caster?.isAlive || !target?.isAlive) return;
+
+  if (pending.golden) {
+    const casterHand = caster.hand;
+    caster.hand = target.hand;
+    target.hand = casterHand;
+    tryAutoMerge(state, caster);
+    tryAutoMerge(state, target);
+    emitFx(state, 'quick_swap', {
+      playerId: caster.id,
+      targetPlayerId: target.id,
+      label: 'SWAP',
+    });
+    return;
+  }
+
+  if (caster.hand.length === 0 || target.hand.length === 0) return;
+
+  const leftIdx = 0;
+  const rightIdx = target.hand.length - 1;
+  const casterItem = caster.hand[leftIdx]!;
+  const targetItem = target.hand[rightIdx]!;
+  caster.hand[leftIdx] = targetItem;
+  target.hand[rightIdx] = casterItem;
+  tryAutoMerge(state, caster);
+  tryAutoMerge(state, target);
+  emitFx(state, 'quick_swap', {
+    playerId: caster.id,
+    targetPlayerId: target.id,
+    instanceId: targetItem.instanceId,
+    label: 'SWAP',
+  });
+}
+
+function tickPendingQuickSwaps(state: GameState, dtMs: number): void {
+  if (state.pendingQuickSwaps.length === 0) return;
+  const next: typeof state.pendingQuickSwaps = [];
+  for (const pending of state.pendingQuickSwaps) {
+    const msLeft = pending.msLeft - dtMs;
+    if (msLeft > 0) {
+      next.push({ ...pending, msLeft });
+      continue;
+    }
+    resolveOneQuickSwap(state, pending);
+  }
+  state.pendingQuickSwaps = next;
+}
+
 export function tick(state: GameState, dtMs: number, rng: () => number = Math.random): GameState {
   const next = cloneState(state);
   if (next.ended) return next;
@@ -1827,6 +1899,8 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
   if (next.coldMarketMs > 0) {
     next.coldMarketMs = Math.max(0, next.coldMarketMs - dtMs);
   }
+
+  tickPendingQuickSwaps(next, dtMs);
 
   // Status timers
   for (const player of next.players) {
