@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { coinTint, heatClassName } from '../game/coinHeat';
+import { formatCoinDelta, formatCoins } from '../game/formatCoins';
 import { getItem, quickSwapMarkedIds } from '../game/items';
 import type { FxKind, GameMode, PendingQuickSwap, Player } from '../game/types';
 import type { FxInstance } from '../store';
@@ -137,11 +138,11 @@ function AnimatedPurse({
         </div>
         <div className="purse-amount">
           <span className="purse-value" style={valueStyle}>
-            {shown}
+            {formatCoins(shown)}
           </span>
           {delta != null && (
             <span className={`purse-delta ${delta > 0 ? 'gain' : 'loss'}`}>
-              {delta > 0 ? `+${delta}` : delta}
+              {formatCoinDelta(delta)}
             </span>
           )}
           {floatText && (
@@ -170,7 +171,6 @@ function AnimatedPurse({
 
 function ScoreChip({
   player,
-  rank,
   leading,
   atRisk,
   targeting,
@@ -211,9 +211,8 @@ function ScoreChip({
 
   const inner = (
     <>
-      {rank != null && <span className="score-rank">#{rank}</span>}
       <span className="score-avatar">{fxLabel || player.avatar}</span>
-      <span className="score-coins">{player.coins}</span>
+      <span className="score-coins">{formatCoins(player.coins)}</span>
       {player.handcuffMs > 0 && <span className="score-badge">🔒</span>}
       {fuseSec != null && <span className="score-badge">💣{fuseSec}</span>}
       {swapMarks && swapMarks.length > 0 && (
@@ -347,8 +346,6 @@ export function PurseStrip({
               <ScoreChip
                 key={p.id}
                 player={p}
-                showName={rail}
-                rank={p.isAlive ? i + 1 : undefined}
                 leading={i === 0 && p.isAlive}
                 atRisk={
                   !!suddenBracket && p.isAlive && p.coins < suddenBracket

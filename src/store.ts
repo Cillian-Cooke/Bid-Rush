@@ -18,6 +18,7 @@ import {
   tickNameAuction,
 } from './game/naming';
 import { isShortsMode, isStepRecordMode } from './game/shortsProfile';
+import { formatCoinDelta } from './game/formatCoins';
 import type {
   DeathReport,
   DifficultyMode,
@@ -157,7 +158,7 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
       next.push({
         id: ++floatSeq,
         playerId: e.playerId,
-        text: `+${e.amount}`,
+        text: formatCoinDelta(e.amount),
         createdAt: now,
       });
     } else if (e.type === 'overflow_sell') {
@@ -187,7 +188,7 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
       next.push({
         id: ++floatSeq,
         playerId: e.playerId,
-        text: `-${e.amount}`,
+        text: formatCoinDelta(-e.amount),
         createdAt: now,
       });
     }

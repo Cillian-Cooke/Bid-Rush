@@ -2889,6 +2889,10 @@ html.shorts-mode .quit-btn {
   line-height: 0.95;
   letter-spacing: 0.02em;
   color: var(--yell);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .purse-delta {
@@ -3106,12 +3110,21 @@ html.shorts-mode .quit-btn {
 }
 
 .score-chip.anon {
-  grid-template-columns: auto 1fr auto;
-  justify-items: start;
+  grid-template-columns: auto 1fr;
+  align-items: center;
 }
 
 .score-chip.anon .score-coins {
   justify-self: end;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .score-chip.leading {
@@ -5075,7 +5088,7 @@ html.shorts-mode .quit-btn {
 
   html:not(.shorts-mode) .purse-strip.rail-standings .score-chip {
     display: grid;
-    grid-template-columns: auto auto 1fr;
+    grid-template-columns: auto 1fr;
     align-items: center;
     gap: 8px 10px;
     width: 100%;
