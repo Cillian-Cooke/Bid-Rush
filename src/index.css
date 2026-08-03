@@ -2872,15 +2872,13 @@ html.shorts-mode .quit-btn {
 }
 
 .purse-amount {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 0;
   margin-top: 2px;
-}
-
-.purse-glyph {
-  font-size: 1.4rem;
-  line-height: 1;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .purse-value {
@@ -2895,32 +2893,54 @@ html.shorts-mode .quit-btn {
 
 .purse-delta {
   position: absolute;
-  right: 4px;
-  top: 2px;
+  left: 100%;
+  bottom: 55%;
+  margin-left: 2px;
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 800;
-  animation: purse-delta-fly 0.7s ease forwards;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
   pointer-events: none;
+  z-index: 2;
 }
 
 .purse-delta.gain {
   color: #6dff8a;
+  text-shadow: 0 1px 6px rgba(40, 120, 60, 0.45);
+  animation: purse-delta-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .purse-delta.loss {
   color: #ff6b5a;
+  text-shadow: 0 1px 6px rgba(120, 30, 20, 0.45);
+  animation: purse-delta-drop 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .purse-float {
   position: absolute;
   left: 50%;
-  bottom: 4px;
-  transform: translateX(-50%);
-  font-size: 0.7rem;
+  top: 0;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+  z-index: 3;
+  animation: purse-coin-pop-up 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.purse-float.gain {
+  color: #6dff8a;
+  text-shadow: 0 1px 6px rgba(40, 120, 60, 0.45);
+}
+
+.purse-float.loss {
+  color: #ff6b5a;
+  text-shadow: 0 1px 6px rgba(120, 30, 20, 0.45);
+  animation-name: purse-coin-pop-down;
 }
 
 .purse.punch-up .purse-value {
@@ -3086,7 +3106,7 @@ html.shorts-mode .quit-btn {
 }
 
 .score-chip.anon {
-  grid-template-columns: auto auto 1fr;
+  grid-template-columns: auto 1fr auto;
   justify-items: start;
 }
 
@@ -3205,12 +3225,25 @@ html.shorts-mode .quit-btn {
 .score-float {
   position: absolute;
   left: 50%;
-  bottom: -2px;
+  top: 0;
   transform: translateX(-50%);
-  font-size: 0.58rem;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+  z-index: 3;
+  animation: purse-coin-pop-up 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.score-float.gain {
+  color: #6dff8a;
+}
+
+.score-float.loss {
+  color: #ff6b5a;
+  animation-name: purse-coin-pop-down;
 }
 
 .purse-strip.mode-duel {
@@ -3220,7 +3253,7 @@ html.shorts-mode .quit-btn {
 
 .purse-strip.mode-duel .score-chip {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   padding: 8px 10px;
   gap: 6px 8px;
@@ -3229,14 +3262,6 @@ html.shorts-mode .quit-btn {
 
 .purse-strip.mode-duel .score-avatar {
   font-size: 1.25rem;
-}
-
-.purse-strip.mode-duel .score-name {
-  font-size: 0.8rem;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .purse-strip.mode-duel .score-coins {
@@ -3285,6 +3310,74 @@ html.shorts-mode .quit-btn {
   100% {
     opacity: 0;
     transform: translateY(-14px);
+  }
+}
+
+@keyframes purse-delta-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 6px) scale(0.88);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(2px, -2px) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(10px, -28px) scale(0.95);
+  }
+}
+
+@keyframes purse-delta-drop {
+  0% {
+    opacity: 0;
+    transform: translate(0, -4px) scale(0.88);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(2px, 2px) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(8px, 24px) scale(0.95);
+  }
+}
+
+@keyframes purse-coin-pop-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -2px) scale(1.08);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(-50%, -18px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -36px) scale(0.92);
+  }
+}
+
+@keyframes purse-coin-pop-down {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -4px) scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 2px) scale(1.06);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(-50%, 14px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 28px) scale(0.92);
   }
 }
 
@@ -4982,7 +5075,7 @@ html.shorts-mode .quit-btn {
 
   html:not(.shorts-mode) .purse-strip.rail-standings .score-chip {
     display: grid;
-    grid-template-columns: auto auto 1fr auto;
+    grid-template-columns: auto auto 1fr;
     align-items: center;
     gap: 8px 10px;
     width: 100%;
@@ -4998,15 +5091,11 @@ html.shorts-mode .quit-btn {
     background: color-mix(in srgb, var(--panel) 78%, var(--yell));
   }
 
-  html:not(.shorts-mode) .purse-strip.rail-standings .score-name {
-    font-size: 0.92rem;
-    font-weight: 700;
-  }
-
   html:not(.shorts-mode) .purse-strip.rail-standings .score-coins {
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 800;
     color: var(--yell);
+    justify-self: end;
   }
 
   html:not(.shorts-mode) .rail-pool {

@@ -28,7 +28,6 @@ type Props = {
 function AnimatedPurse({
   coins,
   atRisk,
-  name,
   avatar,
   floatText,
   player,
@@ -37,7 +36,7 @@ function AnimatedPurse({
 }: {
   coins: number;
   atRisk: boolean;
-  name: string;
+  name?: string;
   avatar: string;
   floatText?: string | null;
   player: Player;
@@ -134,23 +133,31 @@ function AnimatedPurse({
           <span className="purse-avatar">{avatar}</span>
           <div className="purse-who-meta">
             <span className="purse-kicker">You</span>
-            <span className="purse-name">{name}</span>
           </div>
         </div>
         <div className="purse-amount">
-          <span className="purse-glyph" aria-hidden>
-            🪙
-          </span>
           <span className="purse-value" style={valueStyle}>
             {shown}
           </span>
+          {delta != null && (
+            <span className={`purse-delta ${delta > 0 ? 'gain' : 'loss'}`}>
+              {delta > 0 ? `+${delta}` : delta}
+            </span>
+          )}
+          {floatText && (
+            <span
+              className={`purse-float${
+                floatText.startsWith('-')
+                  ? ' loss'
+                  : floatText.startsWith('+')
+                    ? ' gain'
+                    : ''
+              }`}
+            >
+              {floatText}
+            </span>
+          )}
         </div>
-        {delta != null && (
-          <span className={`purse-delta ${delta > 0 ? 'gain' : 'loss'}`}>
-            {delta > 0 ? `+${delta}` : delta}
-          </span>
-        )}
-        {floatText && <span className="purse-float">{floatText}</span>}
       </div>
       <PurseEffects
         player={player}
@@ -169,7 +176,6 @@ function ScoreChip({
   targeting,
   floatText,
   fxLabel,
-  showName,
   swapMarks,
   swapSec,
   onTap,
@@ -181,7 +187,7 @@ function ScoreChip({
   targeting: boolean;
   floatText?: string | null;
   fxLabel?: string | null;
-  showName: boolean;
+  showName?: boolean;
   swapMarks?: { emoji: string; golden: boolean }[];
   swapSec?: number | null;
   onTap?: () => void;
@@ -191,7 +197,7 @@ function ScoreChip({
     bomb?.bombFuseMs != null ? Math.ceil(bomb.bombFuseMs / 1000) : null;
   const className = [
     'score-chip',
-    showName ? '' : 'anon',
+    'anon',
     !player.isAlive ? 'dead' : '',
     leading ? 'leading' : '',
     atRisk ? 'at-risk' : '',
@@ -207,10 +213,7 @@ function ScoreChip({
     <>
       {rank != null && <span className="score-rank">#{rank}</span>}
       <span className="score-avatar">{fxLabel || player.avatar}</span>
-      {showName && <span className="score-name">{player.name}</span>}
-      <span className="score-coins">
-        {showName ? `🪙${player.coins}` : player.coins}
-      </span>
+      <span className="score-coins">{player.coins}</span>
       {player.handcuffMs > 0 && <span className="score-badge">🔒</span>}
       {fuseSec != null && <span className="score-badge">💣{fuseSec}</span>}
       {swapMarks && swapMarks.length > 0 && (
@@ -232,7 +235,19 @@ function ScoreChip({
         </span>
       )}
       {!player.isAlive && <span className="score-out">OUT</span>}
-      {floatText && <span className="score-float">{floatText}</span>}
+      {floatText && (
+        <span
+          className={`score-float${
+            floatText.startsWith('-')
+              ? ' loss'
+              : floatText.startsWith('+')
+                ? ' gain'
+                : ''
+          }`}
+        >
+          {floatText}
+        </span>
+      )}
     </>
   );
 

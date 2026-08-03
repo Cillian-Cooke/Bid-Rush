@@ -157,7 +157,7 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
       next.push({
         id: ++floatSeq,
         playerId: e.playerId,
-        text: `+${e.amount} 🪙`,
+        text: `+${e.amount}`,
         createdAt: now,
       });
     } else if (e.type === 'overflow_sell') {
@@ -187,7 +187,7 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
       next.push({
         id: ++floatSeq,
         playerId: e.playerId,
-        text: `-${e.amount} 🪙`,
+        text: `-${e.amount}`,
         createdAt: now,
       });
     }
