@@ -1,12 +1,12 @@
-/** Match pace from elapsed match time (including sudden death). */
+/** Match pace from elapsed match time (including sudden death). Capped at 4×. */
 export function matchPaceMult(elapsedMs: number): number {
   const minutes = elapsedMs / 60_000;
   if (minutes < 2) return 1;
   if (minutes < 3) return 1.25;
   if (minutes < 4) return 1.5;
   if (minutes < 5) return 2;
-  // 5 min → 3×, 6 → 4×, 7 → 5×, …
-  return Math.floor(minutes) - 2;
+  // 5 min → 3×, 6+ → 4× (hard cap)
+  return Math.min(4, Math.floor(minutes) - 2);
 }
 
 export function formatPaceMult(mult: number): string {

@@ -531,6 +531,7 @@ export function createInitialState(
       active: false,
       bracket: CONFIG.SUDDEN_DEATH_START_BRACKET,
       phaseMs: CONFIG.SUDDEN_DEATH_PHASE_MS,
+      bracketMult: 2,
     },
     coldMarketMs: 0,
     itemPool,
@@ -1769,9 +1770,24 @@ function checkWinConditions(state: GameState): void {
       active: true,
       bracket: CONFIG.SUDDEN_DEATH_START_BRACKET,
       phaseMs: CONFIG.SUDDEN_DEATH_PHASE_MS,
+      bracketMult: 2,
     };
     emitFx(state, 'bomb_fuse', { label: '💀 SD' });
   }
+}
+
+/** Raise SD bracket; escalate multiplier once match pace is capped at 4×. */
+function raiseSuddenDeathBracket(state: GameState): void {
+  const sd = state.suddenDeath;
+  const mult = Math.max(2, sd.bracketMult || 2);
+  sd.bracket *= mult;
+  sd.phaseMs = CONFIG.SUDDEN_DEATH_PHASE_MS;
+  if (matchPaceMult(state.elapsedMs) >= 4) {
+    sd.bracketMult = mult * 2;
+  } else {
+    sd.bracketMult = 2;
+  }
+  emitFx(state, 'inflate', { label: `≥${sd.bracket}` });
 }
 
 function applySuddenDeathCull(state: GameState): void {
@@ -1781,9 +1797,7 @@ function applySuddenDeathCull(state: GameState): void {
   const safe = alive.filter((p) => p.coins >= sd.bracket);
 
   if (under.length === 0) {
-    sd.bracket *= 2;
-    sd.phaseMs = CONFIG.SUDDEN_DEATH_PHASE_MS;
-    emitFx(state, 'inflate', { label: `≥${sd.bracket}` });
+    raiseSuddenDeathBracket(state);
     return;
   }
 
@@ -1807,9 +1821,7 @@ function applySuddenDeathCull(state: GameState): void {
     return;
   }
 
-  sd.bracket *= 2;
-  sd.phaseMs = CONFIG.SUDDEN_DEATH_PHASE_MS;
-  emitFx(state, 'inflate', { label: `≥${sd.bracket}` });
+  raiseSuddenDeathBracket(state);
 }
 
 function tickSuddenDeath(state: GameState, dtMs: number): void {
@@ -1845,7 +1857,34 @@ function resolveOneQuickSwap(
     return;
   }
 
-  if (caster.hand.length === 0 || target.hand.length === 0) return;
+  // Empty hands still work one-way: gift leftmost, or take rightmost.
+  if (caster.hand.length === 0 && target.hand.length === 0) return;
+
+  if (caster.hand.length === 0) {
+    const taken = target.hand.pop()!;
+    caster.hand.push(taken);
+    tryAutoMerge(state, caster);
+    emitFx(state, 'quick_swap', {
+      playerId: caster.id,
+      targetPlayerId: target.id,
+      instanceId: taken.instanceId,
+      label: 'SWAP',
+    });
+    return;
+  }
+
+  if (target.hand.length === 0) {
+    const given = caster.hand.shift()!;
+    target.hand.push(given);
+    tryAutoMerge(state, target);
+    emitFx(state, 'quick_swap', {
+      playerId: caster.id,
+      targetPlayerId: target.id,
+      instanceId: given.instanceId,
+      label: 'SWAP',
+    });
+    return;
+  }
 
   const leftIdx = 0;
   const rightIdx = target.hand.length - 1;

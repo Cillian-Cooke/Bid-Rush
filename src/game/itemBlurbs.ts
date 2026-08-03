@@ -35,7 +35,7 @@ export function regularBlurb(id: string): string {
     pickpocket: 'Steals coins from a chosen rival.',
     heist_kit: 'Steals a random hand item from a rival (not bombs).',
     quick_swap:
-      'Pick a rival. After 10 seconds, swap your leftmost hand item with their rightmost.',
+      'Pick a rival. After 10 seconds, swap your leftmost hand item with their rightmost. Works one-way if either hand is empty.',
     mute: 'Silences a rival’s passives for 8 seconds.',
     cold_market: 'Freezes all passives for everyone for 10 seconds.',
     roi: 'Your coins jump to 1.5× now. Hit 2× your old total in 30s or die.',

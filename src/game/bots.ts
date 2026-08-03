@@ -491,12 +491,7 @@ function decideUse(
   }
 
   const quick = findHeld(player, 'quick_swap');
-  if (
-    quick &&
-    threat &&
-    (threat.hand.length > 0 || quick.golden) &&
-    rng() < 0.35 + profile.sabotage * 0.35
-  ) {
+  if (quick && threat && rng() < 0.35 + profile.sabotage * 0.35) {
     return {
       kind: 'use',
       instanceId: quick.instanceId,

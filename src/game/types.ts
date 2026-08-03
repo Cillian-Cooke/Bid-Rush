@@ -323,6 +323,12 @@ export type SuddenDeathState = {
   bracket: number;
   /** Ms left in this bracket phase before cull */
   phaseMs: number;
+  /**
+   * Multiplier applied when raising the bracket after a cull.
+   * Starts at 2 (×2 each step). Once match pace hits 4×, escalates
+   * after each raise: 2 → 4 → 8 → 16 …
+   */
+  bracketMult: number;
 };
 
 /** Armed Quick Swap — resolves after msLeft against current hand edges / full hands. */
