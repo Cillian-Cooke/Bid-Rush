@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { LandscapeBlocker } from './components/LandscapeBlocker';
 import { useGameStore } from './store';
 import { Lobby } from './screens/Lobby';
 import { NameAuction } from './screens/NameAuction';
@@ -103,6 +104,7 @@ export default function App() {
 
   return (
     <div className="app-stack">
+      <LandscapeBlocker />
       <div
         className={`stack-base${lobbyBuried ? ' is-buried' : ''}`}
         aria-hidden={lobbyBuried}
