@@ -1,7 +1,9 @@
-import { EventBannerStack } from './EventBanner';
+import { EventBannerCard } from './EventBanner';
 import { PaceBanner } from './PaceBanner';
 import { RoundClock } from './RoundClock';
 import { SuddenDeathBanner } from './SuddenDeathBanner';
+import { CONFIG } from '../game/constants';
+import { getWorldEvent } from '../game/worldEvents';
 import type { Player, SuddenDeathState, WorldEventState } from '../game/types';
 
 type Props = {
@@ -14,9 +16,13 @@ type Props = {
   onQuit: () => void;
 };
 
+function formatSec(ms: number): string {
+  return `${Math.max(0, Math.ceil(ms / 1000))}s`;
+}
+
 /**
- * Top chrome: large timer + fixed banner strip.
- * The strip always reserves the same height so the shop grid never shifts.
+ * Top chrome: timer panel with live-event chips, plus a single banner slot.
+ * Newest event owns the banner; every live event stays visible as a chip.
  */
 export function GameChrome({
   roundMs,
@@ -31,46 +37,74 @@ export function GameChrome({
   const showSudden = suddenDeath.active;
   const showWarning =
     !suddenDeath.active && worldEvent.phase === 'warning' && !!worldEvent.id;
-  const showLive = !suddenDeath.active && worldEvent.live.length > 0;
-  const showEvent = showWarning || showLive;
-  const bannerCount =
-    (showPace ? 1 : 0) +
-    (showSudden ? 1 : 0) +
-    (showWarning ? 1 : 0) +
-    worldEvent.live.length;
-  const dense = bannerCount >= 2;
-  const crowded = bannerCount >= 3;
+  const liveEvents = suddenDeath.active ? [] : worldEvent.live;
+  const newestLive = liveEvents[liveEvents.length - 1] ?? null;
+
+  const hasBanner =
+    showSudden || !!newestLive || showWarning || showPace;
 
   return (
     <header className="game-chrome">
       <div className="game-chrome-top">
-        <RoundClock ms={roundMs} suddenDeath={suddenDeath} />
+        <div
+          className={`round-clock-panel${liveEvents.length ? ' has-chips' : ''}`}
+        >
+          <RoundClock ms={roundMs} suddenDeath={suddenDeath} />
+          {liveEvents.length > 0 && (
+            <div className="event-chip-grid" aria-label="Live events">
+              {liveEvents.map((live) => {
+                const def = getWorldEvent(live.id);
+                return (
+                  <div
+                    key={live.key}
+                    className={`event-chip${
+                      newestLive?.key === live.key ? ' focus' : ''
+                    }`}
+                    style={{ ['--event-accent' as string]: def.accent }}
+                    title={`${def.name} — ${formatSec(live.activeMs)} left`}
+                  >
+                    <span className="event-chip-emoji" aria-hidden>
+                      {def.emoji}
+                    </span>
+                    <span className="event-chip-timer">
+                      {formatSec(live.activeMs)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
         <button type="button" className="quit-btn" onClick={onQuit}>
           Quit
         </button>
       </div>
+
       <div
-        className={[
-          'game-chrome-banner',
-          dense ? 'dense' : '',
-          crowded ? 'crowded' : '',
-          bannerCount === 0 ? 'is-empty' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        aria-hidden={bannerCount === 0}
+        className={`game-chrome-banner${hasBanner ? '' : ' is-empty'}`}
+        aria-hidden={!hasBanner}
       >
-        {showPace && <PaceBanner elapsedMs={elapsedMs} />}
-        {showSudden && (
+        {showSudden ? (
           <SuddenDeathBanner suddenDeath={suddenDeath} players={players} />
-        )}
-        {showEvent && (
-          <EventBannerStack
-            worldEvent={worldEvent}
-            roundMs={roundMs}
-            dense={dense}
+        ) : newestLive ? (
+          <EventBannerCard
+            key={newestLive.key}
+            mode="active"
+            id={newestLive.id}
+            motion="shown"
+            remainMs={newestLive.activeMs}
           />
-        )}
+        ) : showWarning && worldEvent.id ? (
+          <EventBannerCard
+            key={`warn-${worldEvent.id}`}
+            mode="warning"
+            id={worldEvent.id}
+            motion="shown"
+            remainMs={Math.max(0, roundMs - CONFIG.EVENT_START_AT_MS)}
+          />
+        ) : showPace ? (
+          <PaceBanner elapsedMs={elapsedMs} />
+        ) : null}
       </div>
     </header>
   );

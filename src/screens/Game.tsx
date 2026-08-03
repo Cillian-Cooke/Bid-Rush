@@ -91,10 +91,21 @@ export function Game() {
   const humanAtRisk =
     sd.active && human.isAlive && human.coins < sd.bracket;
   const eventLive = !sd.active && game.worldEvent.live.length > 0;
-  const eventGlow = eventLive
-    ? getWorldEvent(game.worldEvent.live[game.worldEvent.live.length - 1]!.id)
-        .accent
-    : null;
+  const eventAccents = eventLive
+    ? game.worldEvent.live.map((e) => getWorldEvent(e.id).accent)
+    : [];
+  const eventGlowBg =
+    eventAccents.length === 0
+      ? null
+      : eventAccents.length === 1
+        ? `linear-gradient(90deg, ${eventAccents[0]}, ${eventAccents[0]})`
+        : `linear-gradient(90deg, ${eventAccents
+            .flatMap((c, i) => {
+              const start = (i / eventAccents.length) * 100;
+              const end = ((i + 1) / eventAccents.length) * 100;
+              return [`${c} ${start}%`, `${c} ${end}%`];
+            })
+            .join(', ')})`;
 
   const floatFor = (playerId: string) => {
     const f = floats.filter((x) => x.playerId === playerId).at(-1);
@@ -186,8 +197,8 @@ export function Game() {
         .join(' ')}
       style={{
         ['--grid-cols' as string]: cols,
-        ...(eventGlow
-          ? { ['--event-glow' as string]: eventGlow }
+        ...(eventGlowBg
+          ? { ['--event-glow-bg' as string]: eventGlowBg }
           : {}),
       }}
     >

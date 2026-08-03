@@ -1183,20 +1183,76 @@ html.shorts-mode .quit-btn {
   width: 100%;
 }
 
+.round-clock-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
 .game-chrome .round-clock {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   padding: 10px 18px 12px;
+}
+
+.round-clock-panel.has-chips .round-clock {
+  padding-bottom: 6px;
 }
 
 .game-chrome .round-clock-time {
   font-size: clamp(2.1rem, 9vw, 2.85rem);
+}
+
+.event-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 4px;
+  padding: 0 8px 8px;
+}
+
+.event-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 40px;
+  padding: 4px 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel-2) 70%, var(--event-accent, var(--yell)));
+  border: 1px solid color-mix(in srgb, var(--event-accent, var(--line)) 55%, var(--line));
+  box-shadow: inset 3px 0 0 var(--event-accent, var(--yell));
+}
+
+.event-chip.focus {
+  background: color-mix(in srgb, var(--panel-2) 45%, var(--event-accent, var(--yell)));
+  outline: 1px solid color-mix(in srgb, var(--event-accent, var(--yell)) 70%, #fff);
+}
+
+.event-chip-emoji {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.event-chip-timer {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  line-height: 1;
 }
 
 .quit-btn {
@@ -1219,8 +1275,8 @@ html.shorts-mode .quit-btn {
 }
 
 .game-chrome-banner {
-  /* Fixed reserve — grid never jumps when banners appear/clear */
-  --banner-reserve: 112px;
+  /* Single-banner reserve — shop grid stays put */
+  --banner-reserve: 54px;
   position: relative;
   width: 100%;
   min-width: 0;
@@ -1231,75 +1287,44 @@ html.shorts-mode .quit-btn {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 4px;
+  gap: 0;
   z-index: 3;
   pointer-events: none;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: none;
+  overflow: hidden;
   box-sizing: border-box;
-}
-
-.game-chrome-banner::-webkit-scrollbar {
-  display: none;
-}
-
-.game-chrome-banner.dense {
-  gap: 3px;
-}
-
-.game-chrome-banner.crowded {
-  gap: 2px;
 }
 
 .game-chrome-banner.is-empty {
   /* Keep space; nothing painted */
 }
 
-.game-chrome-banner .event-banner-stack {
-  display: flex;
-  flex-direction: column;
-  gap: inherit;
-  width: 100%;
-}
-
 .game-chrome-banner .event-banner-slot {
   width: 100%;
   max-width: none;
-  height: auto;
-  min-height: 48px;
-  flex-shrink: 0;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
   position: relative;
-}
-
-.game-chrome-banner.dense .event-banner-slot {
-  min-height: 42px;
-}
-
-.game-chrome-banner.crowded .event-banner-slot {
-  min-height: 36px;
-}
-
-.game-chrome-banner.crowded .event-banner-line {
-  display: none;
-}
-
-.game-chrome-banner.crowded .event-banner {
-  padding: 4px 10px 4px 0;
-  gap: 8px;
-}
-
-.game-chrome-banner.crowded .event-banner-emoji {
-  font-size: 1.2rem;
-}
-
-.game-chrome-banner.crowded .event-banner-title {
-  font-size: clamp(0.82rem, 2.8vw, 1rem);
 }
 
 .game-chrome-banner .event-banner {
   border-radius: 4px;
-  position: relative;
+  position: absolute;
+  inset: 0;
+  padding: 6px 10px 6px 0;
+  gap: 8px;
+}
+
+.game-chrome-banner .event-banner-emoji {
+  font-size: 1.35rem;
+}
+
+.game-chrome-banner .event-banner-line {
+  display: none;
+}
+
+.game-chrome-banner .event-banner-title {
+  font-size: clamp(0.88rem, 3vw, 1.05rem);
 }
 
 .quit-overlay {
@@ -1484,7 +1509,7 @@ html.shorts-mode .quit-btn {
   animation: sd-grid-pulse 1.6s ease-in-out infinite;
 }
 
-/* World-event glow — accent matches the live event */
+/* World-event glow — stripes share every live event accent */
 .game-screen.event-live {
   position: relative;
 }
@@ -1498,16 +1523,19 @@ html.shorts-mode .quit-btn {
   background:
     radial-gradient(
       ellipse at center,
-      transparent 42%,
-      color-mix(in srgb, var(--event-glow, #f59e0b) 42%, transparent) 100%
+      transparent 38%,
+      rgba(20, 16, 12, 0.42) 100%
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--event-glow, #f59e0b) 22%, transparent),
-      transparent 28%,
-      transparent 72%,
-      color-mix(in srgb, var(--event-glow, #f59e0b) 18%, transparent)
-    );
+      color-mix(in srgb, #000 18%, transparent),
+      transparent 30%,
+      transparent 70%,
+      color-mix(in srgb, #000 14%, transparent)
+    ),
+    var(--event-glow-bg, linear-gradient(90deg, #f59e0b, #f59e0b));
+  background-blend-mode: normal, normal, soft-light;
+  opacity: 0.55;
   animation: event-vignette 1.4s ease-in-out infinite alternate;
 }
 
