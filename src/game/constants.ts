@@ -39,7 +39,7 @@ export const CONFIG = {
   /** Interest: +sell value to whole hand */
   INTEREST_TICK_MS: 5_000,
   /** Stock Market: multiply sell value */
-  STOCK_MARKET_MS: 20_000,
+  STOCK_MARKET_MS: 30_000,
   COUNTDOWN_MS: 3_000,
   COMEBACK_GAP: 12,
   COMEBACK_INTERVAL_MS: 9_000,
