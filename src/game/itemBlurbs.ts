@@ -32,14 +32,12 @@ export function regularBlurb(id: string): string {
       'Swap two shop tiles’ items and prices. Bids stay on their tiles.',
     shop_refresh: 'Restocks the whole shop board with new items.',
     handcuffs: 'Stops one player from bidding for a short time.',
-    pickpocket:
-      'Steals coins from a chosen rival. Draining them to 0 coins eliminates them.',
+    pickpocket: 'Steals coins from a chosen rival.',
     heist_kit: 'Steals a random hand item from a rival (not bombs).',
     mute: 'Silences a rival’s passives for 8 seconds.',
     cold_market: 'Freezes all passives for everyone for 10 seconds.',
     roi: 'Your coins jump to 1.5× now. Hit 2× your old total in 30s or die.',
-    coin_leech:
-      'Drains coins from rivals over time. Can eliminate someone at 0.',
+    coin_leech: 'Drains coins from rivals over time.',
     magnet: 'Whenever anyone else earns passive income, you gain 1 coin.',
     kickback: 'Whenever you win a shop purchase, you gain 3 coins.',
     curse_idol:
@@ -82,7 +80,7 @@ export function goldenBlurb(id: string): string {
     swap_portal: 'Golden: swap a hand item with a board tile.',
     shop_refresh: 'Golden: also -1 price and +2s on every tile.',
     handcuffs: 'Golden: lasts twice as long.',
-    pickpocket: 'Golden: steals twice as much. Still eliminates at 0.',
+    pickpocket: 'Golden: steals twice as much.',
     heist_kit: 'Golden: steals two items.',
     mute: 'Golden: lasts twice as long.',
     cold_market: 'Golden: lasts twice as long.',

@@ -708,22 +708,10 @@ function eliminate(
   }
 }
 
-/** Coins hit 0 → out. Covers pickpocket, tax, leech, curse, bomb defuse, etc. */
+/** Clamp coins at 0 — broke is allowed; elimination is unpaid / bomb / bracket / ROI. */
 function cullBrokePlayers(state: GameState): void {
   for (const player of state.players) {
-    if (player.isAlive && player.coins <= 0) {
-      const lastHurt = [...player.coinTrail].reverse().find((s) => s.delta < 0);
-      eliminate(
-        state,
-        player.id,
-        'leech',
-        lastHurt ?? {
-          emoji: '💸',
-          label: 'Ran out of coins',
-          delta: 0,
-        },
-      );
-    }
+    if (player.isAlive && player.coins < 0) player.coins = 0;
   }
 }
 
@@ -1220,13 +1208,6 @@ function applyActiveEffect(
         playerId: player.id,
         targetPlayerId: target.id,
       });
-      if (target.coins <= 0) {
-        eliminate(state, target.id, 'leech', {
-          emoji: '🧤',
-          label: 'Pickpocketed dry',
-          delta: -steal,
-        });
-      }
       break;
     }
     case 'heist_kit': {
@@ -1483,13 +1464,6 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
               playerId: player.id,
               targetPlayerId: rival.id,
             });
-            if (rival.coins <= 0) {
-              eliminate(state, rival.id, 'leech', {
-                emoji: '🧿',
-                label: 'Curse Idol',
-                delta: -lost,
-              });
-            }
           }
         }
         continue;
@@ -1695,7 +1669,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Coin leech — blitz: random victim; can eliminate at 0
+      // Coin leech — blitz: random victim
       if (item.itemId === 'coin_leech') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= (def.passiveIntervalMs ?? 4000)) {
@@ -1724,13 +1698,6 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
               targetPlayerId: victim.id,
               instanceId: source.instanceId,
             });
-            if (victim.coins <= 0) {
-              eliminate(state, victim.id, 'leech', {
-                emoji: '🧛',
-                label: 'Coin Leech',
-                delta: -steal,
-              });
-            }
           };
           runLeech(item);
           for (const mirror of mirrorsCopying(player.hand, i)) {
