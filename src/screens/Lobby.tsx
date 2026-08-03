@@ -31,64 +31,74 @@ export function Lobby() {
     <div className="screen lobby-screen">
       <LobbyAuctionBg onEventChange={setLobbyEvent} />
 
-      <button
-        type="button"
-        className="codex-btn"
-        onClick={() => setCodexOpen(true)}
-        aria-label="Item guide"
-      >
-        <BookOpen size={20} />
-      </button>
+      <aside className="lobby-rail" aria-label="Item guide">
+        <ItemsCodex embedded onClose={() => setCodexOpen(false)} />
+      </aside>
 
-      {lobbyEvent && (
-        <div className="lobby-event-banner-slot" aria-live="polite">
-          <EventBannerCard
-            key={lobbyEvent.id}
-            mode="active"
-            id={lobbyEvent.id}
-            motion="shown"
-            remainMs={lobbyEvent.remainMs}
-          />
-        </div>
-      )}
+      <div className="lobby-stage">
+        <button
+          type="button"
+          className="codex-btn mobile-codex-btn"
+          onClick={() => setCodexOpen(true)}
+          aria-label="Item guide"
+        >
+          <BookOpen size={20} />
+        </button>
 
-      <div className="lobby-content">
-        <div className="lobby-hero">
-          <h1 className="brand">Bid Rush</h1>
-        </div>
+        {lobbyEvent && (
+          <div className="lobby-event-banner-slot" aria-live="polite">
+            <EventBannerCard
+              key={lobbyEvent.id}
+              mode="active"
+              id={lobbyEvent.id}
+              motion="shown"
+              remainMs={lobbyEvent.remainMs}
+            />
+          </div>
+        )}
 
-        <div className="mode-pick">
-          <button type="button" className="mode-card" onClick={() => play('duel')}>
-            <span className="mode-emoji">⚔️</span>
-            <span className="mode-copy">
-              <span className="mode-title">{MODE_SETUP.duel.label}</span>
-            </span>
-          </button>
-          <button
-            type="button"
-            className="mode-card featured"
-            onClick={() => play('blitz')}
-          >
-            <span className="mode-emoji">⚡</span>
-            <span className="mode-copy">
-              <span className="mode-title">{MODE_SETUP.blitz.label}</span>
-            </span>
-          </button>
-        </div>
+        <div className="lobby-content">
+          <div className="lobby-hero">
+            <p className="lobby-eyebrow">Auction arena</p>
+            <h1 className="brand">Bid Rush</h1>
+            <p className="tagline">Outbid. Outbuild. Outlast.</p>
+          </div>
 
-        <div className="field lobby-diff">
-          <span>Bots</span>
-          <div className="diff-row">
-            {DIFFICULTIES.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                className={`diff-chip${lobby.difficulty === d.id ? ' selected' : ''}`}
-                onClick={() => setDifficulty(d.id)}
-              >
-                {d.emoji} {d.label}
-              </button>
-            ))}
+          <div className="mode-pick">
+            <button type="button" className="mode-card" onClick={() => play('duel')}>
+              <span className="mode-emoji">⚔️</span>
+              <span className="mode-copy">
+                <span className="mode-title">{MODE_SETUP.duel.label}</span>
+                <span className="mode-blurb">1v1 pressure cooker</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className="mode-card featured"
+              onClick={() => play('blitz')}
+            >
+              <span className="mode-emoji">⚡</span>
+              <span className="mode-copy">
+                <span className="mode-title">{MODE_SETUP.blitz.label}</span>
+                <span className="mode-blurb">Crowded floor, bigger chaos</span>
+              </span>
+            </button>
+          </div>
+
+          <div className="field lobby-diff">
+            <span>Bots</span>
+            <div className="diff-row">
+              {DIFFICULTIES.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  className={`diff-chip${lobby.difficulty === d.id ? ' selected' : ''}`}
+                  onClick={() => setDifficulty(d.id)}
+                >
+                  {d.emoji} {d.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -19,6 +19,10 @@ type Props = {
   coldMarketMs?: number;
   pendingQuickSwaps: PendingQuickSwap[];
   onSelectPlayer: (playerId: string) => void;
+  /** Mobile dock shows both; desktop splits purse vs scoreboard. */
+  sections?: 'all' | 'purse' | 'board';
+  /** Vertical named standings for the desktop rail. */
+  rail?: boolean;
 };
 
 function AnimatedPurse({
@@ -270,6 +274,8 @@ export function PurseStrip({
   coldMarketMs,
   pendingQuickSwaps,
   onSelectPlayer,
+  sections = 'all',
+  rail = false,
 }: Props) {
   const ranked = [...others, human].sort((a, b) => {
     if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
@@ -287,50 +293,34 @@ export function PurseStrip({
     return { marks, sec };
   };
 
-  return (
-    <div className={`purse-strip mode-${mode}`}>
-      <AnimatedPurse
-        coins={human.coins}
-        atRisk={atRisk}
-        name={human.name}
-        avatar={human.avatar}
-        floatText={floatText}
-        player={human}
-        activeFx={activeFx}
-        coldMarketMs={coldMarketMs}
-      />
+  const showPurse = sections === 'all' || sections === 'purse';
+  const showBoard = sections === 'all' || sections === 'board';
 
-      {mode === 'duel' ? (
-        others[0] && (
-          <div className="purse-rival">
-            <span className="purse-vs">Rival</span>
-            <ScoreChip
-              player={others[0]}
-              showName
-              leading={others[0].isAlive && others[0].coins > human.coins}
-              atRisk={
-                !!suddenBracket &&
-                others[0].isAlive &&
-                others[0].coins < suddenBracket
-              }
-              targeting={targetingPlayers && others[0].isAlive}
-              floatText={rivalFloatText}
-              fxLabel={
-                fxByPlayer.get(others[0].id)?.kind === 'active_cast'
-                  ? fxByPlayer.get(others[0].id)?.label
-                  : null
-              }
-              swapMarks={swapPreview(others[0]).marks}
-              swapSec={swapPreview(others[0]).sec}
-              onTap={
-                targetingPlayers
-                  ? () => onSelectPlayer(others[0]!.id)
-                  : undefined
-              }
-            />
-          </div>
-        )
-      ) : (
+  return (
+    <div
+      className={[
+        'purse-strip',
+        `mode-${mode}`,
+        rail ? 'rail-standings' : '',
+        sections !== 'all' ? `sections-${sections}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {showPurse && (
+        <AnimatedPurse
+          coins={human.coins}
+          atRisk={atRisk}
+          name={human.name}
+          avatar={human.avatar}
+          floatText={floatText}
+          player={human}
+          activeFx={activeFx}
+          coldMarketMs={coldMarketMs}
+        />
+      )}
+
+      {showBoard && (rail || mode !== 'duel') && (
         <div className="purse-board" aria-label="Scoreboard">
           {ranked.map((p, i) => {
             const canTarget =
@@ -342,7 +332,7 @@ export function PurseStrip({
               <ScoreChip
                 key={p.id}
                 player={p}
-                showName={false}
+                showName={rail}
                 rank={p.isAlive ? i + 1 : undefined}
                 leading={i === 0 && p.isAlive}
                 atRisk={
@@ -356,6 +346,36 @@ export function PurseStrip({
               />
             );
           })}
+        </div>
+      )}
+
+      {showBoard && !rail && mode === 'duel' && others[0] && (
+        <div className="purse-rival">
+          <span className="purse-vs">Rival</span>
+          <ScoreChip
+            player={others[0]}
+            showName
+            leading={others[0].isAlive && others[0].coins > human.coins}
+            atRisk={
+              !!suddenBracket &&
+              others[0].isAlive &&
+              others[0].coins < suddenBracket
+            }
+            targeting={targetingPlayers && others[0].isAlive}
+            floatText={rivalFloatText}
+            fxLabel={
+              fxByPlayer.get(others[0].id)?.kind === 'active_cast'
+                ? fxByPlayer.get(others[0].id)?.label
+                : null
+            }
+            swapMarks={swapPreview(others[0]).marks}
+            swapSec={swapPreview(others[0]).sec}
+            onTap={
+              targetingPlayers
+                ? () => onSelectPlayer(others[0]!.id)
+                : undefined
+            }
+          />
         </div>
       )}
     </div>

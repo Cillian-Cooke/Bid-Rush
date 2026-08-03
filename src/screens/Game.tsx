@@ -4,6 +4,7 @@ import { FxLayer } from '../components/FxLayer';
 import { GameChrome } from '../components/GameChrome';
 import { HandSlot } from '../components/HandSlot';
 import { KnockoutOverlay } from '../components/KnockoutOverlay';
+import { MatchPoolPanel } from '../components/MatchPoolPanel';
 import { PoolToggleButton } from '../components/PoolToggleButton';
 import { PurseStrip } from '../components/PurseStrip';
 import { ShopTile } from '../components/ShopTile';
@@ -149,6 +150,22 @@ export function Game() {
     .filter(Boolean)
     .join(' ');
 
+  const stripProps = {
+    human,
+    others,
+    mode: game.mode,
+    atRisk: humanAtRisk,
+    suddenBracket: sd.active ? sd.bracket : null,
+    floatText: floatFor(human.id),
+    rivalFloatText: others[0] ? floatFor(others[0].id) : null,
+    targetingPlayers: !!targetingPlayers && human.isAlive,
+    fxByPlayer,
+    activeFx,
+    coldMarketMs: game.coldMarketMs,
+    pendingQuickSwaps: game.pendingQuickSwaps,
+    onSelectPlayer: selectTargetPlayer,
+  } as const;
+
   return (
     <div
       className={[
@@ -174,181 +191,189 @@ export function Game() {
           : {}),
       }}
     >
-      <GameChrome
-        roundMs={game.roundMs}
-        elapsedMs={game.elapsedMs}
-        paceBannerMs={game.paceBannerMs}
-        suddenDeath={game.suddenDeath}
-        worldEvent={game.worldEvent}
-        players={game.players}
-        onQuit={() => setQuitConfirm(true)}
-      />
-
-      {targeting && (
-        <TargetingOverlay targeting={targeting} onCancel={cancelTargeting} />
-      )}
-      {!targeting && handFocus && focusedItem && human.isAlive && !spectating && (
-        <div className="use-mode-banner">
-          <span>{getItem(focusedItem.itemId).emoji}</span>
-          <span>
-            {canUse
-              ? 'Use or Sell above — tap again to cancel'
-              : 'Sell above — tap again to cancel'}
-          </span>
-          <button type="button" className="use-mode-cancel" onClick={cancelTargeting}>
-            Cancel
-          </button>
-        </div>
-      )}
-      <ExplosionFx />
-
-      <div className="game-main">
-        <div className="game-stage">
-          <div
-            className="shop-grid"
-            style={{
-              gridTemplateColumns: `repeat(${cols}, var(--tile-size))`,
-              gridTemplateRows: `repeat(${cols}, var(--tile-size))`,
-            }}
-          >
-            <FxLayer activeFx={activeFx} gridCols={cols} />
-            {game.tiles.map((tile) => {
-              const bidderColor = tile.highBidderId
-                ? (colorById.get(tile.highBidderId) ?? null)
-                : null;
-              const fx = fxForTile(activeFx, tile.index);
-              return (
-                <ShopTile
-                  key={tile.index}
-                  tile={tile}
-                  bidderColor={bidderColor}
-                  isYou={tile.highBidderId === human.id}
-                  targeting={!!targetingTiles && human.isAlive && !spectating}
-                  selected={targeting?.selectedTile === tile.index}
-                  fxKind={fx?.kind ?? null}
-                  fxLabel={fx?.label}
-                  onTap={() => {
-                    if (spectating || knockoutOffer || !human.isAlive) return;
-                    if (targetingTiles) selectTargetTile(tile.index);
-                    else if (!targeting) bidTile(tile.index);
-                  }}
-                />
-              );
-            })}
+      <aside className="game-rail" aria-label="Standings and match items">
+        <div className="rail-standings-block">
+          <div className="rail-pool-head">
+            <span className="rail-kicker">Live</span>
+            <span className="rail-title">Scoreboard</span>
           </div>
+          <PurseStrip {...stripProps} sections="board" rail />
         </div>
-      </div>
+        <MatchPoolPanel itemPool={game.itemPool} />
+      </aside>
 
-      {!spectating && (
-        <div className={dockMotion}>
-          <div className="dock-actions" aria-label="Item actions">
-            {showPoolToggle ? (
-              <div className="dock-action-slot dock-action-slot-full">
-                <PoolToggleButton
-                  open={false}
-                  onOpen={openPoolReveal}
-                  onClose={closePoolReveal}
-                />
-              </div>
-            ) : (
-              <>
-                <div className="dock-action-slot">
-                  {canSell && (
-                    <button
-                      type="button"
-                      className="dock-action sell"
-                      onClick={sellFocused}
-                    >
-                      Sell
-                    </button>
-                  )}
-                </div>
-                <div className="dock-action-slot">
-                  {canUse && (
-                    <button
-                      type="button"
-                      className="dock-action use"
-                      onClick={useFocused}
-                    >
-                      Use
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
+      <div className="game-play">
+        <GameChrome
+          roundMs={game.roundMs}
+          elapsedMs={game.elapsedMs}
+          paceBannerMs={game.paceBannerMs}
+          suddenDeath={game.suddenDeath}
+          worldEvent={game.worldEvent}
+          players={game.players}
+          onQuit={() => setQuitConfirm(true)}
+        />
+
+        {targeting && (
+          <TargetingOverlay targeting={targeting} onCancel={cancelTargeting} />
+        )}
+        {!targeting && handFocus && focusedItem && human.isAlive && !spectating && (
+          <div className="use-mode-banner">
+            <span>{getItem(focusedItem.itemId).emoji}</span>
+            <span>
+              {canUse
+                ? 'Use or Sell above — tap again to cancel'
+                : 'Sell above — tap again to cancel'}
+            </span>
+            <button type="button" className="use-mode-cancel" onClick={cancelTargeting}>
+              Cancel
+            </button>
           </div>
-          <PurseStrip
-            human={human}
-            others={others}
-            mode={game.mode}
-            atRisk={humanAtRisk}
-            suddenBracket={sd.active ? sd.bracket : null}
-            floatText={floatFor(human.id)}
-            rivalFloatText={others[0] ? floatFor(others[0].id) : null}
-            targetingPlayers={!!targetingPlayers && human.isAlive}
-            fxByPlayer={fxByPlayer}
-            activeFx={activeFx}
-            coldMarketMs={game.coldMarketMs}
-            pendingQuickSwaps={game.pendingQuickSwaps}
-            onSelectPlayer={selectTargetPlayer}
-          />
-          <div className="hand-bar">
-            <div className="hand-slots">
-              {handSlots.map((item, i) => {
-                const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
-                const threatened =
-                  !!item && humanSwapMark.ids.has(item.instanceId);
+        )}
+        <ExplosionFx />
+
+        <div className="game-main">
+          <div className="game-stage">
+            <div
+              className="shop-grid"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, var(--tile-size))`,
+                gridTemplateRows: `repeat(${cols}, var(--tile-size))`,
+              }}
+            >
+              <FxLayer activeFx={activeFx} gridCols={cols} />
+              {game.tiles.map((tile) => {
+                const bidderColor = tile.highBidderId
+                  ? (colorById.get(tile.highBidderId) ?? null)
+                  : null;
+                const fx = fxForTile(activeFx, tile.index);
                 return (
-                  <HandSlot
-                    key={item?.instanceId ?? `empty-${i}`}
-                    item={item}
-                    index={i}
-                    selected={!!item && item.instanceId === focusedId}
+                  <ShopTile
+                    key={tile.index}
+                    tile={tile}
+                    bidderColor={bidderColor}
+                    isYou={tile.highBidderId === human.id}
+                    targeting={!!targetingTiles && human.isAlive && !spectating}
+                    selected={targeting?.selectedTile === tile.index}
                     fxKind={fx?.kind ?? null}
-                    fxLabel={fx?.label ?? null}
-                    walletCoins={human.coins}
-                    hand={human.hand}
-                    swapThreatened={threatened}
-                    swapThreatSec={threatened ? humanSwapSec : null}
-                    onSelect={() => item && selectHandItem(item.instanceId)}
-                    onReorder={reorderHandSlots}
+                    fxLabel={fx?.label}
+                    onTap={() => {
+                      if (spectating || knockoutOffer || !human.isAlive) return;
+                      if (targetingTiles) selectTargetTile(tile.index);
+                      else if (!targeting) bidTile(tile.index);
+                    }}
                   />
                 );
               })}
-              {overflowBomb && (
-                <HandSlot
-                  item={overflowBomb}
-                  index={CONFIG.HAND_SLOTS}
-                  selected={overflowBomb.instanceId === focusedId}
-                  fxKind={
-                    fxForHandItem(activeFx, overflowBomb.instanceId)?.kind ?? null
-                  }
-                  fxLabel={
-                    fxForHandItem(activeFx, overflowBomb.instanceId)?.label ?? null
-                  }
-                  walletCoins={human.coins}
-                  hand={human.hand}
-                  swapThreatened={humanSwapMark.ids.has(overflowBomb.instanceId)}
-                  swapThreatSec={
-                    humanSwapMark.ids.has(overflowBomb.instanceId)
-                      ? humanSwapSec
-                      : null
-                  }
-                  onSelect={() => selectHandItem(overflowBomb.instanceId)}
-                  onReorder={reorderHandSlots}
-                />
-              )}
             </div>
           </div>
         </div>
-      )}
 
-      {spectating && (
-        <SpectateHands
-          players={game.players}
-          pendingQuickSwaps={game.pendingQuickSwaps}
-        />
-      )}
+        {!spectating && (
+          <div className={dockMotion}>
+            <div className="dock-actions" aria-label="Item actions">
+              {showPoolToggle ? (
+                <div className="dock-action-slot dock-action-slot-full mobile-only-pool">
+                  <PoolToggleButton
+                    open={false}
+                    onOpen={openPoolReveal}
+                    onClose={closePoolReveal}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="dock-action-slot">
+                    {canSell && (
+                      <button
+                        type="button"
+                        className="dock-action sell"
+                        onClick={sellFocused}
+                      >
+                        Sell
+                      </button>
+                    )}
+                  </div>
+                  <div className="dock-action-slot">
+                    {canUse && (
+                      <button
+                        type="button"
+                        className="dock-action use"
+                        onClick={useFocused}
+                      >
+                        Use
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="mobile-full-strip">
+              <PurseStrip {...stripProps} sections="all" />
+            </div>
+            <div className="desktop-purse-only">
+              <PurseStrip {...stripProps} sections="purse" />
+            </div>
+            <div className="hand-bar">
+              <div className="hand-slots">
+                {handSlots.map((item, i) => {
+                  const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
+                  const threatened =
+                    !!item && humanSwapMark.ids.has(item.instanceId);
+                  return (
+                    <HandSlot
+                      key={item?.instanceId ?? `empty-${i}`}
+                      item={item}
+                      index={i}
+                      selected={!!item && item.instanceId === focusedId}
+                      fxKind={fx?.kind ?? null}
+                      fxLabel={fx?.label ?? null}
+                      walletCoins={human.coins}
+                      hand={human.hand}
+                      swapThreatened={threatened}
+                      swapThreatSec={threatened ? humanSwapSec : null}
+                      onSelect={() => item && selectHandItem(item.instanceId)}
+                      onReorder={reorderHandSlots}
+                    />
+                  );
+                })}
+                {overflowBomb && (
+                  <HandSlot
+                    item={overflowBomb}
+                    index={CONFIG.HAND_SLOTS}
+                    selected={overflowBomb.instanceId === focusedId}
+                    fxKind={
+                      fxForHandItem(activeFx, overflowBomb.instanceId)?.kind ??
+                      null
+                    }
+                    fxLabel={
+                      fxForHandItem(activeFx, overflowBomb.instanceId)?.label ??
+                      null
+                    }
+                    walletCoins={human.coins}
+                    hand={human.hand}
+                    swapThreatened={humanSwapMark.ids.has(
+                      overflowBomb.instanceId,
+                    )}
+                    swapThreatSec={
+                      humanSwapMark.ids.has(overflowBomb.instanceId)
+                        ? humanSwapSec
+                        : null
+                    }
+                    onSelect={() => selectHandItem(overflowBomb.instanceId)}
+                    onReorder={reorderHandSlots}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {spectating && (
+          <SpectateHands
+            players={game.players}
+            pendingQuickSwaps={game.pendingQuickSwaps}
+          />
+        )}
+      </div>
 
       {quitConfirm && (
         <div className="quit-overlay" role="dialog" aria-label="Forfeit">
