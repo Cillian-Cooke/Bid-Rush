@@ -298,6 +298,7 @@ html.shorts-mode .quit-btn {
   overflow: hidden;
   pointer-events: none;
   background: var(--floor);
+  --lobby-cols: 4;
   --lobby-tile: 72px;
   --lobby-gap: 5px;
   --lobby-row-h: 77px;
@@ -321,7 +322,7 @@ html.shorts-mode .quit-btn {
   left: 0;
   right: 0;
   display: grid;
-  grid-template-columns: repeat(7, var(--lobby-tile));
+  grid-template-columns: repeat(var(--lobby-cols, 4), var(--lobby-tile));
   justify-content: center;
   gap: var(--lobby-gap);
   padding: 0;
@@ -4933,6 +4934,7 @@ html.shorts-mode .quit-btn {
     right: 0;
     width: auto;
     inset: 0 0 0 420px;
+    --lobby-cols: 7;
   }
 
   html:not(.shorts-mode) .lobby-auction-scroller {

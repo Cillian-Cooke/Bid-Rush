@@ -13,7 +13,10 @@ type Props = {
   onEventChange?: (event: LobbyBgEvent | null) => void;
 };
 
-const COLS = 7;
+const MOBILE_COLS = 4;
+const DESKTOP_COLS = 7;
+/** Matches the desktop lobby split breakpoint in index.css */
+const DESKTOP_MIN_PX = 960;
 const TICK_MS = 120;
 const TILE_TIMER_MS = 9_000;
 const EVENT_EVERY_MS = 120_000;
@@ -22,6 +25,13 @@ const MAX_LEADS = CONFIG.MAX_ACTIVE_BIDS;
 const SCROLL_SPEED = 26;
 const GAP_PX = 5;
 const BUFFER_ROWS = 3;
+
+function lobbyCols(): number {
+  if (typeof window === 'undefined') return MOBILE_COLS;
+  return window.matchMedia(`(min-width: ${DESKTOP_MIN_PX}px)`).matches
+    ? DESKTOP_COLS
+    : MOBILE_COLS;
+}
 
 type LobbyTile = {
   key: number;
@@ -115,11 +125,12 @@ function makeRow(
   y: number,
   rng: () => number,
   eventId: WorldEventId | null,
+  cols: number,
 ): LobbyRow {
   return {
     id,
     y,
-    tiles: Array.from({ length: COLS }, () => makeTile(rng, eventId)),
+    tiles: Array.from({ length: cols }, () => makeTile(rng, eventId)),
   };
 }
 
@@ -302,9 +313,9 @@ const REACTION: Record<BotArchetype, [number, number]> = {
   ruthless: [280, 850],
 };
 
-function computeLayout(width: number, height: number) {
+function computeLayout(width: number, height: number, cols: number) {
   const inner = Math.max(280, width);
-  const tile = Math.floor((inner - GAP_PX * (COLS + 1)) / COLS);
+  const tile = Math.floor((inner - GAP_PX * (cols + 1)) / cols);
   const rowH = tile + GAP_PX;
   const visible = Math.max(4, Math.ceil(height / rowH) + 1);
   const total = visible + BUFFER_ROWS * 2;
@@ -342,6 +353,7 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
   const nextYRef = useRef(0);
   const rowHRef = useRef(80);
   const tileRef = useRef(72);
+  const colsRef = useRef(MOBILE_COLS);
   const viewHRef = useRef(600);
   const eventRef = useRef<LobbyEvent | null>(null);
   const untilEventRef = useRef(18_000);
@@ -438,10 +450,11 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
     const eventId = eventRef.current?.id ?? null;
     const rows = rowsRef.current;
     const rowH = rowHRef.current;
+    const cols = colsRef.current;
     while (rows.length < count) {
       const y = nextYRef.current;
       nextYRef.current = y + rowH;
-      rows.push(makeRow(++rowIdRef.current, y, rng, eventId));
+      rows.push(makeRow(++rowIdRef.current, y, rng, eventId, cols));
     }
     while (rows.length > count && rows.length > 4) {
       rows.pop();
@@ -460,15 +473,19 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
       const w = root.clientWidth;
       const h = root.clientHeight;
       viewHRef.current = h;
-      const { tile, rowH, total } = computeLayout(w, h);
+      const cols = lobbyCols();
+      const prevCols = colsRef.current;
+      colsRef.current = cols;
+      const { tile, rowH, total } = computeLayout(w, h, cols);
       tileRef.current = tile;
       const prevH = rowHRef.current;
       rowHRef.current = rowH;
+      root.style.setProperty('--lobby-cols', String(cols));
       root.style.setProperty('--lobby-tile', `${tile}px`);
       root.style.setProperty('--lobby-gap', `${GAP_PX}px`);
       root.style.setProperty('--lobby-row-h', `${rowH}px`);
 
-      if (rowsRef.current.length === 0 || prevH !== rowH) {
+      if (rowsRef.current.length === 0 || prevH !== rowH || prevCols !== cols) {
         rowsRef.current = [];
         rowIdRef.current = 0;
         nextYRef.current = 0;
@@ -480,7 +497,7 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
         for (let i = 0; i < 6; i++) {
           const bot = bots[i % bots.length]!;
           const tileItem =
-            tiles[Math.floor(rng() * Math.min(tiles.length, COLS * 5))]!;
+            tiles[Math.floor(rng() * Math.min(tiles.length, cols * 5))]!;
           if (leadCount(tiles, bot.id) >= MAX_LEADS) continue;
           if (tileItem.bidderId) continue;
           tileItem.bidderId = bot.id;
