@@ -17,7 +17,7 @@ import {
   resolveNameAuction,
   tickNameAuction,
 } from './game/naming';
-import { isShortsMode, isStepRecordMode } from './game/shortsProfile';
+import { isShortsMode, isStepRecordMode, setStepRecordMode } from './game/shortsProfile';
 import { formatCoinDelta } from './game/formatCoins';
 import type {
   DeathReport,
@@ -108,6 +108,11 @@ type Store = {
   masterTick: (dtMs?: number) => void;
   /** Advance naming / countdown / match by dtMs (step-record mode). */
   stepRecord: (dtMs: number) => void;
+  /**
+   * Shorts recorder: 'step' pauses wall clocks (FF); 'realtime' runs live loops.
+   * Only meaningful while shorts profile is active.
+   */
+  setRecorderClock: (mode: 'step' | 'realtime') => void;
 };
 
 let loopId: ReturnType<typeof setInterval> | null = null;
@@ -925,6 +930,63 @@ export const useGameStore = create<Store>((set, get) => ({
 
     if (phase === 'playing') {
       get().masterTick(dtMs);
+    }
+  },
+
+  setRecorderClock: (mode) => {
+    if (!isShortsMode()) return;
+    const wantStep = mode === 'step';
+    if (wantStep === isStepRecordMode()) {
+      if (wantStep) {
+        stopLoop();
+        stopCountdown();
+        stopNamingLoop();
+      }
+      return;
+    }
+    setStepRecordMode(wantStep);
+    if (wantStep) {
+      stopLoop();
+      stopCountdown();
+      stopNamingLoop();
+      return;
+    }
+    // Realtime: resume the appropriate wall-clock driver
+    const { phase, naming, poolRevealEndsAt } = get();
+    if (phase === 'naming' && naming) {
+      namingLoopId = setInterval(() => {
+        const cur = get().naming;
+        if (!cur || get().phase !== 'naming') return;
+        const next = tickNameAuction(cur, CONFIG.TICK_MS, rng);
+        if (next.msLeft <= 0) {
+          stopNamingLoop();
+          set({ naming: next });
+          get().finishNaming();
+          return;
+        }
+        set({ naming: next });
+      }, CONFIG.TICK_MS);
+    } else if (phase === 'countdown') {
+      const endsAt = poolRevealEndsAt ?? Date.now() + CONFIG.POOL_REVEAL_MS;
+      if (poolRevealEndsAt == null) set({ poolRevealEndsAt: endsAt });
+      countdownId = setInterval(() => {
+        const ends = get().poolRevealEndsAt;
+        if (!ends) {
+          stopCountdown();
+          get().beginPlaying();
+          return;
+        }
+        const remain = ends - Date.now();
+        if (remain <= 0) {
+          stopCountdown();
+          set({ countdown: 0 });
+          window.setTimeout(() => get().beginPlaying(), 450);
+          return;
+        }
+        set({ countdown: Math.max(1, Math.ceil(remain / 1000)) });
+      }, CONFIG.TICK_MS);
+    } else if (phase === 'playing') {
+      startLoop(get);
     }
   },
 }));

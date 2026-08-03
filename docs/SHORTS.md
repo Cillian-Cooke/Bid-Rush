@@ -1,14 +1,15 @@
-# YouTube Shorts Match Recorder
+# YouTube Shorts / Reels Generator
 
-Record a full Bid Rush match as a phone-shaped MP4 for YouTube Shorts.
+One click (or one CLI command) → upload-ready vertical MP4 with a brand hook, highlight gameplay clips, and a CTA end card.
 
 ## Output
 
 | Spec | Value |
 |------|--------|
 | Resolution | **1080×1920** |
-| Frame rate | **30 fps** |
-| Max duration | **60 s** (match profile aims ~55 s) |
+| Frame rate | **30 fps CFR** |
+| Length | **~20–35 s** highlight reel (not a full-match dump) |
+| Encode | H.264 `veryfast`, **CRF 18**, `yuv420p`, `+faststart` |
 | Path | `output/shorts/bid-rush-{mode}-{timestamp}.mp4` |
 
 Modes: **duel** (1v1) or **blitz** (4 players). All seats are bot-driven; the camera is the human seat (hand dock + board).
@@ -27,10 +28,23 @@ npx playwright install chromium
 ```
 
 The recorder prefers `ffmpeg` on your `PATH`, then falls back to `node_modules/ffmpeg-static`.
-## Commands
+
+## Generate from the lobby
+
+1. Run the app with Vite (`npm run dev` or `npm run build && npm run preview`).
+2. In **dev**, a **Generate Short** panel appears on the lobby. In production preview, open with `?shortsTools=1`.
+3. Pick **Blitz** or **Duel**, click **Generate Short**.
+4. Progress updates live; when done, the MP4 path is shown under `output/shorts/`.
+
+The lobby button hits:
+
+- `POST /__shorts/generate` — starts `scripts/shorts/record.mjs`
+- `GET /__shorts/status` — polls progress JSON
+
+## CLI
 
 ```bash
-# Blitz Short (picks an exciting seed, then records)
+# Blitz Short (picks an exciting seed, captures peaks, stitches cards)
 npm run shorts:blitz
 
 # Duel Short
@@ -47,29 +61,34 @@ Flags:
 | Flag | Meaning |
 |------|---------|
 | `--mode duel\|blitz` | Match mode (default `blitz`) |
-| `--seed N` | Fixed seed |
+| `--seed N` | Fixed seed (still builds highlight windows) |
 | `--pick-seed` | Score several headless sims and record the best |
 | `--attempts N` | Seed search count (default 12) |
 | `--out path.mp4` | Output file |
-| `--max-seconds N` | Hard stop (default 60) |
+| `--max-seconds N` | Per-clip wait safety (default 60) |
 | `--skip-build` | Skip `npm run build` if `dist/` exists |
 | `--port N` | Vite preview port |
+| `--progress path.json` | Write generation progress for the lobby UI |
 
 If `--seed` is omitted, the CLI runs seed picking automatically.
 
 ## How it works
 
-1. Applies the **Shorts timing profile** when the app loads with `?shorts=1` (see below).
-2. Optionally runs a fast headless sim (`scripts/shorts/pick-seed.ts`) to prefer knockouts, world events, sudden death, and close coin races.
-3. Builds the app, starts `vite preview`, opens Playwright at **1080×1920** (9:16).
-4. Runs the **real game in realtime** (same UI as play, scaled into the Short frame) and records Playwright video — no PNG frame dumps.
-5. Transcodes WebM → H.264 MP4 via ffmpeg (keeps source frame timing; no fake 30fps dup).
+1. **Moment search** (`src/game/shortsSim.ts`) scores seeds for highlight density: world events, bomb KOs, sudden death, Quick Swap resolves, photo finishes. Returns peak windows `{ startMs, endMs, reason }` plus a punchy `hook` line.
+2. Applies the **Shorts timing profile** when the app loads with `?shorts=1` (see below).
+3. Builds the app (unless `--skip-build`), starts `vite preview`, opens Playwright at **1080×1920** (9:16) with `deviceScaleFactor: 2` for sharp UI.
+4. For each peak: boot `?shorts=1&step=1`, **fast-forward** via `__BID_RUSH__.fastForwardTo`, switch to **realtime**, capture only that window.
+5. **Compose** (`scripts/shorts/compose.mjs`): brand hook card → clips → “Play Bid Rush” CTA, forced **30fps CFR**, CRF 18.
 
 App URL hooks:
 
-- `shorts=1` — compressed timings, scale UI to fill width, auto-start ruthless match, expose `window.__BID_RUSH__` (`phase`, `ended`, `winnerId`, `seed`, `mode`).
+- `shorts=1` — compressed timings, scale UI to fill width, auto-start ruthless match, expose `window.__BID_RUSH__`.
+- `step=1` — recorder drives the clock for fast-forward between peaks.
 - `mode=duel|blitz`
 - `seed=<number>`
+- `shortsTools=1` — show Generate Short in non-dev builds served by Vite.
+
+Bridge helpers: `step`, `setClock('step'|'realtime')`, `fastForwardTo(elapsedMs)`, `elapsedMs`.
 
 ### Shorts timing profile
 
@@ -96,12 +115,13 @@ Defined in `src/game/shortsProfile.ts` and applied via mutable `CONFIG` in `src/
 | `ffmpeg not found` | Install system ffmpeg, or keep `ffmpeg-static` from `npm i` |
 | `playwright not installed` | `npm i && npx playwright install chromium` |
 | Black / empty video | Rebuild without `--skip-build`; open the preview URL in a browser |
-| Match never ends / hits 60 s | Sudden death can run long; try `--pick-seed` or another `--seed` |
+| Generate button missing | Use `npm run dev`, or add `?shortsTools=1` on preview |
+| Generate stuck / 409 | Wait for the running job; check `output/shorts/.generate-progress.json` |
 | Build errors | Run `npm run build` alone and fix TypeScript issues first |
 | Preview port in use | Pass `--port 4174` (or another free port) |
 
-## Out of scope
+## Out of scope (this pass)
 
-- YouTube upload
-- Voiceover / music
-- Multi-clip editing
+- Auto-upload to TikTok / YouTube / Reels
+- Voiceover / music bed (optional `--music` later)
+- Full-match 60s dumps as the default output

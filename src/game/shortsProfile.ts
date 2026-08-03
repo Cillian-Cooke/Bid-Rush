@@ -42,11 +42,22 @@ export function isStepRecordMode(): boolean {
   return stepRecordActive;
 }
 
+/** Toggle step vs wall-clock drive without resetting shorts CONFIG. */
+export function setStepRecordMode(on: boolean): void {
+  stepRecordActive = on;
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('shorts-step', on);
+  }
+}
+
 /** Apply compressed timings. Safe to call once at boot before any match. */
 export function applyShortsProfile(opts?: { stepRecord?: boolean }): void {
   shortsActive = true;
   stepRecordActive = opts?.stepRecord === true;
   Object.assign(CONFIG, SHORTS_OVERRIDES);
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('shorts-step', stepRecordActive);
+  }
 }
 
 export function readShortsQuery(

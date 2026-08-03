@@ -4571,6 +4571,83 @@ html.shorts-mode .quit-btn {
   color: #1a1408;
 }
 
+.shorts-generate-panel {
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--panel) 88%, #000);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shorts-generate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.shorts-generate-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--yell);
+}
+
+.shorts-generate-modes {
+  display: flex;
+  gap: 4px;
+}
+
+.shorts-generate-btn {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 4px;
+  background: var(--yell);
+  color: #1a1408;
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.shorts-generate-btn:disabled {
+  opacity: 0.65;
+}
+
+.shorts-generate-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--panel-2) 70%, #000);
+  overflow: hidden;
+}
+
+.shorts-generate-bar > div {
+  height: 100%;
+  background: linear-gradient(90deg, #ff5a45, #ffc14a);
+  transition: width 0.25s ease;
+}
+
+.shorts-generate-msg,
+.shorts-generate-done,
+.shorts-generate-error {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.shorts-generate-error {
+  color: var(--danger);
+}
+
+.shorts-generate-done code {
+  color: var(--text);
+  font-size: 0.62rem;
+}
+
 .lobby-note {
   text-align: center;
   color: var(--muted);

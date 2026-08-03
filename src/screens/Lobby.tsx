@@ -9,6 +9,7 @@ import {
   LobbyAuctionBg,
   type LobbyBgEvent,
 } from '../components/LobbyAuctionBg';
+import { ShortsGeneratePanel } from '../components/ShortsGeneratePanel';
 
 const DIFFICULTIES: { id: DifficultyMode; label: string; emoji: string }[] = [
   { id: 'mixed', label: 'Mixed', emoji: '🎲' },
@@ -100,6 +101,8 @@ export function Lobby() {
               ))}
             </div>
           </div>
+
+          <ShortsGeneratePanel />
         </div>
       </div>
 
