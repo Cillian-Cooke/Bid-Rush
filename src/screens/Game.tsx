@@ -10,7 +10,7 @@ import { ShopTile } from '../components/ShopTile';
 import { SpectateHands } from '../components/SpectateHands';
 import { TargetingOverlay } from '../components/TargetingOverlay';
 import { CONFIG } from '../game/constants';
-import { getItem } from '../game/items';
+import { getItem, quickSwapMarkedIds } from '../game/items';
 import { getWorldEvent } from '../game/worldEvents';
 import type { FxKind } from '../game/types';
 import {
@@ -78,6 +78,15 @@ export function Game() {
   const human = game.players.find((p) => p.id === game.humanId)!;
   const others = game.players.filter((p) => p.id !== game.humanId);
   const sd = game.suddenDeath;
+  const humanSwapMark = quickSwapMarkedIds(
+    game.pendingQuickSwaps,
+    human.hand,
+    human.id,
+  );
+  const humanSwapSec =
+    humanSwapMark.msLeft != null
+      ? Math.ceil(humanSwapMark.msLeft / 1000)
+      : null;
   const humanAtRisk =
     sd.active && human.isAlive && human.coins < sd.bracket;
   const eventLive = !sd.active && game.worldEvent.live.length > 0;
@@ -280,12 +289,15 @@ export function Game() {
             fxByPlayer={fxByPlayer}
             activeFx={activeFx}
             coldMarketMs={game.coldMarketMs}
+            pendingQuickSwaps={game.pendingQuickSwaps}
             onSelectPlayer={selectTargetPlayer}
           />
           <div className="hand-bar">
             <div className="hand-slots">
               {handSlots.map((item, i) => {
                 const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
+                const threatened =
+                  !!item && humanSwapMark.ids.has(item.instanceId);
                 return (
                   <HandSlot
                     key={item?.instanceId ?? `empty-${i}`}
@@ -296,6 +308,8 @@ export function Game() {
                     fxLabel={fx?.label ?? null}
                     walletCoins={human.coins}
                     hand={human.hand}
+                    swapThreatened={threatened}
+                    swapThreatSec={threatened ? humanSwapSec : null}
                     onSelect={() => item && selectHandItem(item.instanceId)}
                     onReorder={reorderHandSlots}
                   />
@@ -314,6 +328,12 @@ export function Game() {
                   }
                   walletCoins={human.coins}
                   hand={human.hand}
+                  swapThreatened={humanSwapMark.ids.has(overflowBomb.instanceId)}
+                  swapThreatSec={
+                    humanSwapMark.ids.has(overflowBomb.instanceId)
+                      ? humanSwapSec
+                      : null
+                  }
                   onSelect={() => selectHandItem(overflowBomb.instanceId)}
                   onReorder={reorderHandSlots}
                 />
@@ -323,7 +343,12 @@ export function Game() {
         </div>
       )}
 
-      {spectating && <SpectateHands players={game.players} />}
+      {spectating && (
+        <SpectateHands
+          players={game.players}
+          pendingQuickSwaps={game.pendingQuickSwaps}
+        />
+      )}
 
       {quitConfirm && (
         <div className="quit-overlay" role="dialog" aria-label="Forfeit">

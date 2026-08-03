@@ -118,6 +118,36 @@ button {
   pointer-events: none;
 }
 
+/* YouTube Shorts: same UI as live game, scaled into 9:16 (1080×1920) */
+html.shorts-mode,
+html.shorts-mode body,
+html.shorts-mode #root {
+  width: 1080px;
+  height: 1920px;
+  overflow: hidden;
+  background: #1a1612;
+}
+
+html.shorts-mode #root {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* Keep the real 480px layout; scale so it matches what players see */
+html.shorts-mode .app-stack {
+  width: 480px;
+  height: calc(1920px / 2.25);
+  transform: scale(2.25);
+  transform-origin: top center;
+  flex-shrink: 0;
+}
+
+html.shorts-mode .codex-btn,
+html.shorts-mode .quit-btn {
+  display: none !important;
+}
+
 .stack-sheet > * {
   pointer-events: auto;
 }
@@ -1032,7 +1062,7 @@ button {
   animation: sd-clock-shake 0.55s ease-in-out infinite;
 }
 
-/* Top chrome: large timer; banners overlay the stage (never shift the grid) */
+/* Top chrome: large timer; banners sit under the clock in-flow */
 .game-chrome {
   position: relative;
   display: flex;
@@ -1089,21 +1119,25 @@ button {
 }
 
 .game-chrome-banner {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
+  /* Fixed reserve — grid never jumps when banners appear/clear */
+  --banner-reserve: 112px;
+  position: relative;
   width: 100%;
   min-width: 0;
+  height: var(--banner-reserve);
+  min-height: var(--banner-reserve);
+  max-height: var(--banner-reserve);
+  margin-top: 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  z-index: 8;
+  justify-content: flex-start;
+  gap: 4px;
+  z-index: 3;
   pointer-events: none;
-  max-height: min(46vh, 320px);
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: none;
+  box-sizing: border-box;
 }
 
 .game-chrome-banner::-webkit-scrollbar {
@@ -1111,13 +1145,15 @@ button {
 }
 
 .game-chrome-banner.dense {
-  gap: 4px;
-  max-height: min(50vh, 360px);
+  gap: 3px;
 }
 
 .game-chrome-banner.crowded {
-  gap: 3px;
-  max-height: min(52vh, 400px);
+  gap: 2px;
+}
+
+.game-chrome-banner.is-empty {
+  /* Keep space; nothing painted */
 }
 
 .game-chrome-banner .event-banner-stack {
@@ -1131,18 +1167,17 @@ button {
   width: 100%;
   max-width: none;
   height: auto;
-  min-height: 58px;
+  min-height: 48px;
   flex-shrink: 0;
-  filter: drop-shadow(0 8px 16px #1a171466);
   position: relative;
 }
 
 .game-chrome-banner.dense .event-banner-slot {
-  min-height: 52px;
+  min-height: 42px;
 }
 
 .game-chrome-banner.crowded .event-banner-slot {
-  min-height: 46px;
+  min-height: 36px;
 }
 
 .game-chrome-banner.crowded .event-banner-line {
@@ -1150,16 +1185,16 @@ button {
 }
 
 .game-chrome-banner.crowded .event-banner {
-  padding: 6px 10px 6px 0;
+  padding: 4px 10px 4px 0;
   gap: 8px;
 }
 
 .game-chrome-banner.crowded .event-banner-emoji {
-  font-size: 1.35rem;
+  font-size: 1.2rem;
 }
 
 .game-chrome-banner.crowded .event-banner-title {
-  font-size: clamp(0.9rem, 3.2vw, 1.1rem);
+  font-size: clamp(0.82rem, 2.8vw, 1rem);
 }
 
 .game-chrome-banner .event-banner {
@@ -1434,18 +1469,17 @@ button {
   transition: transform 0.35s ease;
 }
 
-/* Blitz: more zoom + drop the grid so stacked event banners stay readable */
+/* Blitz spectate: slight zoom so the board stays readable under chrome */
 .game-screen.mode-blitz.knocked-out .game-main,
 .game-screen.mode-blitz.spectating .game-main {
-  transform: scale(0.72) translateY(18%);
+  transform: scale(0.82);
   transform-origin: center top;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .game-screen.mode-blitz.knocked-out .game-chrome-banner,
 .game-screen.mode-blitz.spectating .game-chrome-banner {
-  max-height: min(40vh, 300px);
-  z-index: 12;
+  /* Same fixed reserve as live play — no layout jump */
 }
 
 .game-screen.mode-blitz.spectating .game-chrome {
@@ -1684,6 +1718,11 @@ button {
 .spectate-item.golden {
   outline: 1px solid var(--yell);
   background: color-mix(in srgb, var(--panel) 60%, var(--yell));
+}
+
+.spectate-item.quick-swap-threat {
+  outline: 2px solid #e63946;
+  animation: quick-swap-pulse 0.85s ease-in-out infinite;
 }
 
 .spectate-empty {
@@ -2457,6 +2496,14 @@ button {
   z-index: 2;
 }
 
+.hand-slot.quick-swap-threat {
+  outline: 2px solid #e63946;
+  outline-offset: 0;
+  box-shadow: 0 0 0 1px rgba(230, 57, 70, 0.45);
+  animation: quick-swap-pulse 0.85s ease-in-out infinite;
+  z-index: 3;
+}
+
 .hand-slot.mirror-slot .hand-passive-bar.mirror-bar .hand-passive-fill {
   background: linear-gradient(90deg, #6ec8ff, #b8e4ff);
 }
@@ -2477,6 +2524,12 @@ button {
 .hand-adj-badge.threat {
   background: #7a1f0a;
   color: #ffb089;
+  animation: adj-threat-badge 0.55s ease-in-out infinite;
+}
+
+.hand-adj-badge.quick-swap {
+  background: #6b0f1a;
+  color: #ffb3bc;
   animation: adj-threat-badge 0.55s ease-in-out infinite;
 }
 
@@ -2536,6 +2589,18 @@ button {
   }
   50% {
     filter: brightness(1.2);
+  }
+}
+
+@keyframes quick-swap-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 1px rgba(230, 57, 70, 0.35);
+  }
+  50% {
+    filter: brightness(1.15);
+    box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.75);
   }
 }
 
@@ -2984,6 +3049,53 @@ button {
   right: 4px;
   font-size: 0.55rem;
   font-weight: 800;
+}
+
+.score-swap-marks {
+  position: absolute;
+  left: 4px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.score-swap-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.72rem;
+  line-height: 1;
+  border-radius: 3px;
+  outline: 2px solid #e63946;
+  background: color-mix(in srgb, var(--panel) 70%, #e63946);
+  animation: quick-swap-pulse 0.85s ease-in-out infinite;
+}
+
+.score-swap-mark.golden {
+  box-shadow: inset 0 0 0 1px var(--yell);
+}
+
+.score-swap-mark.more {
+  font-size: 0.5rem;
+  font-weight: 800;
+  color: #ffb3bc;
+}
+
+.score-swap-sec {
+  margin-left: 2px;
+  font-size: 0.5rem;
+  font-weight: 900;
+  color: #ff8a95;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-chip.has-quick-swap {
+  outline: 1px solid rgba(230, 57, 70, 0.55);
 }
 
 .score-out {

@@ -110,14 +110,20 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
     for (const f of activeFx) {
       if (seenFx.current.has(f.id)) continue;
       if (f.targetPlayerId !== player.id) continue;
-      if (f.kind !== 'pickpocket' && f.kind !== 'leech' && f.kind !== 'heist') {
+      if (f.kind !== 'pickpocket' && f.kind !== 'leech' && f.kind !== 'heist' && f.kind !== 'quick_swap') {
         continue;
       }
       seenFx.current.add(f.id);
       setBrief({
         key: `fx-${f.id}`,
         emoji:
-          f.kind === 'pickpocket' ? '🧤' : f.kind === 'heist' ? '🥷' : '🧛',
+          f.kind === 'pickpocket'
+            ? '🧤'
+            : f.kind === 'heist'
+              ? '🥷'
+              : f.kind === 'quick_swap'
+                ? '🔀'
+                : '🧛',
         progress: null,
         until: performance.now() + BRIEF_MS,
       });

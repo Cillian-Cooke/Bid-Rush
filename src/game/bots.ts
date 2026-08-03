@@ -78,6 +78,7 @@ const ACTIVE_BID: Partial<Record<ItemId, number>> = {
   fast_forward: 24,
   pickpocket: 24,
   heist_kit: 22,
+  quick_swap: 22,
   reset_hammer: 22,
   time_freeze: 22,
   bid_lock: 20,
@@ -479,12 +480,26 @@ function decideUse(
     };
   }
 
-  // Heist / pickpocket threat
+  // Heist / pickpocket / quick swap threat
   const heist = findHeld(player, 'heist_kit');
   if (heist && threat && threat.hand.length > 0 && rng() < 0.4 + profile.sabotage * 0.2) {
     return {
       kind: 'use',
       instanceId: heist.instanceId,
+      targets: { playerId: threat.id },
+    };
+  }
+
+  const quick = findHeld(player, 'quick_swap');
+  if (
+    quick &&
+    threat &&
+    (threat.hand.length > 0 || quick.golden) &&
+    rng() < 0.35 + profile.sabotage * 0.35
+  ) {
+    return {
+      kind: 'use',
+      instanceId: quick.instanceId,
       targets: { playerId: threat.id },
     };
   }
@@ -692,10 +707,31 @@ export function decideBotAction(
   if (player.handcuffMs > 0) return null;
 
   const arch = player.archetype ?? 'balanced';
+  const profile = PROFILES[arch];
 
-  // 1. Safety: dump hazards immediately (dynamite was previously never sold)
+  // 1. Safety: dump hazards immediately — unless we're planting via Quick Swap
   const hazard = player.hand.find((h) => isHazardItem(h.itemId));
   if (hazard) {
+    const planting = state.pendingQuickSwaps.some(
+      (p) => p.casterId === player.id && !p.golden && p.msLeft > 0,
+    );
+    const qs = findHeld(player, 'quick_swap');
+    const threat = biggestThreat(state, player.id);
+    if (qs && threat && rng() < profile.sabotage) {
+      return {
+        kind: 'use',
+        instanceId: qs.instanceId,
+        targets: { playerId: threat.id },
+      };
+    }
+    if (planting) {
+      const hi = player.hand.findIndex((h) => h.instanceId === hazard.instanceId);
+      if (hi > 0) {
+        return { kind: 'reorder', fromIndex: hi, toIndex: 0 };
+      }
+      // Hazard already leftmost — hold still for the swap
+      return null;
+    }
     return { kind: 'sell', instanceId: hazard.instanceId };
   }
 

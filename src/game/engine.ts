@@ -91,6 +91,7 @@ function cloneState(state: GameState): GameState {
     },
     suddenDeath: { ...state.suddenDeath },
     itemPool: [...state.itemPool],
+    pendingQuickSwaps: state.pendingQuickSwaps.map((p) => ({ ...p })),
   };
 }
 
@@ -108,7 +109,7 @@ function makeTile(index: number, itemId: ItemId): Tile {
   };
 }
 
-/** How many copies of an item are on the shop or in hands right now. */
+/** Weighted in-play count: golden hand copies count as 3. Shop tiles are always 1. */
 function countInPlay(state: GameState, itemId: ItemId): number {
   let n = 0;
   for (const tile of state.tiles) {
@@ -116,7 +117,8 @@ function countInPlay(state: GameState, itemId: ItemId): number {
   }
   for (const player of state.players) {
     for (const h of player.hand) {
-      if (h.itemId === itemId) n += 1;
+      if (h.itemId !== itemId) continue;
+      n += h.golden ? 3 : 1;
     }
   }
   return n;
@@ -128,7 +130,9 @@ function maxInPlayFor(state: GameState): number {
 
 /**
  * Draw a shop item under the per-type in-play cap
- * (duel 10 / blitz 16 — e.g. no 11th Coin Mine while 10 are already out).
+ * (duel 10 / blitz 16). Golden copies already in hand count as 3 each.
+ * Going golden mid-match may push past the cap — that's fine; we just
+ * stop stocking more until the weighted count drops below the limit.
  */
 function drawShopItem(state: GameState, rng: () => number): ItemId {
   const cap = maxInPlayFor(state);
@@ -136,7 +140,7 @@ function drawShopItem(state: GameState, rng: () => number): ItemId {
   if (available.length > 0) {
     return weightedRandomItem(rng, available);
   }
-  // Everything at cap — pick the scarcest pool item
+  // Everything at/over cap — pick the scarcest pool item
   let best = state.itemPool[0]!;
   let bestCount = countInPlay(state, best);
   for (const id of state.itemPool) {
@@ -530,6 +534,7 @@ export function createInitialState(
     },
     coldMarketMs: 0,
     itemPool,
+    pendingQuickSwaps: [],
   };
   for (let i = 0; i < setup.gridSize; i++) {
     tiles.push(makeTile(i, drawShopItem(draft, rng)));
@@ -1234,6 +1239,22 @@ function applyActiveEffect(
       });
       break;
     }
+    case 'quick_swap': {
+      const target = getPlayer(state, targets.playerId ?? '');
+      if (!target || !target.isAlive || target.id === player.id) return;
+      state.pendingQuickSwaps.push({
+        casterId: player.id,
+        targetId: target.id,
+        msLeft: CONFIG.QUICK_SWAP_MS,
+        golden: item.golden,
+      });
+      emitFx(state, 'quick_swap', {
+        playerId: player.id,
+        targetPlayerId: target.id,
+        label: item.golden ? 'ALL' : '10s',
+      });
+      break;
+    }
     case 'mute': {
       const target = getPlayer(state, targets.playerId ?? '');
       if (!target || !target.isAlive || target.id === player.id) return;
@@ -1802,6 +1823,60 @@ function tickSuddenDeath(state: GameState, dtMs: number): void {
   }
 }
 
+function resolveOneQuickSwap(
+  state: GameState,
+  pending: { casterId: string; targetId: string; golden: boolean },
+): void {
+  const caster = getPlayer(state, pending.casterId);
+  const target = getPlayer(state, pending.targetId);
+  if (!caster?.isAlive || !target?.isAlive) return;
+
+  if (pending.golden) {
+    const casterHand = caster.hand;
+    caster.hand = target.hand;
+    target.hand = casterHand;
+    tryAutoMerge(state, caster);
+    tryAutoMerge(state, target);
+    emitFx(state, 'quick_swap', {
+      playerId: caster.id,
+      targetPlayerId: target.id,
+      label: 'SWAP',
+    });
+    return;
+  }
+
+  if (caster.hand.length === 0 || target.hand.length === 0) return;
+
+  const leftIdx = 0;
+  const rightIdx = target.hand.length - 1;
+  const casterItem = caster.hand[leftIdx]!;
+  const targetItem = target.hand[rightIdx]!;
+  caster.hand[leftIdx] = targetItem;
+  target.hand[rightIdx] = casterItem;
+  tryAutoMerge(state, caster);
+  tryAutoMerge(state, target);
+  emitFx(state, 'quick_swap', {
+    playerId: caster.id,
+    targetPlayerId: target.id,
+    instanceId: targetItem.instanceId,
+    label: 'SWAP',
+  });
+}
+
+function tickPendingQuickSwaps(state: GameState, dtMs: number): void {
+  if (state.pendingQuickSwaps.length === 0) return;
+  const next: typeof state.pendingQuickSwaps = [];
+  for (const pending of state.pendingQuickSwaps) {
+    const msLeft = pending.msLeft - dtMs;
+    if (msLeft > 0) {
+      next.push({ ...pending, msLeft });
+      continue;
+    }
+    resolveOneQuickSwap(state, pending);
+  }
+  state.pendingQuickSwaps = next;
+}
+
 export function tick(state: GameState, dtMs: number, rng: () => number = Math.random): GameState {
   const next = cloneState(state);
   if (next.ended) return next;
@@ -1827,6 +1902,8 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
   if (next.coldMarketMs > 0) {
     next.coldMarketMs = Math.max(0, next.coldMarketMs - dtMs);
   }
+
+  tickPendingQuickSwaps(next, dtMs);
 
   // Status timers
   for (const player of next.players) {
