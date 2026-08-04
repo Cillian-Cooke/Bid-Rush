@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { ExplosionFx } from '../components/ExplosionFx';
 import { FxLayer } from '../components/FxLayer';
 import { GameChrome } from '../components/GameChrome';
@@ -94,18 +94,16 @@ export function Game() {
   const eventAccents = eventLive
     ? game.worldEvent.live.map((e) => getWorldEvent(e.id).accent)
     : [];
-  const eventGlowBg =
+  const eventGlowStyle =
     eventAccents.length === 0
-      ? null
-      : eventAccents.length === 1
-        ? `linear-gradient(90deg, ${eventAccents[0]}, ${eventAccents[0]})`
-        : `linear-gradient(90deg, ${eventAccents
-            .flatMap((c, i) => {
-              const start = (i / eventAccents.length) * 100;
-              const end = ((i + 1) / eventAccents.length) * 100;
-              return [`${c} ${start}%`, `${c} ${end}%`];
-            })
-            .join(', ')})`;
+      ? undefined
+      : ({
+          ['--event-glow-1' as string]: eventAccents[0],
+          ['--event-glow-2' as string]:
+            eventAccents[1] ?? eventAccents[0],
+          ['--event-glow-3' as string]:
+            eventAccents[2] ?? eventAccents[0],
+        } as CSSProperties);
 
   const floatFor = (playerId: string) => {
     const f = floats.filter((x) => x.playerId === playerId).at(-1);
@@ -187,7 +185,6 @@ export function Game() {
         inUseMode ? 'use-mode' : '',
         sd.active ? 'sudden-death-live' : '',
         humanAtRisk ? 'sd-human-risk' : '',
-        eventLive ? 'event-live' : '',
         zoomedOut ? 'knocked-out' : '',
         spectating ? 'spectating' : '',
         live ? 'widgets-in' : '',
@@ -197,9 +194,6 @@ export function Game() {
         .join(' ')}
       style={{
         ['--grid-cols' as string]: cols,
-        ...(eventGlowBg
-          ? { ['--event-glow-bg' as string]: eventGlowBg }
-          : {}),
       }}
     >
       <aside className="game-rail" aria-label="Standings and match items">
@@ -213,7 +207,12 @@ export function Game() {
         <MatchPoolPanel itemPool={game.itemPool} />
       </aside>
 
-      <div className="game-play">
+      <div
+        className={['game-play', eventLive ? 'event-live' : '']
+          .filter(Boolean)
+          .join(' ')}
+        style={eventGlowStyle}
+      >
         <GameChrome
           roundMs={game.roundMs}
           elapsedMs={game.elapsedMs}

@@ -391,18 +391,34 @@ button {
   pointer-events: none;
   background:
     radial-gradient(
+      ellipse 95% 80% at 10% 14%,
+      color-mix(in srgb, var(--event-glow, #f59e0b) 44%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 90% 72% at 90% 24%,
+      color-mix(in srgb, var(--event-glow, #f59e0b) 34%, #fff 8%, transparent),
+      transparent 56%
+    ),
+    radial-gradient(
+      ellipse 85% 65% at 50% 100%,
+      color-mix(in srgb, var(--event-glow, #f59e0b) 30%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
       ellipse at center,
-      transparent 40%,
-      color-mix(in srgb, var(--event-glow, #f59e0b) 38%, transparent) 100%
+      transparent 46%,
+      color-mix(in srgb, var(--event-glow, #f59e0b) 28%, transparent) 100%
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--event-glow, #f59e0b) 18%, transparent),
-      transparent 30%,
-      transparent 70%,
-      color-mix(in srgb, var(--event-glow, #f59e0b) 14%, transparent)
+      color-mix(in srgb, var(--event-glow, #f59e0b) 16%, transparent),
+      transparent 28%,
+      transparent 72%,
+      color-mix(in srgb, var(--event-glow, #f59e0b) 12%, transparent)
     );
-  animation: event-vignette 1.4s ease-in-out infinite alternate;
+  mix-blend-mode: soft-light;
+  animation: event-vignette 1.8s ease-in-out infinite alternate;
 }
 
 /* Lobby world-event banner — sits under the items (codex) button */
@@ -1480,46 +1496,63 @@ button {
   animation: sd-grid-pulse 1.6s ease-in-out infinite;
 }
 
-/* World-event glow — stripes share every live event accent */
-.game-screen.event-live {
-  position: relative;
+/* World-event glow — lobby-style edge wash; accents bleed across soft blobs */
+.game-play.event-live {
+  isolation: isolate;
 }
 
-.game-screen.event-live::after {
+.game-play.event-live::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 4;
+  z-index: 3;
+  border-radius: inherit;
   background:
     radial-gradient(
+      ellipse 95% 80% at 8% 12%,
+      color-mix(in srgb, var(--event-glow-1, #f59e0b) 46%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 90% 75% at 92% 22%,
+      color-mix(in srgb, var(--event-glow-2, var(--event-glow-1, #f59e0b)) 40%, transparent),
+      transparent 56%
+    ),
+    radial-gradient(
+      ellipse 85% 70% at 48% 100%,
+      color-mix(in srgb, var(--event-glow-3, var(--event-glow-1, #f59e0b)) 34%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
       ellipse at center,
-      transparent 38%,
-      rgba(20, 16, 12, 0.42) 100%
+      transparent 48%,
+      color-mix(in srgb, var(--event-glow-1, #f59e0b) 26%, transparent) 100%
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, #000 18%, transparent),
-      transparent 30%,
-      transparent 70%,
-      color-mix(in srgb, #000 14%, transparent)
-    ),
-    var(--event-glow-bg, linear-gradient(90deg, #f59e0b, #f59e0b));
-  background-blend-mode: normal, normal, soft-light;
-  opacity: 0.55;
-  animation: event-vignette 1.4s ease-in-out infinite alternate;
+      color-mix(in srgb, var(--event-glow-1, #f59e0b) 16%, transparent),
+      transparent 26%,
+      transparent 74%,
+      color-mix(in srgb, var(--event-glow-2, var(--event-glow-1, #f59e0b)) 12%, transparent)
+    );
+  mix-blend-mode: soft-light;
+  opacity: 0.9;
+  animation: event-vignette 1.8s ease-in-out infinite alternate;
 }
 
-.game-screen.event-live .shop-grid {
+.game-play.event-live .shop-grid {
   animation: event-grid-pulse 1.6s ease-in-out infinite;
 }
 
 @keyframes event-vignette {
   from {
     opacity: 0.72;
+    filter: saturate(0.95);
   }
   to {
     opacity: 1;
+    filter: saturate(1.15);
   }
 }
 
