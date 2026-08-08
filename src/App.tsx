@@ -105,6 +105,9 @@ export default function App() {
   const pool = game?.itemPool ?? matchPool;
   const matchKind = useGameStore((s) => s.matchKind);
   const rankedRankIndex = useGameStore((s) => s.rankedRankIndex);
+  const lobbyMode = useGameStore((s) => s.lobby.mode);
+  const namingMode = useGameStore((s) => s.naming?.mode);
+  const poolMode = game?.mode ?? namingMode ?? lobbyMode ?? 'duel';
   const showPool =
     poolRevealOpen &&
     !!pool &&
@@ -134,6 +137,7 @@ export default function App() {
           <MatchPoolReveal
             countdown={countdown}
             itemPool={pool}
+            mode={poolMode === 'blitz' ? 'blitz' : 'duel'}
             early={phase === 'naming' || phase === 'playing'}
             skipEntrance={
               (phase === 'countdown' || phase === 'playing') && poolRevealPeeked

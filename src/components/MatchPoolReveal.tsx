@@ -12,6 +12,8 @@ import { SpriteIcon } from './SpriteIcon';
 type Props = {
   countdown: number;
   itemPool: ItemId[];
+  /** Match mode — keeps icon size in sync with shop tiles */
+  mode?: 'duel' | 'blitz';
   /** Dismissible peek (Tag Sale or mid-match) — shows Back instead of countdown */
   early?: boolean;
   /** Skip cell entrance animation (already shown during Tag Sale) */
@@ -25,6 +27,7 @@ type Props = {
 export function MatchPoolReveal({
   countdown,
   itemPool,
+  mode = 'duel',
   early,
   skipEntrance,
   onClose,
@@ -44,7 +47,7 @@ export function MatchPoolReveal({
 
   return (
     <div
-      className={`countdown-overlay${early ? ' early-peek' : ''}${skipEntrance ? ' no-entrance' : ''}`}
+      className={`countdown-overlay mode-${mode}${early ? ' early-peek' : ''}${skipEntrance ? ' no-entrance' : ''}`}
       aria-live="assertive"
       role="dialog"
       aria-label="Match item pool"
@@ -77,15 +80,17 @@ export function MatchPoolReveal({
                   setSelectedId((cur) => (cur === item.id ? null : item.id))
                 }
               >
-                <SpriteIcon
-                  id={item.id}
-                  className="pool-reveal-emoji"
-                  aria-hidden
-                />
+                <span className="pool-reveal-tile">
+                  <SpriteIcon
+                    id={item.id}
+                    className="shop-tile-emoji"
+                    aria-hidden
+                  />
+                  {ranked && unlock != null && (
+                    <span className="pool-reveal-unlock">R{unlock}</span>
+                  )}
+                </span>
                 <span className="pool-reveal-name">{item.name}</span>
-                {ranked && unlock != null && (
-                  <span className="pool-reveal-unlock">R{unlock}</span>
-                )}
               </button>
             );
           })}
