@@ -4,9 +4,11 @@ import type { SuddenDeathState } from '../game/types';
 type Props = {
   ms: number;
   suddenDeath: SuddenDeathState;
+  /** Full match length for the progress bar (defaults to CONFIG) */
+  totalMs?: number;
 };
 
-export function RoundClock({ ms, suddenDeath }: Props) {
+export function RoundClock({ ms, suddenDeath, totalMs }: Props) {
   if (suddenDeath.active) {
     const sec = Math.max(0, Math.ceil(suddenDeath.phaseMs / 1000));
     const ratio = Math.max(
@@ -36,6 +38,7 @@ export function RoundClock({ ms, suddenDeath }: Props) {
   const s = totalSec % 60;
   const urgent = clamped <= 30_000;
   const critical = clamped <= 10_000;
+  const span = Math.max(1, totalMs ?? CONFIG.GAME_LENGTH_MS);
 
   return (
     <div
@@ -48,7 +51,7 @@ export function RoundClock({ ms, suddenDeath }: Props) {
       <div className="round-clock-bar">
         <div
           className="round-clock-bar-fill"
-          style={{ width: `${(clamped / CONFIG.GAME_LENGTH_MS) * 100}%` }}
+          style={{ width: `${(clamped / span) * 100}%` }}
         />
       </div>
     </div>

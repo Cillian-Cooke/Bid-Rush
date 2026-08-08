@@ -4,6 +4,7 @@ import {
   paceAccent,
   paceLabel,
 } from '../game/pace';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   elapsedMs: number;
@@ -22,9 +23,7 @@ export function PaceBanner({ elapsedMs, motion = 'shown' }: Props) {
         role="status"
       >
         <span className="event-banner-rail" aria-hidden />
-        <span className="event-banner-emoji" aria-hidden>
-          ⚡
-        </span>
+        <SpriteIcon id="bolt" className="event-banner-emoji" aria-hidden />
         <div className="event-banner-copy">
           <span className="event-banner-kicker">Market Pace</span>
           <span className="event-banner-title">{formatPaceMult(mult)}</span>

@@ -339,6 +339,13 @@ export type PendingQuickSwap = {
   golden: boolean;
 };
 
+export type MatchRules = {
+  gameLengthMs: number;
+  speedMult: number;
+  startCoins: number;
+  tileTimerMs: number;
+};
+
 export type GameState = {
   mode: GameMode;
   gridCols: number;
@@ -367,6 +374,8 @@ export type GameState = {
   itemPool: ItemId[];
   /** Delayed Quick Swap countdowns */
   pendingQuickSwaps: PendingQuickSwap[];
+  /** Per-match knobs (custom / defaults) */
+  rules: MatchRules;
 };
 
 export type LobbyConfig = {
@@ -374,6 +383,8 @@ export type LobbyConfig = {
   difficulty: DifficultyMode;
   /** Filled after Tag Sale; optional until naming resolves */
   identities?: PlayerIdentity[];
+  /** Custom match overrides */
+  rules?: Partial<MatchRules>;
 };
 
 export type GameAction =

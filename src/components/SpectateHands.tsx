@@ -1,5 +1,6 @@
 import { getItem, quickSwapMarkedIds } from '../game/items';
 import type { PendingQuickSwap, Player } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   players: Player[];
@@ -25,7 +26,11 @@ export function SpectateHands({ players, pendingQuickSwaps = [] }: Props) {
               style={{ ['--player-color' as string]: p.color }}
             >
               <div className="spectate-who">
-                <span className="spectate-avatar">{p.avatar}</span>
+                <SpriteIcon
+                  id={p.avatar}
+                  className="spectate-avatar"
+                  aria-hidden
+                />
                 <div className="spectate-meta">
                   <span className="spectate-name">
                     {p.name}
@@ -56,7 +61,11 @@ export function SpectateHands({ players, pendingQuickSwaps = [] }: Props) {
                           threatened ? ' · Quick Swap' : ''
                         }`}
                       >
-                        {def.emoji}
+                        <SpriteIcon
+                          id={h.itemId}
+                          golden={h.golden}
+                          aria-hidden
+                        />
                       </span>
                     );
                   })

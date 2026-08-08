@@ -3,6 +3,7 @@ import { CONFIG, PLAYER_COLORS } from '../game/constants';
 import { getItem, isMoneyEngine, ITEM_LIST } from '../game/items';
 import type { BotArchetype, ItemId, WorldEventId } from '../game/types';
 import { getWorldEvent, RANDOM_WORLD_EVENT_IDS } from '../game/worldEvents';
+import { spriteUrl } from '../sprites/atlas';
 
 export type LobbyBgEvent = {
   id: WorldEventId;
@@ -65,7 +66,7 @@ type LobbyEvent = {
 
 type TileDom = {
   root: HTMLDivElement;
-  emoji: HTMLSpanElement;
+  emoji: HTMLImageElement;
   price: HTMLSpanElement;
   timer: HTMLSpanElement;
   frost: HTMLSpanElement;
@@ -419,9 +420,22 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
     }
 
     const def = getItem(tile.itemId);
-    if (els.emoji.textContent !== def.emoji) els.emoji.textContent = def.emoji;
-    const priceText = `🪙${tile.price}`;
-    if (els.price.textContent !== priceText) els.price.textContent = priceText;
+    const src = spriteUrl(tile.itemId) ?? '';
+    if (els.emoji.getAttribute('src') !== src) {
+      els.emoji.src = src;
+      els.emoji.alt = def.name;
+    }
+    const priceText = `${tile.price}`;
+    if (els.price.dataset.price !== priceText) {
+      els.price.dataset.price = priceText;
+      els.price.replaceChildren();
+      const coin = document.createElement('img');
+      coin.className = 'sprite-icon lobby-auction-coin';
+      coin.src = spriteUrl('coin') ?? '';
+      coin.alt = '';
+      coin.setAttribute('aria-hidden', 'true');
+      els.price.append(coin, document.createTextNode(priceText));
+    }
 
     els.timer.style.transform = `scaleX(${ratio})`;
     els.timer.style.background = ratio > 0.35 ? '#3aaa62' : '#d6453a';
@@ -785,7 +799,7 @@ export function LobbyAuctionBg({ onEventChange }: Props) {
                 }}
                 className="lobby-auction-tile"
               >
-                <span className="lobby-auction-emoji" />
+                <img className="lobby-auction-emoji sprite-icon" alt="" aria-hidden />
                 <span className="lobby-auction-price" />
                 <span className="lobby-auction-timer" />
                 <span className="lobby-auction-frost" hidden aria-hidden />

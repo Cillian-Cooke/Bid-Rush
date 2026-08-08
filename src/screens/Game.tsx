@@ -9,6 +9,7 @@ import { PoolToggleButton } from '../components/PoolToggleButton';
 import { PurseStrip } from '../components/PurseStrip';
 import { ShopTile } from '../components/ShopTile';
 import { SpectateHands } from '../components/SpectateHands';
+import { SpriteIcon } from '../components/SpriteIcon';
 import { TargetingOverlay } from '../components/TargetingOverlay';
 import { CONFIG } from '../game/constants';
 import { getItem, quickSwapMarkedIds } from '../game/items';
@@ -221,6 +222,7 @@ export function Game() {
           worldEvent={game.worldEvent}
           players={game.players}
           onQuit={() => setQuitConfirm(true)}
+          matchLengthMs={game.rules?.gameLengthMs}
         />
 
         {targeting && (
@@ -228,7 +230,7 @@ export function Game() {
         )}
         {!targeting && handFocus && focusedItem && human.isAlive && !spectating && (
           <div className="use-mode-banner">
-            <span>{getItem(focusedItem.itemId).emoji}</span>
+            <SpriteIcon id={focusedItem.itemId} aria-hidden />
             <span>
               {canUse
                 ? 'Use or Sell above — tap again to cancel'

@@ -1,5 +1,6 @@
 import type { FxKind } from '../game/types';
 import type { Player } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   player: Player;
@@ -15,22 +16,22 @@ type Props = {
   onTap?: () => void;
 };
 
-const PANEL_FX_EMOJI: Partial<Record<FxKind, string>> = {
-  gold_spark: '✨',
-  print: '💵',
-  goose: '🌟',
-  dividend: '📈',
-  piggy: '🪙',
-  mystery_sell: '🎉',
-  leech: '🧛',
-  cuffs: '🔒',
-  pickpocket: '🧤',
-  heist: '🥷',
-  quick_swap: '🔀',
-  bomb_fuse: '💣',
-  event_money: '💰',
-  event_tax: '🧾',
-  event_shower: '🪙',
+const PANEL_FX_SPRITE: Partial<Record<FxKind, string>> = {
+  gold_spark: 'gilder',
+  print: 'bank_note',
+  goose: 'star',
+  dividend: 'stock_market',
+  piggy: 'coin',
+  mystery_sell: 'mystery_box',
+  leech: 'coin_leech',
+  cuffs: 'lock_status',
+  pickpocket: 'pickpocket',
+  heist: 'heist_kit',
+  quick_swap: 'quick_swap',
+  bomb_fuse: 'bomb',
+  event_money: 'money_bag',
+  event_tax: 'receipt',
+  event_shower: 'coin',
 };
 
 export function PlayerPanel({
@@ -70,20 +71,23 @@ export function PlayerPanel({
     <>
       {isYou && <span className="you-tag">YOU</span>}
       <span className={`player-avatar${casting ? ' cast-swap' : ''}`}>
-        {displayAvatar}
+        <SpriteIcon id={displayAvatar} aria-hidden />
       </span>
       <div className="player-meta">
         <span className="player-name">{player.name}</span>
-        <span className="player-coins">💰 {player.coins}</span>
+        <span className="player-coins">
+          <SpriteIcon id="money_bag" className="inline-sprite" aria-hidden />{' '}
+          {player.coins}
+        </span>
       </div>
       {player.handcuffMs > 0 && (
         <span className="status-badge" title="Handcuffed">
-          🔒
+          <SpriteIcon id="lock_status" aria-hidden />
         </span>
       )}
       {fuseSec != null && (
         <span className="bomb-fuse" title="Bomb fuse">
-          💣 {fuseSec}s
+          <SpriteIcon id="bomb" aria-hidden /> {fuseSec}s
         </span>
       )}
       {!player.isAlive && <span className="eliminated-badge">OUT</span>}
@@ -102,7 +106,7 @@ export function PlayerPanel({
       )}
       {fxKind && fxKind !== 'active_cast' && (
         <span className="panel-fx-burst" aria-hidden>
-          {PANEL_FX_EMOJI[fxKind] ?? '✨'}
+          <SpriteIcon id={PANEL_FX_SPRITE[fxKind] ?? 'star'} aria-hidden />
         </span>
       )}
     </>

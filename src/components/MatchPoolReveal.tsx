@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { goldenBlurb, regularBlurb } from '../game/itemBlurbs';
 import { getItem } from '../game/items';
+import {
+  getRankDef,
+  rankedNewItemsAtRank,
+  rankedUnlockRank,
+} from '../game/ranked';
 import type { ItemId } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   countdown: number;
@@ -11,6 +17,9 @@ type Props = {
   /** Skip cell entrance animation (already shown during Tag Sale) */
   skipEntrance?: boolean;
   onClose?: () => void;
+  /** Ranked match: show rank pool banner */
+  ranked?: boolean;
+  rankedRankIndex?: number;
 };
 
 export function MatchPoolReveal({
@@ -19,12 +28,19 @@ export function MatchPoolReveal({
   early,
   skipEntrance,
   onClose,
+  ranked,
+  rankedRankIndex = 0,
 }: Props) {
   const [selectedId, setSelectedId] = useState<ItemId | null>(null);
   const items = [...itemPool]
     .map((id) => getItem(id))
     .sort((a, b) => a.name.localeCompare(b.name));
   const selected = selectedId ? getItem(selectedId) : null;
+  const rankDef = ranked ? getRankDef(rankedRankIndex) : null;
+  const newThisRank =
+    ranked && rankedRankIndex > 0
+      ? new Set(rankedNewItemsAtRank(rankedRankIndex))
+      : null;
 
   return (
     <div
@@ -34,32 +50,63 @@ export function MatchPoolReveal({
       aria-label="Match item pool"
     >
       <div className="pool-reveal">
+        {rankDef && (
+          <header className="pool-reveal-rank">
+            <span className="pool-reveal-rank-name">
+              Ranked · {rankDef.name}
+            </span>
+            <span className="pool-reveal-rank-meta">
+              {itemPool.length} items in this rank
+              {rankedRankIndex > 0
+                ? ` · ${newThisRank?.size ?? 0} unlocked here`
+                : ' · starter set'}
+            </span>
+          </header>
+        )}
+
         <div className="pool-reveal-grid">
-          {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`pool-reveal-cell${selectedId === item.id ? ' selected' : ''}`}
-              onClick={() =>
-                setSelectedId((cur) => (cur === item.id ? null : item.id))
-              }
-            >
-              <span className="pool-reveal-emoji" aria-hidden>
-                {item.emoji}
-              </span>
-              <span className="pool-reveal-name">{item.name}</span>
-            </button>
-          ))}
+          {items.map((item) => {
+            const unlock = rankedUnlockRank(item.id);
+            const isNew = newThisRank?.has(item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`pool-reveal-cell${selectedId === item.id ? ' selected' : ''}${isNew ? ' is-rank-new' : ''}`}
+                onClick={() =>
+                  setSelectedId((cur) => (cur === item.id ? null : item.id))
+                }
+              >
+                <SpriteIcon
+                  id={item.id}
+                  className="pool-reveal-emoji"
+                  aria-hidden
+                />
+                <span className="pool-reveal-name">{item.name}</span>
+                {ranked && unlock != null && (
+                  <span className="pool-reveal-unlock">R{unlock}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="pool-reveal-detail" aria-live="polite">
           {selected ? (
             <>
               <div className="pool-reveal-detail-head">
-                <span className="pool-reveal-detail-emoji" aria-hidden>
-                  {selected.emoji}
-                </span>
+                <SpriteIcon
+                  id={selected.id}
+                  className="pool-reveal-detail-emoji"
+                  aria-hidden
+                />
                 <span className="pool-reveal-detail-name">{selected.name}</span>
+                {ranked && rankedUnlockRank(selected.id) != null && (
+                  <span className="pool-reveal-detail-rank">
+                    Unlocks at{' '}
+                    {getRankDef(rankedUnlockRank(selected.id)! - 1).name}
+                  </span>
+                )}
               </div>
               <p className="pool-reveal-detail-blurb">
                 {regularBlurb(selected.id)}
@@ -70,7 +117,9 @@ export function MatchPoolReveal({
             </>
           ) : (
             <p className="pool-reveal-detail-hint">
-              Tap an item to see what it does
+              {ranked
+                ? 'Tap an item · R# shows which rank unlocks it'
+                : 'Tap an item to see what it does'}
             </p>
           )}
         </div>

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { CONFIG } from '../game/constants';
-import { getItem } from '../game/items';
 import type { HandItem, Player } from '../game/types';
 import type { FxInstance } from '../store';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   player: Player;
@@ -12,14 +12,14 @@ type Props = {
 
 type EffectCell = {
   key: string;
-  emoji: string;
+  spriteId: string;
   count: number;
   golden: boolean;
 };
 
 type Flash = {
   key: string;
-  emoji: string;
+  spriteId: string;
   golden?: boolean;
   /** Progress 0–1 remaining; null = no bar (brief pop) */
   progress: number | null;
@@ -56,10 +56,9 @@ function buildGrid(hand: HandItem[]): EffectCell[] {
     if (existing) {
       existing.count += 1;
     } else {
-      const def = getItem(item.itemId);
       map.set(key, {
         key,
-        emoji: def.emoji,
+        spriteId: item.itemId,
         count: 1,
         golden: item.golden,
       });
@@ -91,10 +90,9 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
       if (!BUFF_IDS.has(item.itemId)) continue;
       if (seenBuffs.current.has(item.instanceId)) continue;
       seenBuffs.current.add(item.instanceId);
-      const def = getItem(item.itemId);
       setBrief({
         key: `buff-${item.instanceId}`,
-        emoji: def.emoji,
+        spriteId: item.itemId,
         golden: item.golden,
         progress: null,
         until: performance.now() + BRIEF_MS,
@@ -116,14 +114,14 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
       seenFx.current.add(f.id);
       setBrief({
         key: `fx-${f.id}`,
-        emoji:
+        spriteId:
           f.kind === 'pickpocket'
-            ? '🧤'
+            ? 'pickpocket'
             : f.kind === 'heist'
-              ? '🥷'
+              ? 'heist_kit'
               : f.kind === 'quick_swap'
-                ? '🔀'
-                : '🧛',
+                ? 'quick_swap'
+                : 'coin_leech',
         progress: null,
         until: performance.now() + BRIEF_MS,
       });
@@ -158,25 +156,25 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
   if (player.handcuffMs > 0) {
     flash = {
       key: 'cuffs',
-      emoji: '🔒',
+      spriteId: 'lock_status',
       progress: Math.max(0, Math.min(1, player.handcuffMs / cuffPeak.current)),
     };
   } else if (coldMarketMs > 0) {
     flash = {
       key: 'cold',
-      emoji: '🧊',
+      spriteId: 'ice_status',
       progress: Math.max(0, Math.min(1, coldMarketMs / coldPeak.current)),
     };
   } else if (player.muteMs > 0) {
     flash = {
       key: 'mute',
-      emoji: '🔇',
+      spriteId: 'mute_status',
       progress: Math.max(0, Math.min(1, player.muteMs / mutePeak.current)),
     };
   } else if (player.roiMs > 0) {
     flash = {
       key: 'roi',
-      emoji: '📉',
+      spriteId: 'roi_status',
       progress: Math.max(0, Math.min(1, player.roiMs / roiPeak.current)),
     };
   } else if (brief) {
@@ -193,7 +191,12 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
           className={`purse-effect-flash${flash.golden ? ' golden' : ''}`}
           key={flash.key}
         >
-          <span className="purse-effect-flash-emoji">{flash.emoji}</span>
+          <SpriteIcon
+            id={flash.spriteId}
+            className="purse-effect-flash-emoji"
+            golden={flash.golden}
+            aria-hidden
+          />
           {flash.key === 'roi' && player.roiTargetCoins > 0 && (
             <span className="purse-effect-flash-meta">
               →{player.roiTargetCoins}
@@ -216,7 +219,12 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
               className={`purse-effect-cell${cell.golden ? ' golden' : ''}`}
               title={cell.count > 1 ? `${cell.count}×` : undefined}
             >
-              <span className="purse-effect-emoji">{cell.emoji}</span>
+              <SpriteIcon
+                id={cell.spriteId}
+                className="purse-effect-emoji"
+                golden={cell.golden}
+                aria-hidden
+              />
               {cell.count > 1 && (
                 <span className="purse-effect-count">{cell.count}×</span>
               )}

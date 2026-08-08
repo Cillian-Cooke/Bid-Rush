@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { getItem } from '../game/items';
 import type { TargetingMode } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   targeting: TargetingMode;
@@ -26,7 +27,7 @@ export function TargetingOverlay({ targeting, onCancel }: Props) {
 
   return (
     <div className="targeting-banner">
-      <span className="targeting-emoji">{def.emoji}</span>
+      <SpriteIcon id={def.id} className="targeting-emoji" aria-hidden />
       <span className="targeting-hint">{hint}</span>
       <button type="button" className="targeting-cancel" onClick={onCancel}>
         <X size={20} />

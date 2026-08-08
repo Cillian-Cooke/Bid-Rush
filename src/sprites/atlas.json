@@ -1,0 +1,699 @@
+{
+  "cell": 32,
+  "gutter": 1,
+  "palette": [
+    "#1a1420",
+    "#3d2f4a",
+    "#f4e8c8",
+    "#f0c040",
+    "#c48820",
+    "#2a9d8f",
+    "#1a6b62",
+    "#7dd3fc",
+    "#d6453a",
+    "#8b1e18",
+    "#7c3aed",
+    "#4c1d95",
+    "#3aaa62",
+    "#1f6b3a",
+    "#f97316",
+    "#6b7280"
+  ],
+  "frames": {
+    "coin_mine": {
+      "sheet": "items-a.png",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/coin_mine.png"
+    },
+    "money_printer": {
+      "sheet": "items-a.png",
+      "x": 33,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/money_printer.png"
+    },
+    "golden_goose": {
+      "sheet": "items-a.png",
+      "x": 66,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/golden_goose.png"
+    },
+    "bank_note": {
+      "sheet": "items-a.png",
+      "x": 99,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/bank_note.png"
+    },
+    "stock_market": {
+      "sheet": "items-a.png",
+      "x": 0,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/stock_market.png"
+    },
+    "chaos_die": {
+      "sheet": "items-a.png",
+      "x": 33,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/chaos_die.png"
+    },
+    "chrysalis": {
+      "sheet": "items-a.png",
+      "x": 66,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/chrysalis.png"
+    },
+    "ipo": {
+      "sheet": "items-a.png",
+      "x": 99,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/ipo.png"
+    },
+    "broker": {
+      "sheet": "items-a.png",
+      "x": 0,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/broker.png"
+    },
+    "piggy_bank": {
+      "sheet": "items-a.png",
+      "x": 33,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/piggy_bank.png"
+    },
+    "mystery_box": {
+      "sheet": "items-a.png",
+      "x": 66,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/mystery_box.png"
+    },
+    "price_doubler": {
+      "sheet": "items-a.png",
+      "x": 99,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/price_doubler.png"
+    },
+    "reset_hammer": {
+      "sheet": "items-a.png",
+      "x": 0,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/reset_hammer.png"
+    },
+    "inflation": {
+      "sheet": "items-a.png",
+      "x": 33,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/inflation.png"
+    },
+    "interest": {
+      "sheet": "items-a.png",
+      "x": 66,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/interest.png"
+    },
+    "time_freeze": {
+      "sheet": "items-a.png",
+      "x": 99,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/time_freeze.png"
+    },
+    "fast_forward": {
+      "sheet": "items-a.png",
+      "x": 0,
+      "y": 132,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/fast_forward.png"
+    },
+    "swap_portal": {
+      "sheet": "items-a.png",
+      "x": 33,
+      "y": 132,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/swap_portal.png"
+    },
+    "shop_refresh": {
+      "sheet": "items-a.png",
+      "x": 66,
+      "y": 132,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/shop_refresh.png"
+    },
+    "handcuffs": {
+      "sheet": "items-a.png",
+      "x": 99,
+      "y": 132,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/handcuffs.png"
+    },
+    "pickpocket": {
+      "sheet": "items-b.png",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/pickpocket.png"
+    },
+    "heist_kit": {
+      "sheet": "items-b.png",
+      "x": 33,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/heist_kit.png"
+    },
+    "mute": {
+      "sheet": "items-b.png",
+      "x": 66,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/mute.png"
+    },
+    "cold_market": {
+      "sheet": "items-b.png",
+      "x": 99,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/cold_market.png"
+    },
+    "roi": {
+      "sheet": "items-b.png",
+      "x": 0,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/roi.png"
+    },
+    "coin_leech": {
+      "sheet": "items-b.png",
+      "x": 33,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/coin_leech.png"
+    },
+    "magnet": {
+      "sheet": "items-b.png",
+      "x": 66,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/magnet.png"
+    },
+    "kickback": {
+      "sheet": "items-b.png",
+      "x": 99,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/kickback.png"
+    },
+    "curse_idol": {
+      "sheet": "items-b.png",
+      "x": 0,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/curse_idol.png"
+    },
+    "bomb": {
+      "sheet": "items-b.png",
+      "x": 33,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/bomb.png"
+    },
+    "dynamite": {
+      "sheet": "items-b.png",
+      "x": 66,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/dynamite.png"
+    },
+    "bid_lock": {
+      "sheet": "items-b.png",
+      "x": 99,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/bid_lock.png"
+    },
+    "mirror": {
+      "sheet": "items-b.png",
+      "x": 0,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/mirror.png"
+    },
+    "gilder": {
+      "sheet": "items-b.png",
+      "x": 33,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/gilder.png"
+    },
+    "tip_jar": {
+      "sheet": "items-b.png",
+      "x": 66,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/tip_jar.png"
+    },
+    "haste_gear": {
+      "sheet": "items-b.png",
+      "x": 99,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/haste_gear.png"
+    },
+    "quick_swap": {
+      "sheet": "items-b.png",
+      "x": 0,
+      "y": 132,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/quick_swap.png"
+    },
+    "skull": {
+      "sheet": "ui-emojis.png",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/skull.png"
+    },
+    "runner": {
+      "sheet": "ui-emojis.png",
+      "x": 33,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/runner.png"
+    },
+    "scales": {
+      "sheet": "ui-emojis.png",
+      "x": 66,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/scales.png"
+    },
+    "fire": {
+      "sheet": "ui-emojis.png",
+      "x": 99,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/fire.png"
+    },
+    "coin": {
+      "sheet": "ui-emojis.png",
+      "x": 0,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/coin.png"
+    },
+    "money_bag": {
+      "sheet": "ui-emojis.png",
+      "x": 33,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/money_bag.png"
+    },
+    "receipt": {
+      "sheet": "ui-emojis.png",
+      "x": 66,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/receipt.png"
+    },
+    "bolt": {
+      "sheet": "ui-emojis.png",
+      "x": 99,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/bolt.png"
+    },
+    "tornado": {
+      "sheet": "ui-emojis.png",
+      "x": 0,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/tornado.png"
+    },
+    "star": {
+      "sheet": "ui-emojis.png",
+      "x": 33,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/star.png"
+    },
+    "balance": {
+      "sheet": "ui-emojis.png",
+      "x": 66,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/balance.png"
+    },
+    "lock_status": {
+      "sheet": "ui-emojis.png",
+      "x": 99,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/lock_status.png"
+    },
+    "ice_status": {
+      "sheet": "ui-emojis.png",
+      "x": 0,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/ice_status.png"
+    },
+    "mute_status": {
+      "sheet": "ui-emojis.png",
+      "x": 33,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/mute_status.png"
+    },
+    "roi_status": {
+      "sheet": "ui-emojis.png",
+      "x": 66,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/roi_status.png"
+    },
+    "cool": {
+      "sheet": "avatars.png",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/cool.png"
+    },
+    "cowboy": {
+      "sheet": "avatars.png",
+      "x": 33,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/cowboy.png"
+    },
+    "fox": {
+      "sheet": "avatars.png",
+      "x": 66,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/fox.png"
+    },
+    "cat": {
+      "sheet": "avatars.png",
+      "x": 99,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/cat.png"
+    },
+    "frog": {
+      "sheet": "avatars.png",
+      "x": 0,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/frog.png"
+    },
+    "lion": {
+      "sheet": "avatars.png",
+      "x": 33,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/lion.png"
+    },
+    "panda": {
+      "sheet": "avatars.png",
+      "x": 66,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/panda.png"
+    },
+    "tiger": {
+      "sheet": "avatars.png",
+      "x": 99,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/tiger.png"
+    },
+    "unicorn": {
+      "sheet": "avatars.png",
+      "x": 0,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/unicorn.png"
+    },
+    "dragon": {
+      "sheet": "avatars.png",
+      "x": 33,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/dragon.png"
+    },
+    "alien": {
+      "sheet": "avatars.png",
+      "x": 66,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/alien.png"
+    },
+    "robot": {
+      "sheet": "avatars.png",
+      "x": 99,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "avatars",
+      "file": "avatars/robot.png"
+    },
+    "money_money_money": {
+      "sheet": "events.png",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/money_money_money.png"
+    },
+    "tax_collector": {
+      "sheet": "events.png",
+      "x": 33,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/tax_collector.png"
+    },
+    "fire_sale": {
+      "sheet": "events.png",
+      "x": 66,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/fire_sale.png"
+    },
+    "deep_freeze": {
+      "sheet": "events.png",
+      "x": 99,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/deep_freeze.png"
+    },
+    "turbo_market": {
+      "sheet": "events.png",
+      "x": 0,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/turbo_market.png"
+    },
+    "bomb_bazaar": {
+      "sheet": "events.png",
+      "x": 33,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/bomb_bazaar.png"
+    },
+    "coin_shower": {
+      "sheet": "events.png",
+      "x": 66,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/coin_shower.png"
+    },
+    "shuffle_storm": {
+      "sheet": "events.png",
+      "x": 99,
+      "y": 33,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/shuffle_storm.png"
+    },
+    "inflation_wave": {
+      "sheet": "events.png",
+      "x": 0,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/inflation_wave.png"
+    },
+    "mystery_mall": {
+      "sheet": "events.png",
+      "x": 33,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/mystery_mall.png"
+    },
+    "golden_chaos": {
+      "sheet": "events.png",
+      "x": 66,
+      "y": 66,
+      "w": 32,
+      "h": 32,
+      "folder": "events",
+      "file": "events/golden_chaos.png"
+    }
+  }
+}

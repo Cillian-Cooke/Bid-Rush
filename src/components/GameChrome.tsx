@@ -14,6 +14,7 @@ type Props = {
   worldEvent: WorldEventState;
   players: Player[];
   onQuit: () => void;
+  matchLengthMs?: number;
 };
 
 function formatSec(ms: number): string {
@@ -32,6 +33,7 @@ export function GameChrome({
   worldEvent,
   players,
   onQuit,
+  matchLengthMs,
 }: Props) {
   const showPace = paceBannerMs > 0;
   const showSudden = suddenDeath.active;
@@ -49,7 +51,11 @@ export function GameChrome({
         <div
           className={`round-clock-panel${liveEvents.length ? ' has-chips' : ''}`}
         >
-          <RoundClock ms={roundMs} suddenDeath={suddenDeath} />
+          <RoundClock
+            ms={roundMs}
+            suddenDeath={suddenDeath}
+            totalMs={matchLengthMs}
+          />
           {liveEvents.length > 0 && (
             <div className="event-chip-grid" aria-label="Live events">
               {liveEvents.map((live) => {

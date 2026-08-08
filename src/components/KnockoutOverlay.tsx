@@ -1,4 +1,5 @@
 import type { DeathReport } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   reason: 'unpaid' | 'bomb' | 'bracket' | 'roi' | 'leech' | null;
@@ -43,9 +44,11 @@ export function KnockoutOverlay({
           <ul className="death-trail" aria-label="What hit your score">
             {swings.map((s, i) => (
               <li key={`${s.label}-${i}`} className="death-trail-row">
-                <span className="death-trail-emoji" aria-hidden>
-                  {s.emoji}
-                </span>
+                <SpriteIcon
+                  id={s.emoji}
+                  className="death-trail-emoji"
+                  aria-hidden
+                />
                 <span className="death-trail-label">{s.label}</span>
                 {s.delta !== 0 && (
                   <span

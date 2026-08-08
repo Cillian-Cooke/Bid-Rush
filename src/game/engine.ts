@@ -92,15 +92,21 @@ function cloneState(state: GameState): GameState {
     suddenDeath: { ...state.suddenDeath },
     itemPool: [...state.itemPool],
     pendingQuickSwaps: state.pendingQuickSwaps.map((p) => ({ ...p })),
+    rules: {
+      gameLengthMs: state.rules?.gameLengthMs ?? CONFIG.GAME_LENGTH_MS,
+      speedMult: state.rules?.speedMult ?? 1,
+      startCoins: state.rules?.startCoins ?? CONFIG.START_COINS,
+      tileTimerMs: state.rules?.tileTimerMs ?? CONFIG.TILE_TIMER_MS,
+    },
   };
 }
 
-function makeTile(index: number, itemId: ItemId): Tile {
+function makeTile(index: number, itemId: ItemId, tileTimerMs = CONFIG.TILE_TIMER_MS): Tile {
   return {
     index,
     itemId,
     price: startPriceOf(itemId),
-    timerMs: CONFIG.TILE_TIMER_MS,
+    timerMs: tileTimerMs,
     highBidderId: null,
     freezeMs: 0,
     bidLocked: false,
@@ -478,12 +484,18 @@ export function createInitialState(
     })();
 
   const humanId = 'player_0';
+  const rules = {
+    gameLengthMs: config.rules?.gameLengthMs ?? CONFIG.GAME_LENGTH_MS,
+    speedMult: config.rules?.speedMult ?? 1,
+    startCoins: config.rules?.startCoins ?? CONFIG.START_COINS,
+    tileTimerMs: config.rules?.tileTimerMs ?? CONFIG.TILE_TIMER_MS,
+  };
   const players: Player[] = identities.map((id, i) => ({
     id: `player_${i}`,
     name: id.name,
     avatar: id.avatar,
     color: id.color,
-    coins: CONFIG.START_COINS,
+    coins: rules.startCoins,
     hand: [],
     isHuman: id.isHuman,
     isAlive: true,
@@ -516,7 +528,7 @@ export function createInitialState(
     gridCols: setup.gridCols,
     players,
     tiles,
-    roundMs: CONFIG.GAME_LENGTH_MS,
+    roundMs: rules.gameLengthMs,
     elapsedMs: 0,
     paceBannerMs: 0,
     humanId: human?.id ?? humanId,
@@ -536,9 +548,10 @@ export function createInitialState(
     coldMarketMs: 0,
     itemPool,
     pendingQuickSwaps: [],
+    rules,
   };
   for (let i = 0; i < setup.gridSize; i++) {
-    tiles.push(makeTile(i, drawShopItem(draft, rng)));
+    tiles.push(makeTile(i, drawShopItem(draft, rng), rules.tileTimerMs));
   }
 
   return draft;
@@ -561,7 +574,14 @@ function richestOpponent(state: GameState, selfId: string): Player | null {
 function restockTile(state: GameState, tileIndex: number, rng: () => number): void {
   const tile = state.tiles[tileIndex];
   if (!tile) return;
-  Object.assign(tile, makeTile(tileIndex, drawShopItem(state, rng)));
+  Object.assign(
+    tile,
+    makeTile(
+      tileIndex,
+      drawShopItem(state, rng),
+      state.rules?.tileTimerMs ?? CONFIG.TILE_TIMER_MS,
+    ),
+  );
 }
 
 const TRAIL_MAX = 12;
@@ -835,7 +855,7 @@ export function bid(
 
   tile.price += CONFIG.BID_INCREMENT;
   tile.highBidderId = playerId;
-  tile.timerMs = CONFIG.TILE_TIMER_MS;
+  tile.timerMs = next.rules?.tileTimerMs ?? CONFIG.TILE_TIMER_MS;
   tile.flash = 'bid';
   tile.flashMs = 200;
 
@@ -1922,6 +1942,9 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
 
   // Clear old events each tick (UI consumes via store)
   next.events = [];
+
+  const speed = Math.max(0.25, next.rules?.speedMult ?? 1);
+  dtMs = dtMs * speed;
 
   if (!next.suddenDeath.active) {
     next.roundMs = Math.max(0, next.roundMs - dtMs);

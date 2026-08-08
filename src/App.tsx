@@ -95,6 +95,8 @@ export default function App() {
   const matchCovered = resultsSheet.show;
 
   const pool = game?.itemPool ?? matchPool;
+  const matchKind = useGameStore((s) => s.matchKind);
+  const rankedRankIndex = useGameStore((s) => s.rankedRankIndex);
   const showPool =
     poolRevealOpen &&
     !!pool &&
@@ -129,6 +131,8 @@ export default function App() {
               (phase === 'countdown' || phase === 'playing') && poolRevealPeeked
             }
             onClose={closePoolReveal}
+            ranked={matchKind === 'ranked'}
+            rankedRankIndex={rankedRankIndex ?? 0}
           />
         )}
       </StackSheet>

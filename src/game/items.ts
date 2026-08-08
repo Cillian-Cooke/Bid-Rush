@@ -392,11 +392,18 @@ export const ITEMS: Record<ItemId, ItemDef> = {
 
 export const ITEM_LIST: ItemDef[] = Object.values(ITEMS);
 
-/** How many item types appear in a single match */
+/** How many item types appear in a single match (casual uses the full set) */
 export const MATCH_POOL_SIZE = 16;
 
 export function getItem(id: ItemId): ItemDef {
   return ITEMS[id];
+}
+
+/** Every spawnable item — used for Casual matches. */
+export function fullMatchPool(): ItemId[] {
+  return ITEM_LIST.filter((i) => i.spawnWeight > 0)
+    .map((i) => i.id)
+    .sort((a, b) => a.localeCompare(b));
 }
 
 /** Shop listing floor for a freshly stocked tile. */

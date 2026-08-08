@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { getItem } from '../game/items';
 import type { FxKind, Tile } from '../game/types';
 import { CONFIG } from '../game/constants';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   tile: Tile;
@@ -20,22 +21,22 @@ function timerColor(ratio: number): string {
   return '#d6453a';
 }
 
-const TILE_FX_EMOJI: Partial<Record<FxKind, string>> = {
-  double: '💥',
-  discount: '🏷️',
-  hammer: '🔨',
-  inflate: '📈',
-  freeze: '❄️',
-  fastforward: '⏩',
-  overtime: '⏳',
-  swap: '🌀',
-  refresh: '✨',
-  shuffle: '🎲',
-  bomb_fuse: '💣',
-  mystery_sell: '🎁',
-  event_money: '💰',
-  event_tax: '🧾',
-  event_shower: '🪙',
+const TILE_FX_SPRITE: Partial<Record<FxKind, string>> = {
+  double: 'price_doubler',
+  discount: 'fire',
+  hammer: 'reset_hammer',
+  inflate: 'stock_market',
+  freeze: 'time_freeze',
+  fastforward: 'fast_forward',
+  overtime: 'time_freeze',
+  swap: 'swap_portal',
+  refresh: 'shop_refresh',
+  shuffle: 'chaos_die',
+  bomb_fuse: 'bomb',
+  mystery_sell: 'mystery_box',
+  event_money: 'money_bag',
+  event_tax: 'receipt',
+  event_shower: 'coin',
 };
 
 export function ShopTile({
@@ -82,17 +83,24 @@ export function ShopTile({
       onClick={onTap}
       aria-label={`${def.name}, price ${tile.price}${tile.bidLocked ? ', locked' : ''}`}
     >
-      <span className="shop-tile-emoji">{def.emoji}</span>
-      <span className="shop-tile-price">🪙 {tile.price}</span>
+      <SpriteIcon id={tile.itemId} className="shop-tile-emoji" aria-hidden />
+      <span className="shop-tile-price">
+        <SpriteIcon id="coin" className="shop-tile-coin" aria-hidden />
+        {tile.price}
+      </span>
       {tile.bidLocked && (
         <span className="shop-tile-lock" aria-hidden>
-          🔐
+          <SpriteIcon id="bid_lock" aria-hidden />
         </span>
       )}
-      {frozen && <span className="shop-tile-frost">❄️</span>}
+      {frozen && (
+        <span className="shop-tile-frost">
+          <SpriteIcon id="ice_status" aria-hidden />
+        </span>
+      )}
       {fxKind && (
         <span className="tile-fx-burst" aria-hidden>
-          {TILE_FX_EMOJI[fxKind] ?? '✨'}
+          <SpriteIcon id={TILE_FX_SPRITE[fxKind] ?? 'star'} aria-hidden />
           {fxLabel && <span className="tile-fx-label">{fxLabel}</span>}
         </span>
       )}

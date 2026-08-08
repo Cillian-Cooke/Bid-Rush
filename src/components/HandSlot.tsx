@@ -6,6 +6,7 @@ import {
   passiveChargeProgress,
 } from '../game/items';
 import type { FxKind, HandItem } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   item: HandItem | null;
@@ -237,7 +238,12 @@ export function HandSlot({
             ★
           </span>
         )}
-        <span className="hand-emoji">{def.emoji}</span>
+        <SpriteIcon
+          id={item.itemId}
+          className="hand-emoji"
+          golden={item.golden}
+          aria-hidden
+        />
         <span className="hand-sell">🪙{sellLabel}</span>
         {isBomb && item.bombFuseMs != null && (
           <span className="hand-fuse">{Math.ceil(item.bombFuseMs / 1000)}s</span>

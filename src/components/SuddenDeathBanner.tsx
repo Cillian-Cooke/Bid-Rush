@@ -1,5 +1,6 @@
 import { CONFIG } from '../game/constants';
 import type { Player, SuddenDeathState } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   suddenDeath: SuddenDeathState;
@@ -21,9 +22,7 @@ export function SuddenDeathBanner({ suddenDeath, players }: Props) {
         role="status"
       >
         <span className="event-banner-rail" aria-hidden />
-        <span className="event-banner-emoji" aria-hidden>
-          💀
-        </span>
+        <SpriteIcon id="skull" className="event-banner-emoji" aria-hidden />
         <div className="event-banner-copy">
           <span className="event-banner-kicker">Sudden Death</span>
           <span className="event-banner-title">

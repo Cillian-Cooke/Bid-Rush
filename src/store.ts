@@ -10,7 +10,7 @@ import {
   applyUseItem,
   reorderHand,
 } from './game/engine';
-import { getItem, pickMatchPool } from './game/items';
+import { getItem, fullMatchPool, pickMatchPool } from './game/items';
 import {
   bidOnNameTag,
   createNameAuction,
@@ -30,7 +30,16 @@ import type {
   Phase,
   TargetingMode,
 } from './game/types';
-
+import type { OnlineSeatView } from './net/protocol';
+import { getOnlineRoom, sendOnline, setOnlineRoom } from './net/roomRef';
+import {
+  applyRankedMatchResult,
+  getRankDef,
+  loadRankProgress,
+  rankedPoolForRank,
+  recordRankedHistory,
+  rollRankedBotDifficulty,
+} from './game/ranked';
 export type FloatText = {
   id: number;
   playerId: string;
@@ -80,6 +89,20 @@ type Store = {
   /** Opened pool during Tag Sale — skip re-entrance on countdown */
   poolRevealPeeked: boolean;
 
+  /** Connected to a Colyseus room */
+  online: boolean;
+  roomCode: string | null;
+  sessionId: string | null;
+  myPlayerId: string | null;
+  myBidderId: string | null;
+  onlineHost: boolean;
+  onlineSeats: OnlineSeatView[];
+  onlineError: string | null;
+  /** Local queue: ranked saves coins to the leaderboard */
+  matchKind: 'ranked' | 'casual' | null;
+  /** Rank index (0–4) locked in when a ranked match starts */
+  rankedRankIndex: number | null;
+
   setMode: (mode: GameMode) => void;
   setDifficulty: (d: DifficultyMode) => void;
   setCodexOpen: (open: boolean) => void;
@@ -105,6 +128,16 @@ type Store = {
   reorderHandSlots: (fromIndex: number, toIndex: number) => void;
 
   masterTick: (dtMs?: number) => void;
+
+  enterOnlineSession: (info: { roomCode: string; sessionId: string }) => void;
+  applyOnlineYou: (msg: {
+    sessionId: string;
+    playerId: string;
+    bidderId: string;
+  }) => void;
+  applyOnlineNaming: (naming: NameAuctionState) => void;
+  applyOnlineGame: (game: GameState) => void;
+  applyOnlineMatchEnded: (winnerId: string | null) => void;
 };
 
 let loopId: ReturnType<typeof setInterval> | null = null;
@@ -291,6 +324,45 @@ function commitGame(
   });
 }
 
+function maybeRecordRanked(get: () => Store, game: GameState) {
+  if (get().matchKind !== 'ranked') return;
+  const human = game.players.find((p) => p.id === game.humanId);
+  if (!human) return;
+  const won = game.winnerId === human.id;
+  const before = loadRankProgress();
+  const rankId = getRankDef(before.rankIndex).id;
+  applyRankedMatchResult(won);
+  recordRankedHistory({
+    name: human.name,
+    avatar: human.avatar,
+    coins: human.coins,
+    won,
+    rankId,
+  });
+}
+
+/** Apply item use locally or send to Colyseus when online. */
+function commitUse(
+  set: (partial: Partial<Store>) => void,
+  get: () => Store,
+  instanceId: string,
+  targets: import('./game/types').UseTargets,
+) {
+  const { game, online } = get();
+  if (!game) return;
+  if (online) {
+    sendOnline('use', { instanceId, targets });
+    set({ targeting: null, handFocus: null });
+    return;
+  }
+  commitGame(
+    set,
+    get,
+    applyUseItem(game, game.humanId, instanceId, targets, rng),
+    { targeting: null, handFocus: null },
+  );
+}
+
 function startCountdownFromGame(get: () => Store, set: (p: Partial<Store>) => void, game: GameState) {
   stopCountdown();
   stopNamingLoop();
@@ -361,18 +433,186 @@ export const useGameStore = create<Store>((set, get) => ({
   poolRevealEndsAt: null,
   poolRevealPeeked: false,
 
+  online: false,
+  roomCode: null,
+  sessionId: null,
+  myPlayerId: null,
+  myBidderId: null,
+  onlineHost: false,
+  onlineSeats: [],
+  onlineError: null,
+  matchKind: null,
+  rankedRankIndex: null,
+
   setMode: (mode) => set((s) => ({ lobby: { ...s.lobby, mode } })),
   setDifficulty: (d) => set((s) => ({ lobby: { ...s.lobby, difficulty: d } })),
   setCodexOpen: (open) => set({ codexOpen: open }),
+
+  enterOnlineSession: ({ roomCode, sessionId }) => {
+    stopLoop();
+    stopCountdown();
+    stopNamingLoop();
+    set({
+      online: true,
+      roomCode,
+      sessionId,
+      myPlayerId: null,
+      myBidderId: null,
+      onlineHost: false,
+      onlineSeats: [],
+      onlineError: null,
+      phase: 'lobby',
+      game: null,
+      naming: null,
+      targeting: null,
+      handFocus: null,
+      floats: [],
+      activeFx: [],
+      knockoutOffer: false,
+      knockoutReason: null,
+      knockoutReport: null,
+      spectating: false,
+      matchPool: null,
+      poolRevealOpen: false,
+      poolRevealEndsAt: null,
+      poolRevealPeeked: false,
+      matchKind: null,
+      rankedRankIndex: null,
+    });
+  },
+
+  applyOnlineYou: (msg) => {
+    set({
+      sessionId: msg.sessionId,
+      myPlayerId: msg.playerId || null,
+      myBidderId: msg.bidderId || null,
+    });
+  },
+
+  applyOnlineNaming: (naming) => {
+    stopLoop();
+    stopCountdown();
+    stopNamingLoop();
+    const poolRng = createRng(naming.seed ^ 0x51ceed);
+    set({
+      phase: 'naming',
+      naming,
+      game: null,
+      floats: [],
+      activeFx: [],
+      targeting: null,
+      handFocus: null,
+      knockoutOffer: false,
+      knockoutReason: null,
+      knockoutReport: null,
+      spectating: false,
+      matchPool: pickMatchPool(poolRng),
+      poolRevealOpen: false,
+      poolRevealEndsAt: null,
+      poolRevealPeeked: false,
+      lobby: {
+        ...get().lobby,
+        mode: naming.mode,
+        difficulty: naming.difficulty,
+      },
+    });
+  },
+
+  applyOnlineGame: (game) => {
+    const prev = get();
+    const humanId = prev.myPlayerId ?? game.humanId;
+    const wasAlive =
+      prev.game?.players.find((p) => p.id === humanId)?.isAlive ?? true;
+
+    const ingested = ingest(game, prev.floats, prev.activeFx);
+    let focus = prev.handFocus;
+    if (focus) {
+      const human = ingested.game.players.find(
+        (p) => p.id === ingested.game.humanId,
+      );
+      if (!human?.hand.some((h) => h.instanceId === focus)) {
+        focus = null;
+      }
+    }
+
+    const humanNow = ingested.game.players.find(
+      (p) => p.id === ingested.game.humanId,
+    );
+    const justDied = wasAlive && humanNow && !humanNow.isAlive;
+
+    let offer = prev.knockoutOffer;
+    let reason = prev.knockoutReason;
+    let report = prev.knockoutReport;
+    if (justDied && !prev.spectating) {
+      focus = null;
+      const elim = ingested.lastEvents.find(
+        (e) => e.type === 'eliminate' && e.playerId === ingested.game.humanId,
+      );
+      reason =
+        elim && elim.type === 'eliminate' ? elim.reason : (reason ?? 'unpaid');
+      report =
+        elim && elim.type === 'eliminate' && elim.report
+          ? elim.report
+          : (humanNow?.deathReport ?? report);
+      offer = true;
+    }
+
+    const patch: Partial<Store> = {
+      game: ingested.game,
+      floats: ingested.floats,
+      activeFx: ingested.activeFx,
+      lastEvents: ingested.lastEvents,
+      handFocus: focus,
+      naming: null,
+      matchPool: ingested.game.itemPool,
+      knockoutOffer: ingested.game.ended ? false : offer,
+      knockoutReason: reason,
+      knockoutReport: report,
+      ...(justDied ? { targeting: null } : {}),
+    };
+
+    if (ingested.game.ended) {
+      patch.phase = 'results';
+    } else if (prev.phase === 'lobby' || prev.phase === 'naming') {
+      patch.phase = 'countdown';
+      patch.poolRevealOpen = true;
+    }
+
+    set(patch);
+  },
+
+  applyOnlineMatchEnded: (winnerId) => {
+    stopLoop();
+    const game = get().game;
+    set({
+      phase: 'results',
+      knockoutOffer: false,
+      targeting: null,
+      handFocus: null,
+      game: game
+        ? { ...game, ended: true, winnerId: winnerId ?? game.winnerId }
+        : game,
+    });
+  },
 
   startNaming: (mode, seed) => {
     stopLoop();
     stopCountdown();
     stopNamingLoop();
-    const difficulty = get().lobby.difficulty;
+    const ranked = get().matchKind === 'ranked';
+    const progress = ranked ? loadRankProgress() : null;
+    const difficulty =
+      ranked && progress
+        ? rollRankedBotDifficulty(progress.rankIndex)
+        : get().lobby.difficulty;
     const naming = createNameAuction(mode, difficulty, seed);
     const poolRng = createRng(naming.seed ^ 0x51ceed);
-    const matchPool = pickMatchPool(poolRng);
+    const matchPool =
+      ranked && progress
+        ? rankedPoolForRank(progress.rankIndex)
+        : get().matchKind === 'casual'
+          ? fullMatchPool()
+          : pickMatchPool(poolRng);
     set({
       phase: 'naming',
       lobby: { ...get().lobby, mode, difficulty },
@@ -389,6 +629,7 @@ export const useGameStore = create<Store>((set, get) => ({
       poolRevealOpen: false,
       poolRevealEndsAt: null,
       poolRevealPeeked: false,
+      rankedRankIndex: ranked && progress ? progress.rankIndex : null,
     });
 
     namingLoopId = setInterval(() => {
@@ -406,6 +647,10 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   bidNameTag: (tagId) => {
+    if (get().online) {
+      sendOnline('bid_name', { tagId });
+      return;
+    }
     const { naming, phase } = get();
     if (!naming || phase !== 'naming') return;
     set({ naming: bidOnNameTag(naming, naming.humanId, tagId) });
@@ -471,13 +716,22 @@ export const useGameStore = create<Store>((set, get) => ({
       poolRevealEndsAt: null,
       poolRevealPeeked: false,
     });
-    startLoop(get);
+    if (!get().online) startLoop(get);
   },
 
   returnToLobby: () => {
     stopLoop();
     stopCountdown();
     stopNamingLoop();
+    const room = getOnlineRoom();
+    setOnlineRoom(null);
+    if (room) {
+      try {
+        void room.leave();
+      } catch {
+        /* ignore */
+      }
+    }
     set({
       phase: 'lobby',
       game: null,
@@ -496,6 +750,16 @@ export const useGameStore = create<Store>((set, get) => ({
       poolRevealOpen: false,
       poolRevealEndsAt: null,
       poolRevealPeeked: false,
+      online: false,
+      roomCode: null,
+      sessionId: null,
+      myPlayerId: null,
+      myBidderId: null,
+      onlineHost: false,
+      onlineSeats: [],
+      onlineError: null,
+      matchKind: null,
+      rankedRankIndex: null,
     });
   },
 
@@ -509,6 +773,10 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   replayMatch: () => {
+    if (get().online) {
+      get().returnToLobby();
+      return;
+    }
     const { lobby } = get();
     stopLoop();
     stopCountdown();
@@ -535,22 +803,38 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   bidTile: (tileIndex) => {
-    const { game, phase, targeting, spectating, knockoutOffer } = get();
+    const { game, phase, targeting, spectating, knockoutOffer, online } = get();
     if (!game || phase !== 'playing' || targeting || spectating || knockoutOffer)
       return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
+    if (online) {
+      sendOnline('bid', { tileIndex });
+      return;
+    }
     commitGame(set, get, bid(game, game.humanId, tileIndex));
   },
 
   sellFocused: () => {
-    const { game, phase, targeting, handFocus, spectating, knockoutOffer } =
-      get();
+    const {
+      game,
+      phase,
+      targeting,
+      handFocus,
+      spectating,
+      knockoutOffer,
+      online,
+    } = get();
     if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
     const instanceId = targeting?.instanceId ?? handFocus;
     if (!instanceId) return;
+    if (online) {
+      sendOnline('sell', { instanceId });
+      set({ targeting: null, handFocus: null });
+      return;
+    }
     commitGame(set, get, sellItem(game, game.humanId, instanceId, rng), {
       targeting: null,
       handFocus: null,
@@ -558,8 +842,15 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   useFocused: () => {
-    const { game, phase, targeting, handFocus, spectating, knockoutOffer } =
-      get();
+    const {
+      game,
+      phase,
+      targeting,
+      handFocus,
+      spectating,
+      knockoutOffer,
+      online,
+    } = get();
     if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
     if (targeting) return;
     const human = game.players.find((p) => p.id === game.humanId);
@@ -574,6 +865,11 @@ export const useGameStore = create<Store>((set, get) => ({
         (item.itemId === 'time_freeze' && item.golden) ||
         (item.itemId === 'ipo' && item.golden));
     if (!instant) return;
+    if (online) {
+      sendOnline('use', { instanceId: handFocus, targets: {} });
+      set({ targeting: null, handFocus: null });
+      return;
+    }
     commitGame(
       set,
       get,
@@ -608,18 +904,9 @@ export const useGameStore = create<Store>((set, get) => ({
       instanceId !== targeting.instanceId
     ) {
       if (item.itemId === 'bomb' || item.itemId === 'dynamite') return;
-      commitGame(
-        set,
-        get,
-        applyUseItem(
-          game,
-          targeting.playerId,
-          targeting.instanceId,
-          { handInstanceId: instanceId },
-          rng,
-        ),
-        { targeting: null, handFocus: null },
-      );
+      commitUse(set, get, targeting.instanceId, {
+        handInstanceId: instanceId,
+      });
       return;
     }
 
@@ -668,37 +955,15 @@ export const useGameStore = create<Store>((set, get) => ({
 
     if (targeting.target === 'hand-then-item') {
       if (!targeting.selectedHandInstanceId) return;
-      commitGame(
-        set,
-        get,
-        applyUseItem(
-          game,
-          targeting.playerId,
-          targeting.instanceId,
-          {
-            tileIndex,
-            handInstanceId: targeting.selectedHandInstanceId,
-          },
-          rng,
-        ),
-        { targeting: null, handFocus: null },
-      );
+      commitUse(set, get, targeting.instanceId, {
+        tileIndex,
+        handInstanceId: targeting.selectedHandInstanceId,
+      });
       return;
     }
 
     if (targeting.target === 'item') {
-      commitGame(
-        set,
-        get,
-        applyUseItem(
-          game,
-          targeting.playerId,
-          targeting.instanceId,
-          { tileIndex },
-          rng,
-        ),
-        { targeting: null, handFocus: null },
-      );
+      commitUse(set, get, targeting.instanceId, { tileIndex });
       return;
     }
 
@@ -708,18 +973,10 @@ export const useGameStore = create<Store>((set, get) => ({
         return;
       }
       if (targeting.selectedTile === tileIndex) return;
-      commitGame(
-        set,
-        get,
-        applyUseItem(
-          game,
-          targeting.playerId,
-          targeting.instanceId,
-          { tileIndex: targeting.selectedTile, tileIndexB: tileIndex },
-          rng,
-        ),
-        { targeting: null, handFocus: null },
-      );
+      commitUse(set, get, targeting.instanceId, {
+        tileIndex: targeting.selectedTile,
+        tileIndexB: tileIndex,
+      });
     }
   },
 
@@ -727,29 +984,23 @@ export const useGameStore = create<Store>((set, get) => ({
     const { game, targeting } = get();
     if (!game || !targeting || targeting.target !== 'player') return;
     if (playerId === game.humanId) return;
-    commitGame(
-      set,
-      get,
-      applyUseItem(
-        game,
-        targeting.playerId,
-        targeting.instanceId,
-        { playerId },
-        rng,
-      ),
-      { targeting: null, handFocus: null },
-    );
+    commitUse(set, get, targeting.instanceId, { playerId });
   },
 
   reorderHandSlots: (fromIndex, toIndex) => {
-    const { game, phase, spectating, knockoutOffer } = get();
+    const { game, phase, spectating, knockoutOffer, online } = get();
     if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
+    if (online) {
+      sendOnline('reorder_hand', { fromIndex, toIndex });
+      return;
+    }
     commitGame(set, get, reorderHand(game, game.humanId, fromIndex, toIndex));
   },
 
   masterTick: (dtMs = CONFIG.TICK_MS) => {
+    if (get().online) return;
     const { game, phase, handFocus, knockoutOffer, spectating } = get();
     if (!game || phase !== 'playing') return;
 
@@ -798,6 +1049,7 @@ export const useGameStore = create<Store>((set, get) => ({
 
     if (ingested.game.ended) {
       stopLoop();
+      maybeRecordRanked(get, ingested.game);
       set({
         game: ingested.game,
         phase: 'results',

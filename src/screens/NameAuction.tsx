@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { PoolToggleButton } from '../components/PoolToggleButton';
+import { SpriteIcon } from '../components/SpriteIcon';
 import { CONFIG, MODE_SETUP } from '../game/constants';
 import { useGameStore } from '../store';
 
@@ -73,7 +74,7 @@ export function NameAuction() {
                 disabled={atCap && !mine}
                 onClick={() => bidNameTag(tag.id)}
               >
-                <span className="tag-avatar">{tag.avatar}</span>
+                <SpriteIcon id={tag.avatar} className="tag-avatar" aria-hidden />
                 <span className="tag-name">{tag.name}</span>
                 <span className="tag-price">
                   {tag.price === 0 ? 'FREE' : `🪙 ${tag.price}`}

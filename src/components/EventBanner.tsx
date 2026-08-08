@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CONFIG } from '../game/constants';
 import { getWorldEvent } from '../game/worldEvents';
 import type { LiveWorldEvent, WorldEventId, WorldEventState } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   worldEvent: WorldEventState;
@@ -175,9 +176,11 @@ export function EventBannerCard({
         style={{ ['--event-accent' as string]: def.accent }}
       >
         <span className="event-banner-rail" aria-hidden />
-        <span className="event-banner-emoji" aria-hidden>
-          {def.emoji}
-        </span>
+        <SpriteIcon
+          id={id}
+          className="event-banner-emoji"
+          aria-hidden
+        />
         <div className="event-banner-copy">
           <span className="event-banner-kicker">
             {isWarn ? 'Next Event' : 'Live Event'}

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { coinTint, heatClassName } from '../game/coinHeat';
 import { formatCoinDelta, formatCoins } from '../game/formatCoins';
-import { getItem, quickSwapMarkedIds } from '../game/items';
+import { quickSwapMarkedIds } from '../game/items';
 import type { FxKind, GameMode, PendingQuickSwap, Player } from '../game/types';
 import type { FxInstance } from '../store';
 import { PurseEffects } from './PurseEffects';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   human: Player;
@@ -131,12 +132,13 @@ function AnimatedPurse({
     >
       <div className="purse-main">
         <div className="purse-who">
-          <span className="purse-avatar">{avatar}</span>
+          <SpriteIcon id={avatar} className="purse-avatar" aria-hidden />
           <div className="purse-who-meta">
             <span className="purse-kicker">You</span>
           </div>
         </div>
         <div className="purse-amount">
+          <SpriteIcon id="coin" className="purse-glyph" aria-hidden />
           <span className="purse-value" style={valueStyle}>
             {formatCoins(shown)}
           </span>
@@ -176,6 +178,7 @@ function ScoreChip({
   targeting,
   floatText,
   fxLabel,
+  showName,
   swapMarks,
   swapSec,
   onTap,
@@ -188,7 +191,7 @@ function ScoreChip({
   floatText?: string | null;
   fxLabel?: string | null;
   showName?: boolean;
-  swapMarks?: { emoji: string; golden: boolean }[];
+  swapMarks?: { itemId: string; golden: boolean }[];
   swapSec?: number | null;
   onTap?: () => void;
 }) {
@@ -211,18 +214,32 @@ function ScoreChip({
 
   const inner = (
     <>
-      <span className="score-avatar">{fxLabel || player.avatar}</span>
+      <SpriteIcon
+        id={fxLabel || player.avatar}
+        className="score-avatar"
+        aria-hidden
+      />
+      {showName && <span className="score-name">{player.name}</span>}
       <span className="score-coins">{formatCoins(player.coins)}</span>
-      {player.handcuffMs > 0 && <span className="score-badge">🔒</span>}
-      {fuseSec != null && <span className="score-badge">💣{fuseSec}</span>}
+      {player.handcuffMs > 0 && (
+        <span className="score-badge">
+          <SpriteIcon id="lock_status" aria-hidden />
+        </span>
+      )}
+      {fuseSec != null && (
+        <span className="score-badge">
+          <SpriteIcon id="bomb" aria-hidden />
+          {fuseSec}
+        </span>
+      )}
       {swapMarks && swapMarks.length > 0 && (
         <span className="score-swap-marks" aria-label="Quick Swap pending">
           {swapMarks.slice(0, 3).map((m, i) => (
             <span
-              key={`${m.emoji}-${i}`}
+              key={`${m.itemId}-${i}`}
               className={`score-swap-mark${m.golden ? ' golden' : ''}`}
             >
-              {m.emoji}
+              <SpriteIcon id={m.itemId} golden={m.golden} aria-hidden />
             </span>
           ))}
           {swapMarks.length > 3 && (
@@ -301,7 +318,7 @@ export function PurseStrip({
     if (mark.ids.size === 0) return { marks: [], sec: null as number | null };
     const marks = p.hand
       .filter((h) => mark.ids.has(h.instanceId))
-      .map((h) => ({ emoji: getItem(h.itemId).emoji, golden: h.golden }));
+      .map((h) => ({ itemId: h.itemId, golden: h.golden }));
     const sec =
       mark.msLeft != null ? Math.ceil(mark.msLeft / 1000) : null;
     return { marks, sec };
