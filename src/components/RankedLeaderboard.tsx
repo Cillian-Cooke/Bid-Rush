@@ -1,4 +1,4 @@
-import { Trophy, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { getItem } from '../game/items';
 import {
@@ -32,7 +32,7 @@ export function RankedLeaderboard({ onClose }: Props) {
       <div className="codex-sheet leaderboard-sheet">
         <div className="codex-head">
           <h2 className="leaderboard-title">
-            <Trophy size={20} aria-hidden />
+            <SpriteIcon id="trophy" className="leaderboard-title-icon" aria-hidden />
             Ranked
           </h2>
           <button
@@ -84,6 +84,7 @@ export function RankedLeaderboard({ onClose }: Props) {
           ))}
         </div>
 
+        <div className="ranked-scroll">
         {tab === 'ladder' && (
           <ol className="ranked-ladder">
             {RANKED_RANKS.map((rank, i) => (
@@ -112,7 +113,7 @@ export function RankedLeaderboard({ onClose }: Props) {
               ))}
             </div>
             <p className="leaderboard-blurb">
-              {inspect.name}: {inspect.poolSize} items
+              {inspect.name}: {inspect.poolSize} unlocked · 16 per match
               {inspectRank > 0
                 ? ` · +${inspectNew.length} new vs ${getRankDef(inspectRank - 1).name}`
                 : ' · starter set'}
@@ -197,6 +198,7 @@ export function RankedLeaderboard({ onClose }: Props) {
             Higher ranks face meaner bots more often. Win RP shrinks; loss RP grows.
           </p>
         </div>
+        </div>
       </div>
     </div>
   );
@@ -229,7 +231,7 @@ function RankRow({
           {active ? ' · You' : ''}
         </span>
         <span className="ranked-ladder-blurb">
-          {rank.poolSize} items · Win +{rank.winRp} / Loss −{rank.lossRp}
+          {rank.poolSize} items · {rank.eventPoolSize} events · Win +{rank.winRp} / Loss −{rank.lossRp}
         </span>
         <span className="ranked-ladder-bots">
           Bots {bots.chill}/{bots.balanced}/{bots.ruthless}% C/B/R

@@ -46,7 +46,7 @@ function pickFromPool(
 export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
   money_money_money: {
     id: 'money_money_money',
-    name: 'Money Money Money',
+    name: 'Money Money',
     emoji: '💰',
     blurb: 'The whole floor turns into cash machines',
     warnLine: 'Cash takeover incoming',
@@ -227,9 +227,11 @@ function emitFx(
   state.events.push({ type: 'fx', kind, ...opts });
 }
 
-function pickEvent(rng: () => number): WorldEventId {
-  const i = Math.floor(rng() * RANDOM_WORLD_EVENT_IDS.length);
-  return RANDOM_WORLD_EVENT_IDS[i]!;
+function pickEvent(state: GameState, rng: () => number): WorldEventId {
+  const pool =
+    state.eventPool.length > 0 ? state.eventPool : RANDOM_WORLD_EVENT_IDS;
+  const i = Math.floor(rng() * pool.length);
+  return pool[i]!;
 }
 
 function living(state: GameState) {
@@ -252,6 +254,7 @@ function shuffleBoard(state: GameState, rng: () => number): void {
     timerMs: t.timerMs,
     highBidderId: t.highBidderId,
     freezeMs: t.freezeMs,
+    golden: t.golden,
   }));
   for (let i = payloads.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -267,6 +270,7 @@ function shuffleBoard(state: GameState, rng: () => number): void {
     t.timerMs = p.timerMs;
     t.highBidderId = p.highBidderId;
     t.freezeMs = p.freezeMs;
+    t.golden = p.golden;
     t.flash = 'bid';
     t.flashMs = 300;
     emitFx(state, 'shuffle', { tileIndex: i });
@@ -532,7 +536,7 @@ export function forceTriggerWorldEvent(
   rng: () => number,
   id?: WorldEventId,
 ): void {
-  pushLiveEvent(state, rng, id ?? pickEvent(rng));
+  pushLiveEvent(state, rng, id ?? pickEvent(state, rng));
 }
 
 function tickLiveEntry(
@@ -578,7 +582,7 @@ export function tickWorldEvent(
 
   if (we.phase === 'pending' && state.roundMs <= CONFIG.EVENT_WARN_AT_MS) {
     we.phase = 'warning';
-    we.id = pickEvent(rng);
+    we.id = pickEvent(state, rng);
     const def = getWorldEvent(we.id);
     for (const tile of state.tiles) {
       emitFx(state, def.fxKind, { tileIndex: tile.index });
@@ -586,7 +590,7 @@ export function tickWorldEvent(
   }
 
   if (we.phase === 'warning' && state.roundMs <= CONFIG.EVENT_START_AT_MS) {
-    const id = we.id ?? pickEvent(rng);
+    const id = we.id ?? pickEvent(state, rng);
     we.id = id;
     we.phase = 'active';
     pushLiveEvent(state, rng, id);

@@ -220,7 +220,10 @@ function ScoreChip({
         aria-hidden
       />
       {showName && <span className="score-name">{player.name}</span>}
-      <span className="score-coins">{formatCoins(player.coins)}</span>
+      <span className="score-coins">
+        <SpriteIcon id="coin" className="score-coin-icon" aria-hidden />
+        {formatCoins(player.coins)}
+      </span>
       {player.handcuffMs > 0 && (
         <span className="score-badge">
           <SpriteIcon id="lock_status" aria-hidden />

@@ -136,6 +136,8 @@ export type Tile = {
   freezeMs: number;
   /** Nobody can outbid this tile until it resolves */
   bidLocked: boolean;
+  /** Shop listing is already golden (wins as a golden hand item) */
+  golden: boolean;
   /** Visual flash: 'resolve' | 'double' | 'bid' | null */
   flash: string | null;
   flashMs: number;
@@ -372,6 +374,8 @@ export type GameState = {
   coldMarketMs: number;
   /** Item types available in this match */
   itemPool: ItemId[];
+  /** Mid-match world events that can roll in this match */
+  eventPool: WorldEventId[];
   /** Delayed Quick Swap countdowns */
   pendingQuickSwaps: PendingQuickSwap[];
   /** Per-match knobs (custom / defaults) */

@@ -12,6 +12,8 @@ type Props = {
   item: HandItem | null;
   index: number;
   selected: boolean;
+  /** Valid target while another item is asking for a hand pick */
+  targetable?: boolean;
   fxKind?: FxKind | null;
   fxLabel?: string | null;
   walletCoins?: number;
@@ -53,6 +55,7 @@ export function HandSlot({
   item,
   index,
   selected,
+  targetable = false,
   fxKind,
   fxLabel,
   walletCoins = 0,
@@ -199,6 +202,7 @@ export function HandSlot({
         isMirror ? 'mirror-slot' : '',
         item.golden ? 'golden' : '',
         selected ? 'selected' : '',
+        targetable ? 'targetable' : '',
         dragging ? 'dragging' : '',
         fxKind ? `fx-hand fx-${fxKind}` : '',
         links?.gildTarget ? 'adj-gild-target' : '',
@@ -244,7 +248,10 @@ export function HandSlot({
           golden={item.golden}
           aria-hidden
         />
-        <span className="hand-sell">🪙{sellLabel}</span>
+        <span className="hand-sell">
+          <SpriteIcon id="coin" className="hand-sell-coin" aria-hidden />
+          {sellLabel}
+        </span>
         {isBomb && item.bombFuseMs != null && (
           <span className="hand-fuse">{Math.ceil(item.bombFuseMs / 1000)}s</span>
         )}

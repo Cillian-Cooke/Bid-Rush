@@ -37,7 +37,10 @@ export function SpectateHands({ players, pendingQuickSwaps = [] }: Props) {
                     {p.isHuman ? ' (You)' : ''}
                     {!p.isAlive ? ' · OUT' : ''}
                   </span>
-                  <span className="spectate-coins">💰 {p.coins}</span>
+                  <span className="spectate-coins">
+                    <SpriteIcon id="coin" className="spectate-coin-icon" aria-hidden />
+                    {p.coins}
+                  </span>
                 </div>
               </div>
               <div className="spectate-hand">

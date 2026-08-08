@@ -8,7 +8,7 @@ import type {
 } from '../game/types';
 import type { CustomMatchSettings } from '../game/customSettings';
 
-/** Colyseus room name */
+/** Colyseus room name (legacy — online play uses Nakama matches) */
 export const ROOM_NAME = 'bid_rush' as const;
 
 export type OnlineSeatView = {

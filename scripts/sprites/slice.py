@@ -159,14 +159,41 @@ def is_background(r: int, g: int, b: int, a: int = 255) -> bool:
 
 
 def knock_out_bg(im: Image.Image) -> Image.Image:
+    """Make sheet background transparent via edge flood-fill only.
+
+    Cream/white face fills must stay — only bg connected to the image border
+    is removed (avoids hollow panda/badger sprites).
+    """
     rgba = im.convert("RGBA")
-    px = rgba.load()
     w, h = rgba.size
+    px = rgba.load()
+    visited = [[False] * w for _ in range(h)]
+    stack: list[tuple[int, int]] = []
+
+    def try_push(x: int, y: int) -> None:
+        if x < 0 or y < 0 or x >= w or y >= h or visited[y][x]:
+            return
+        r, g, b, a = px[x, y]
+        if not is_background(r, g, b, a):
+            return
+        visited[y][x] = True
+        stack.append((x, y))
+
+    for x in range(w):
+        try_push(x, 0)
+        try_push(x, h - 1)
     for y in range(h):
-        for x in range(w):
-            r, g, b, a = px[x, y]
-            if is_background(r, g, b, a):
-                px[x, y] = (0, 0, 0, 0)
+        try_push(0, y)
+        try_push(w - 1, y)
+
+    while stack:
+        x, y = stack.pop()
+        px[x, y] = (0, 0, 0, 0)
+        try_push(x + 1, y)
+        try_push(x - 1, y)
+        try_push(x, y + 1)
+        try_push(x, y - 1)
+
     return rgba
 
 
@@ -282,8 +309,18 @@ def write_sheet(
     return frames
 
 
-# 2×2 patch over texty AI cells: inflation, price_doubler, ipo, shop_refresh
-PATCH_IDS = ["inflation", "price_doubler", "ipo", "shop_refresh"]
+# Older 2×2 text cleanup (price_doubler, ipo); inflation/shop_refresh overridden below
+LEGACY_PATCH_IDS = ["inflation", "price_doubler", "ipo", "shop_refresh"]
+
+# 3×2 emoji-faithful replacements + home UI icons
+UI_PATCH_IDS = [
+    "shop_refresh",
+    "roi",
+    "kickback",
+    "inflation",
+    "book",
+    "trophy",
+]
 
 
 def main() -> None:
@@ -308,7 +345,6 @@ def main() -> None:
         ("events-raw.png", 4, 3, EVENTS, "events.png", "events"),
     ]
 
-    # id → icon across all sheets (items rebuilt after patch)
     all_by_id: dict[str, Image.Image] = {}
     sheet_jobs: list[tuple[list[str | None], dict[str, Image.Image], int, int, str, str]] = []
 
@@ -322,19 +358,27 @@ def main() -> None:
         sheet_jobs.append((ids, by_id, cols, rows, sheet_name, folder))
         print(f"sliced {raw_name} → {len(icons)} icons")
 
-    patch_path = DOCS / "items-patch-raw.png"
-    if patch_path.exists():
-        patches = slice_grid(patch_path, 2, 2, PATCH_IDS)
+    legacy = DOCS / "items-patch-raw.png"
+    if legacy.exists():
+        patches = slice_grid(legacy, 2, 2, LEGACY_PATCH_IDS)
         for sid, icon in patches:
             all_by_id[sid] = icon
-            # keep items-a by_id in sync
-            for ids, by_id, cols, rows, sheet_name, folder in sheet_jobs:
-                if sid in by_id or (folder == "items" and sid in ids):
-                    by_id[sid] = icon
-        print(f"applied patch → {len(patches)} cells: {', '.join(PATCH_IDS)}")
+        print(f"applied legacy patch → {', '.join(LEGACY_PATCH_IDS)}")
+
+    ui_patch = DOCS / "items-ui-patch-raw.png"
+    if ui_patch.exists():
+        patches = slice_grid(ui_patch, 3, 2, UI_PATCH_IDS)
+        for sid, icon in patches:
+            all_by_id[sid] = icon
+            folder = "ui" if sid in ("book", "trophy") else "items"
+            icon.save(OUT / folder / f"{sid}.png")
+        print(f"applied ui patch → {', '.join(UI_PATCH_IDS)}")
+
+    # Extra margin so wide icons (handcuffs) never clip when scaled
+    for sid, icon in list(all_by_id.items()):
+        all_by_id[sid] = pad_icon(icon)
 
     for ids, by_id, cols, rows, sheet_name, folder in sheet_jobs:
-        # refresh from all_by_id for patched frames
         for sid in ids:
             if sid and sid in all_by_id:
                 by_id[sid] = all_by_id[sid]
@@ -347,6 +391,22 @@ def main() -> None:
             atlas["frames"][sid] = meta
         print(f"wrote {sheet_name} ({len(frames)} frames)")
 
+    # Append book/trophy to atlas (not on a sheet grid)
+    for sid, folder in (("book", "ui"), ("trophy", "ui")):
+        if sid not in all_by_id:
+            continue
+        icon = all_by_id[sid]
+        icon.save(OUT / folder / f"{sid}.png")
+        atlas["frames"][sid] = {
+            "sheet": f"{sid}.png",
+            "x": 0,
+            "y": 0,
+            "w": CELL,
+            "h": CELL,
+            "folder": folder,
+            "file": f"{folder}/{sid}.png",
+        }
+
     atlas_path = OUT / "atlas.json"
     text = json.dumps(atlas, indent=2) + "\n"
     atlas_path.write_text(text)
@@ -354,6 +414,24 @@ def main() -> None:
     src_atlas.parent.mkdir(parents=True, exist_ok=True)
     src_atlas.write_text(text)
     print(f"wrote {atlas_path} + {src_atlas} ({len(atlas['frames'])} frames)")
+
+
+def pad_icon(im: Image.Image, margin: int = 2) -> Image.Image:
+    """Shrink content slightly so scaled icons aren't clipped by overflow:hidden."""
+    alpha = im.split()[-1]
+    bbox = alpha.getbbox()
+    if bbox is None:
+        return im
+    cropped = im.crop(bbox)
+    inner = CELL - margin * 2
+    cw, ch = cropped.size
+    scale = min(inner / cw, inner / ch, 1.0)
+    nw = max(1, int(round(cw * scale)))
+    nh = max(1, int(round(ch * scale)))
+    small = cropped.resize((nw, nh), Image.Resampling.NEAREST)
+    out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
+    out.paste(small, ((CELL - nw) // 2, (CELL - nh) // 2), small)
+    return out
 
 
 if __name__ == "__main__":

@@ -1,46 +1,49 @@
 # Bid Rush
 
-Mobile-first auction party game. Bid on a live 3×3 shop, collect money engines, sabotage rivals, and be the last (or richest) standing.
+Mobile-first auction party game. Bid on a live shop, collect money engines, sabotage rivals, and be the last (or richest) standing.
 
-## Run (local solo)
+## Run (local)
 
 ```bash
 npm install
+
+# Nakama — accounts, matchmaking, ranked RP, live matches (Docker)
+npm run dev:nakama
+
+# Client
 npm run dev
 ```
 
-Open the local URL (default `http://localhost:5173`) on a phone or narrow browser window.
+Open the local URL (default `http://localhost:5173`).
 
-## Multiplayer (Colyseus)
-
-Friends play uses a Colyseus server that runs the same `src/game/` engine authoritatively.
-
-**Requires Node.js 22+** for the server.
+Optional env (defaults work with local Docker) — see `.env.example`:
 
 ```bash
-# terminal 1 — game server (ws://localhost:2567)
-npm run dev:server
-
-# terminal 2 — Vite client
-npm run dev
+VITE_NAKAMA_HOST=127.0.0.1
+VITE_NAKAMA_PORT=7350
+VITE_NAKAMA_SERVER_KEY=defaultkey
+VITE_NAKAMA_USE_SSL=false
 ```
 
-In the lobby, use **Create Duel / Create Blitz** or enter a room code under **Play with friends**. Share the code; empty seats fill with bots when the host starts.
+| Mode | Behavior |
+|------|----------|
+| **Ranked** | Matchmake 1v1 · RP on Nakama · bots after 20s if alone |
+| **Casual** | Matchmake Duel/Blitz · bots if queue empty |
+| **Custom** | Create/join short room codes on Nakama |
 
-Optional: set `VITE_COLYSEUS_URL` if the server is not on `http://localhost:2567`.
+Nakama console: http://127.0.0.1:7351
 
 ## Deploy (Vercel)
 
-The Vite client builds cleanly for Vercel (`npm run build` → `dist/`).
+1. Import the GitHub repo (Vite → `dist`).
+2. Set `VITE_NAKAMA_*` to your hosted Nakama (Heroic Cloud or Docker on Fly/Railway).
+3. Client-only on Vercel — **Nakama is the game server**.
 
-1. Import the GitHub repo in Vercel (framework: Vite, output: `dist`).
-2. Optional env: `VITE_COLYSEUS_URL` = your hosted Colyseus WebSocket URL (e.g. `https://your-game.fly.dev`).
-3. The Colyseus server in `server/` is **not** hosted by Vercel — deploy it separately (Fly, Railway, Render, etc.) for online rooms. Ranked / Casual work without it.
+The old Colyseus `server/` folder is unused by the client (kept for reference).
 
 ## Stack
 
-- Vite + React + TypeScript
-- Zustand store with a single ~100ms master game loop (local)
-- Pure game logic in `src/game/` (engine, items, bots) — no React
-- Colyseus 0.17 in `server/` for online rooms (lobby schema + game snapshot messages)
-- 8-bit sprites: emoji-style sheets in `docs/sprites/*-raw.png`, slice with `npm run sprites:slice`
+- Vite + React + TypeScript + Zustand
+- Pure game logic in `src/game/` (shared with Nakama via esbuild)
+- Nakama (`nakama/`) — auth, RP, matchmaking, authoritative matches
+- 8-bit sprites: `npm run sprites:slice`

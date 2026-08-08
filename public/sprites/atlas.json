@@ -694,6 +694,24 @@
       "h": 32,
       "folder": "events",
       "file": "events/golden_chaos.png"
+    },
+    "book": {
+      "sheet": "book.png",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/book.png"
+    },
+    "trophy": {
+      "sheet": "trophy.png",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "folder": "ui",
+      "file": "ui/trophy.png"
     }
   }
 }

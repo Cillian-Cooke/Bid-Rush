@@ -148,7 +148,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   inflation: {
     id: 'inflation',
     name: 'Inflation',
-    emoji: '🦗',
+    emoji: '🎈',
     kind: 'active',
     target: 'all-items',
     sellValue: 3,
@@ -199,7 +199,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   shop_refresh: {
     id: 'shop_refresh',
     name: 'Shop Refresh',
-    emoji: '🆕',
+    emoji: '🔄',
     kind: 'active',
     target: 'none',
     sellValue: 3,
@@ -256,16 +256,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     startPrice: 4,
     spawnWeight: 2,
   },
-  roi: {
-    id: 'roi',
-    name: 'ROI',
-    emoji: '📉',
-    kind: 'active',
-    target: 'none',
-    sellValue: 3,
-    startPrice: 3,
-    spawnWeight: 2,
-  },
+    roi: {
+      id: 'roi',
+      name: 'ROI',
+      emoji: '📈',
+      kind: 'active',
+      target: 'none',
+      sellValue: 3,
+      startPrice: 3,
+      spawnWeight: 2,
+    },
   coin_leech: {
     id: 'coin_leech',
     name: 'Coin Leech',
@@ -392,14 +392,43 @@ export const ITEMS: Record<ItemId, ItemDef> = {
 
 export const ITEM_LIST: ItemDef[] = Object.values(ITEMS);
 
-/** How many item types appear in a single match (casual uses the full set) */
+/** How many item types appear in every match (always). */
 export const MATCH_POOL_SIZE = 16;
 
 export function getItem(id: ItemId): ItemDef {
   return ITEMS[id];
 }
 
-/** Every spawnable item — used for Casual matches. */
+/** Active items that fire immediately — no tile/player/hand pick. */
+export function canInstantUse(item: {
+  itemId: ItemId;
+  golden: boolean;
+}): boolean {
+  const def = getItem(item.itemId);
+  if (def.kind !== 'active') return false;
+  if (
+    item.itemId === 'bomb' ||
+    item.itemId === 'dynamite' ||
+    item.itemId === 'mystery_box'
+  ) {
+    return false;
+  }
+  if (item.itemId === 'time_freeze' && item.golden) return true;
+  if (item.itemId === 'ipo' && item.golden) return true;
+  return def.target === 'none' || def.target === 'all-items';
+}
+
+/** Active that needs the player to tap a tile, rival, or hand item. */
+export function needsTargetPick(item: {
+  itemId: ItemId;
+  golden: boolean;
+}): boolean {
+  const def = getItem(item.itemId);
+  if (def.kind !== 'active') return false;
+  return !canInstantUse(item);
+}
+
+/** Every spawnable item — Casual can draw its match-16 from this set. */
 export function fullMatchPool(): ItemId[] {
   return ITEM_LIST.filter((i) => i.spawnWeight > 0)
     .map((i) => i.id)
@@ -580,9 +609,19 @@ export function passiveChargeProgress(
   return null;
 }
 
-/** Pick a unique random subset of item types for this match. */
-export function pickMatchPool(rng: () => number): ItemId[] {
-  const ids = ITEM_LIST.filter((i) => i.spawnWeight > 0).map((i) => i.id);
+/**
+ * Pick exactly MATCH_POOL_SIZE unique item types for this match.
+ * `from` = candidates (Casual: all spawnable; Ranked: unlock catalog).
+ */
+export function pickMatchPool(
+  rng: () => number,
+  from?: readonly ItemId[],
+): ItemId[] {
+  const ids = (
+    from && from.length > 0
+      ? [...from]
+      : ITEM_LIST.filter((i) => i.spawnWeight > 0).map((i) => i.id)
+  ).filter((id) => ITEMS[id]?.spawnWeight > 0);
   for (let i = ids.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     const tmp = ids[i]!;

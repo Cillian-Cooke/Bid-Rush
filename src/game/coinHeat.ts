@@ -16,16 +16,14 @@ export type CoinTint = {
   stage: string;
 };
 
+/** Rank-aligned purse colors (+ danger red for broke). */
 export const COIN_COLORS = {
-  critical: [255, 77, 61] as RGB,
-  low: [255, 122, 69] as RGB,
-  warm: [232, 184, 74] as RGB,
-  green: [30, 207, 108] as RGB,
-  blue: [47, 127, 255] as RGB,
-  violet: [168, 85, 247] as RGB,
-  amber: [255, 138, 40] as RGB,
-  hot: [255, 96, 40] as RGB,
-  whitehot: [255, 236, 200] as RGB,
+  critical: [214, 69, 58] as RGB,
+  low: [232, 120, 72] as RGB,
+  bronze: [183, 115, 58] as RGB,
+  bronzeBright: [212, 148, 72] as RGB,
+  gold: [240, 192, 64] as RGB,
+  goldBright: [255, 220, 110] as RGB,
 } as const;
 
 type HeatKey = {
@@ -41,35 +39,28 @@ type HeatKey = {
 };
 
 /**
- * Continuous heat curve. Values interpolate smoothly between these beats
- * so climbing never snaps — it drifts into each new era.
+ * Rank-flavored heat:
+ *   red (broke) → bronze (&lt;1k) → gold (1k–1M) → rainbow (1M+)
  */
 const HEAT_KEYS: HeatKey[] = [
-  { at: 0, rgb: COIN_COLORS.critical, glow: 0, rainbow: 0, speed: 1, shake: 0.22, stage: 'broke' },
-  { at: 3, rgb: COIN_COLORS.critical, glow: 0, rainbow: 0, speed: 1, shake: 0.18, stage: 'broke' },
-  { at: 8, rgb: COIN_COLORS.low, glow: 0, rainbow: 0, speed: 1, shake: 0, stage: 'scraping' },
-  { at: 50, rgb: COIN_COLORS.warm, glow: 0.05, rainbow: 0, speed: 1, shake: 0, stage: 'warming' },
-  { at: 100, rgb: COIN_COLORS.green, glow: 0.85, rainbow: 0, speed: 1, shake: 0, stage: 'mint' },
-  { at: 200, rgb: COIN_COLORS.blue, glow: 0.9, rainbow: 0, speed: 1.05, shake: 0, stage: 'azure' },
-  { at: 300, rgb: COIN_COLORS.violet, glow: 0.9, rainbow: 0, speed: 1.1, shake: 0, stage: 'violet' },
-  { at: 400, rgb: COIN_COLORS.amber, glow: 0.95, rainbow: 0, speed: 1.15, shake: 0.04, stage: 'amber' },
-  { at: 500, rgb: COIN_COLORS.amber, glow: 1, rainbow: 0.35, speed: 1.25, shake: 0.1, stage: 'prism dawn' },
-  { at: 750, rgb: COIN_COLORS.amber, glow: 1, rainbow: 1, speed: 1.55, shake: 0.18, stage: 'prism' },
-  { at: 1000, rgb: COIN_COLORS.hot, glow: 1, rainbow: 1, speed: 1.85, shake: 0.32, stage: 'thousand' },
-  { at: 1750, rgb: COIN_COLORS.hot, glow: 1, rainbow: 1, speed: 2.2, shake: 0.45, stage: 'trembling' },
-  { at: 2500, rgb: COIN_COLORS.hot, glow: 1, rainbow: 1, speed: 2.65, shake: 0.58, stage: 'blaze' },
-  { at: 3750, rgb: COIN_COLORS.hot, glow: 1, rainbow: 1, speed: 3.05, shake: 0.68, stage: 'inferno' },
-  { at: 5000, rgb: COIN_COLORS.hot, glow: 1, rainbow: 1, speed: 3.5, shake: 0.78, stage: 'magma' },
-  { at: 7500, rgb: COIN_COLORS.hot, glow: 1, rainbow: 1, speed: 4.1, shake: 0.86, stage: 'volcanic' },
-  { at: 10000, rgb: COIN_COLORS.whitehot, glow: 1, rainbow: 1, speed: 4.7, shake: 0.92, stage: 'legendary' },
-  { at: 12500, rgb: COIN_COLORS.whitehot, glow: 1, rainbow: 1, speed: 5.3, shake: 0.95, stage: 'mythic' },
-  { at: 15000, rgb: COIN_COLORS.whitehot, glow: 1, rainbow: 1, speed: 5.9, shake: 0.97, stage: 'apocalypse' },
-  { at: 17500, rgb: COIN_COLORS.whitehot, glow: 1, rainbow: 1, speed: 6.8, shake: 0.99, stage: 'ascension' },
-  { at: 20000, rgb: COIN_COLORS.whitehot, glow: 1, rainbow: 1, speed: 8, shake: 1, stage: 'godhood' },
+  { at: 0, rgb: COIN_COLORS.critical, glow: 0, rainbow: 0, speed: 1, shake: 0.2, stage: 'broke' },
+  { at: 5, rgb: COIN_COLORS.critical, glow: 0, rainbow: 0, speed: 1, shake: 0.12, stage: 'broke' },
+  { at: 12, rgb: COIN_COLORS.low, glow: 0, rainbow: 0, speed: 1, shake: 0, stage: 'scraping' },
+  { at: 25, rgb: COIN_COLORS.bronze, glow: 0.08, rainbow: 0, speed: 1, shake: 0, stage: 'bronze' },
+  { at: 200, rgb: COIN_COLORS.bronzeBright, glow: 0.2, rainbow: 0, speed: 1, shake: 0, stage: 'bronze' },
+  { at: 999, rgb: COIN_COLORS.bronzeBright, glow: 0.35, rainbow: 0, speed: 1, shake: 0, stage: 'bronze' },
+  { at: 1_000, rgb: COIN_COLORS.gold, glow: 0.55, rainbow: 0, speed: 1, shake: 0, stage: 'gold' },
+  { at: 50_000, rgb: COIN_COLORS.goldBright, glow: 0.75, rainbow: 0, speed: 1.05, shake: 0.02, stage: 'gold' },
+  { at: 500_000, rgb: COIN_COLORS.goldBright, glow: 0.9, rainbow: 0.08, speed: 1.1, shake: 0.04, stage: 'gold' },
+  { at: 999_999, rgb: COIN_COLORS.goldBright, glow: 0.95, rainbow: 0.2, speed: 1.2, shake: 0.06, stage: 'gold peak' },
+  { at: 1_000_000, rgb: COIN_COLORS.goldBright, glow: 1, rainbow: 1, speed: 1.6, shake: 0.12, stage: 'rainbow' },
+  { at: 10_000_000, rgb: COIN_COLORS.goldBright, glow: 1, rainbow: 1, speed: 2.1, shake: 0.22, stage: 'rainbow' },
+  { at: 100_000_000, rgb: COIN_COLORS.goldBright, glow: 1, rainbow: 1, speed: 2.8, shake: 0.35, stage: 'mythic' },
+  { at: 1_000_000_000, rgb: COIN_COLORS.goldBright, glow: 1, rainbow: 1, speed: 3.4, shake: 0.48, stage: 'godhood' },
 ];
 
 /** Soft milestones that briefly pulse when crossed / held. */
-const AWARD_ATS = [100, 200, 300, 400, 500, 1000, 2500, 5000, 10000, 15000, 20000];
+const AWARD_ATS = [100, 500, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000];
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -122,8 +113,7 @@ function sampleHeat(n: number): HeatKey & { t: number } {
 }
 
 /**
- * Purse heat from broke → godhood at 20,000.
- * Every property drifts continuously along the heat curve.
+ * Purse heat: red → bronze (&lt;1k) → gold (1k–1M) → rainbow (1M+).
  */
 export function coinTint(coins: number): CoinTint {
   const n = Math.max(0, coins);
@@ -149,7 +139,7 @@ export function heatClassName(tint: CoinTint): string {
   if (tint.rainbowMix > 0.04) parts.push('heat-rainbow');
   if (tint.award > 0.55) parts.push('heat-award');
   if (tint.shake > 0.05) parts.push('heat-shaking');
-  if (tint.shake > 0.08 && tint.shake < 0.2 && tint.rainbowMix < 0.1) {
+  if (tint.shake > 0.08 && tint.shake < 0.25 && tint.rainbowMix < 0.1) {
     parts.push('heat-critical');
   }
   return parts.join(' ');

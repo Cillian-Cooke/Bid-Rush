@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bidrush_nk_postgres
+    environment:
+      POSTGRES_DB: nakama
+      POSTGRES_PASSWORD: localdb
+    volumes:
+      - bidrush_nk_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "nakama"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  nakama:
+    build:
+      context: ..
+      dockerfile: nakama/Dockerfile
+    container_name: bidrush_nk
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -ecx
+      - >
+        /nakama/nakama migrate up --database.address postgres:localdb@postgres:5432/nakama?sslmode=disable &&
+        exec /nakama/nakama
+        --config /nakama/data/local.yml
+        --database.address postgres:localdb@postgres:5432/nakama?sslmode=disable
+        --logger.level INFO
+        --session.token_expiry_sec 7200
+    ports:
+      - "7349:7349"
+      - "7350:7350"
+      - "7351:7351"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/nakama/nakama", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bidrush_nk_data:

@@ -68,6 +68,7 @@ export function ShopTile({
         selected ? 'selected-target' : '',
         bidderColor ? 'has-bidder' : '',
         isYou ? 'yours' : '',
+        tile.golden ? 'golden' : '',
         fxKind ? `fx-tile fx-${fxKind}` : '',
       ]
         .filter(Boolean)
@@ -81,9 +82,19 @@ export function ShopTile({
           : undefined
       }
       onClick={onTap}
-      aria-label={`${def.name}, price ${tile.price}${tile.bidLocked ? ', locked' : ''}`}
+      aria-label={`${tile.golden ? 'Golden ' : ''}${def.name}, price ${tile.price}${tile.bidLocked ? ', locked' : ''}`}
     >
-      <SpriteIcon id={tile.itemId} className="shop-tile-emoji" aria-hidden />
+      <SpriteIcon
+        id={tile.itemId}
+        className="shop-tile-emoji"
+        golden={tile.golden}
+        aria-hidden
+      />
+      {tile.golden && (
+        <span className="shop-tile-golden-tag" aria-hidden>
+          ★
+        </span>
+      )}
       <span className="shop-tile-price">
         <SpriteIcon id="coin" className="shop-tile-coin" aria-hidden />
         {tile.price}

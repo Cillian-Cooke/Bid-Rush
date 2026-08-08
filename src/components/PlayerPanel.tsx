@@ -76,7 +76,7 @@ export function PlayerPanel({
       <div className="player-meta">
         <span className="player-name">{player.name}</span>
         <span className="player-coins">
-          <SpriteIcon id="money_bag" className="inline-sprite" aria-hidden />{' '}
+          <SpriteIcon id="coin" className="inline-sprite" aria-hidden />{' '}
           {player.coins}
         </span>
       </div>

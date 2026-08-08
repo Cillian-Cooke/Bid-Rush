@@ -28,15 +28,7 @@ export function NameAuction() {
     >
       <div className="naming-header">
         <h1 className="naming-title">Tag Sale</h1>
-        <div className="naming-meta-row">
-          <div className={`naming-clock${sec <= 2 ? ' urgent' : ''}`}>{sec}</div>
-          <div className={`naming-bids${atCap ? ' empty' : ''}`}>
-            <span className="naming-bids-label">Active</span>
-            <span className="naming-bids-count">
-              {humanLeads}/{CONFIG.MAX_ACTIVE_BIDS}
-            </span>
-          </div>
-        </div>
+        <div className={`naming-clock${sec <= 2 ? ' urgent' : ''}`}>{sec}</div>
         <div className="naming-bar">
           <div
             className="naming-bar-fill"
@@ -62,7 +54,13 @@ export function NameAuction() {
               <button
                 key={tag.id}
                 type="button"
-                className={`shop-tile tag-card${mine ? ' mine' : ''}${tag.highBidderId ? ' claimed' : ''}`}
+                className={[
+                  'shop-tile',
+                  bidder ? 'has-bidder' : '',
+                  mine ? 'yours' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 style={
                   bidder
                     ? ({
@@ -73,13 +71,18 @@ export function NameAuction() {
                 }
                 disabled={atCap && !mine}
                 onClick={() => bidNameTag(tag.id)}
+                aria-label={`${tag.name}, ${tag.price === 0 ? 'free' : `price ${tag.price}`}${mine ? ', yours' : ''}`}
               >
-                <SpriteIcon id={tag.avatar} className="tag-avatar" aria-hidden />
+                <SpriteIcon
+                  id={tag.avatar}
+                  className="shop-tile-emoji"
+                  aria-hidden
+                />
                 <span className="tag-name">{tag.name}</span>
-                <span className="tag-price">
-                  {tag.price === 0 ? 'FREE' : `🪙 ${tag.price}`}
+                <span className="shop-tile-price">
+                  <SpriteIcon id="coin" className="shop-tile-coin" aria-hidden />
+                  {tag.price}
                 </span>
-                {mine && <span className="tag-yours">YOURS</span>}
               </button>
             );
           })}

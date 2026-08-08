@@ -17,10 +17,12 @@ import type {
   RankingEntry,
   Tile,
   UseTargets,
+  WorldEventId,
 } from './types';
 import {
   createWorldEventState,
   forceTriggerWorldEvent,
+  RANDOM_WORLD_EVENT_IDS,
   tickWorldEvent,
   worldEventTimerScale,
 } from './worldEvents';
@@ -91,6 +93,7 @@ function cloneState(state: GameState): GameState {
     },
     suddenDeath: { ...state.suddenDeath },
     itemPool: [...state.itemPool],
+    eventPool: [...state.eventPool],
     pendingQuickSwaps: state.pendingQuickSwaps.map((p) => ({ ...p })),
     rules: {
       gameLengthMs: state.rules?.gameLengthMs ?? CONFIG.GAME_LENGTH_MS,
@@ -110,16 +113,17 @@ function makeTile(index: number, itemId: ItemId, tileTimerMs = CONFIG.TILE_TIMER
     highBidderId: null,
     freezeMs: 0,
     bidLocked: false,
+    golden: false,
     flash: null,
     flashMs: 0,
   };
 }
 
-/** Weighted in-play count: golden hand copies count as 3. Shop tiles are always 1. */
+/** Weighted in-play count: golden hand copies count as 3; golden shop tiles count as 3. */
 function countInPlay(state: GameState, itemId: ItemId): number {
   let n = 0;
   for (const tile of state.tiles) {
-    if (tile.itemId === itemId) n += 1;
+    if (tile.itemId === itemId) n += tile.golden ? 3 : 1;
   }
   for (const player of state.players) {
     for (const h of player.hand) {
@@ -453,6 +457,7 @@ export function createInitialState(
   config: LobbyConfig,
   seed?: number,
   presetPool?: ItemId[],
+  presetEventPool?: WorldEventId[],
 ): GameState {
   const actualSeed = seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
   const rng = createRng(actualSeed);
@@ -523,6 +528,10 @@ export function createInitialState(
     presetPool && presetPool.length > 0
       ? [...presetPool]
       : pickMatchPool(rng);
+  const eventPool =
+    presetEventPool && presetEventPool.length > 0
+      ? [...presetEventPool]
+      : [...RANDOM_WORLD_EVENT_IDS];
   const draft: GameState = {
     mode: config.mode,
     gridCols: setup.gridCols,
@@ -547,6 +556,7 @@ export function createInitialState(
     },
     coldMarketMs: 0,
     itemPool,
+    eventPool,
     pendingQuickSwaps: [],
     rules,
   };
@@ -741,16 +751,25 @@ function cullBrokePlayers(state: GameState): void {
   }
 }
 
-function giveItem(state: GameState, player: Player, itemId: ItemId): void {
-  // 2 held + incoming → golden immediately (even with a full hand / for bombs)
-  if (tryMergeIncoming(state, player, itemId)) {
+function giveItem(
+  state: GameState,
+  player: Player,
+  itemId: ItemId,
+  asGolden = false,
+): void {
+  // Pre-golden listings skip the 3-merge path — they arrive golden already
+  if (!asGolden && tryMergeIncoming(state, player, itemId)) {
     tryAutoMerge(state, player);
     return;
   }
 
   if (itemId === 'bomb') {
-    // Bomb always attaches, even beyond hand slots
-    player.hand.push(makeHandItem(state, itemId, true));
+    const bomb = makeHandItem(state, itemId, true);
+    if (asGolden) {
+      bomb.golden = true;
+      bomb.currentSellValue = 100;
+    }
+    player.hand.push(bomb);
     tryAutoMerge(state, player);
     return;
   }
@@ -763,7 +782,10 @@ function giveItem(state: GameState, player: Player, itemId: ItemId): void {
       sell = 1 + ((state.nextInstance * 17 + state.seed) % 20);
     }
     if (itemId === 'bank_note') {
-      sell = player.itemsSold;
+      sell = player.itemsSold * (asGolden ? 2 : 1);
+    }
+    if (asGolden && itemId !== 'bank_note' && itemId !== 'mystery_box') {
+      sell = Math.max(sell, def.sellValue * 2);
     }
     player.coins += sell;
     state.events.push({
@@ -786,7 +808,16 @@ function giveItem(state: GameState, player: Player, itemId: ItemId): void {
     return;
   }
 
-  player.hand.push(makeHandItem(state, itemId));
+  const handed = makeHandItem(state, itemId);
+  if (asGolden) {
+    handed.golden = true;
+    if (itemId === 'bank_note') {
+      handed.currentSellValue = player.itemsSold * 2;
+    } else if (itemId === 'stock_market') {
+      handed.currentSellValue = Math.max(1, handed.currentSellValue);
+    }
+  }
+  player.hand.push(handed);
   if (itemId === 'bank_note') syncBankNotes(player);
   tryAutoMerge(state, player);
 }
@@ -950,7 +981,7 @@ function resolveTile(
           def.emoji,
           `Bought ${def.name}`,
         );
-        giveItem(state, winner, tile.itemId);
+        giveItem(state, winner, tile.itemId, tile.golden);
         // Kickback: +3 (golden +6) per held card on every purchase
         let kick = 0;
         for (const h of winner.hand) {
@@ -1163,11 +1194,11 @@ function applyActiveEffect(
         if (handItem.itemId === 'bomb') return;
         // Swap hand item onto board; board item enters hand
         const boardId = tile.itemId;
+        const boardGolden = tile.golden;
         tile.itemId = handItem.itemId;
+        tile.golden = handItem.golden;
         player.hand.splice(handIdx, 1);
-        const incoming = makeHandItem(state, boardId);
-        player.hand.push(incoming);
-        tryAutoMerge(state, player);
+        giveItem(state, player, boardId, boardGolden);
         tile.flash = 'bid';
         tile.flashMs = 300;
         emitFx(state, 'swap', { tileIndex: ti, playerId: player.id });
@@ -1181,10 +1212,13 @@ function applyActiveEffect(
       if (!tileA || !tileB) return;
       const tmpItem = tileA.itemId;
       const tmpPrice = tileA.price;
+      const tmpGolden = tileA.golden;
       tileA.itemId = tileB.itemId;
       tileA.price = tileB.price;
+      tileA.golden = tileB.golden;
       tileB.itemId = tmpItem;
       tileB.price = tmpPrice;
+      tileB.golden = tmpGolden;
       tileA.flash = 'bid';
       tileA.flashMs = 300;
       tileB.flash = 'bid';
@@ -1195,13 +1229,11 @@ function applyActiveEffect(
     case 'shop_refresh': {
       for (let i = 0; i < state.tiles.length; i++) {
         restockTile(state, i, rng);
-        emitFx(state, 'refresh', { tileIndex: i });
-      }
-      if (item.golden) {
-        for (const tile of state.tiles) {
-          tile.price = Math.max(1, tile.price - 1);
-          tile.timerMs += 2000;
+        if (item.golden) {
+          const tile = state.tiles[i];
+          if (tile) tile.golden = true;
         }
+        emitFx(state, 'refresh', { tileIndex: i });
       }
       break;
     }

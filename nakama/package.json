@@ -1,0 +1,19 @@
+{
+  "name": "bid-rush-nakama",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Nakama TypeScript runtime for Bid Rush (accounts, RP, matchmaking, authoritative matches).",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f nakama"
+  },
+  "dependencies": {
+    "nakama-runtime": "github:heroiclabs/nakama-common#master"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.2"
+  }
+}

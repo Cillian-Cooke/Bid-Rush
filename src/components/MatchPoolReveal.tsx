@@ -56,10 +56,10 @@ export function MatchPoolReveal({
               Ranked · {rankDef.name}
             </span>
             <span className="pool-reveal-rank-meta">
-              {itemPool.length} items in this rank
+              {itemPool.length} in this match
               {rankedRankIndex > 0
-                ? ` · ${newThisRank?.size ?? 0} unlocked here`
-                : ' · starter set'}
+                ? ` · ${newThisRank?.size ?? 0} new unlocks showing`
+                : ' · starter unlocks'}
             </span>
           </header>
         )}

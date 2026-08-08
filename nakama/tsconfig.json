@@ -1,0 +1,17 @@
+{
+  "files": [
+    "./src/ranked_math.ts",
+    "./src/rpcs.ts",
+    "./src/match_handler.ts",
+    "./src/main.ts"
+  ],
+  "compilerOptions": {
+    "target": "es5",
+    "typeRoots": ["./node_modules"],
+    "outFile": "./build/index.js",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

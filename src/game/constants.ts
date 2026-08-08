@@ -85,7 +85,7 @@ export const MODE_SETUP = {
     botCount: 1,
     gridSize: 9,
     gridCols: 3,
-    /** Max weighted copies of one item type in play (shop + hands; golden = 3) */
+    /** Max copies of one item type in play (shop + hands; golden counts as 3) */
     maxInPlay: 10,
   },
   blitz: {
@@ -96,8 +96,8 @@ export const MODE_SETUP = {
     botCount: 3,
     gridSize: 16,
     gridCols: 4,
-    /** Max weighted copies of one item type in play (shop + hands; golden = 3) */
-    maxInPlay: 16,
+    /** Max copies of one item type in play (shop + hands; golden counts as 3) */
+    maxInPlay: 10,
   },
 } as const;
 

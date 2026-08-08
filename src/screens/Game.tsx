@@ -12,7 +12,7 @@ import { SpectateHands } from '../components/SpectateHands';
 import { SpriteIcon } from '../components/SpriteIcon';
 import { TargetingOverlay } from '../components/TargetingOverlay';
 import { CONFIG } from '../game/constants';
-import { getItem, quickSwapMarkedIds } from '../game/items';
+import { canInstantUse, quickSwapMarkedIds } from '../game/items';
 import { getWorldEvent } from '../game/worldEvents';
 import type { FxKind } from '../game/types';
 import {
@@ -112,25 +112,27 @@ export function Game() {
   };
 
   const targetingPlayers = targeting?.target === 'player';
+  const targetingHand =
+    targeting?.target === 'hand' ||
+    (targeting?.target === 'hand-then-item' &&
+      targeting.selectedHandInstanceId === undefined);
   const targetingTiles =
-    targeting?.target === 'item' || targeting?.target === 'two-items';
+    targeting?.target === 'item' ||
+    targeting?.target === 'two-items' ||
+    (targeting?.target === 'hand-then-item' &&
+      !!targeting.selectedHandInstanceId);
 
   const focusedId = targeting?.instanceId ?? handFocus;
   const inUseMode = !!focusedId && !spectating && human.isAlive;
   const focusedItem = focusedId
     ? human.hand.find((h) => h.instanceId === focusedId)
     : null;
-  const focusedDef = focusedItem ? getItem(focusedItem.itemId) : null;
+  // Use only for actives that need no tile/player/hand pick
   const canUse =
     !!focusedItem &&
-    !!focusedDef &&
     !targeting &&
     !poolRevealOpen &&
-    focusedDef.kind === 'active' &&
-    (focusedDef.target === 'none' ||
-      focusedDef.target === 'all-items' ||
-      (focusedItem.itemId === 'time_freeze' && focusedItem.golden) ||
-      (focusedItem.itemId === 'ipo' && focusedItem.golden));
+    canInstantUse(focusedItem);
   const canSell = inUseMode && !!focusedItem && !poolRevealOpen;
   const showPoolToggle =
     phase === 'playing' &&
@@ -183,6 +185,9 @@ export function Game() {
         'game-screen',
         `mode-${game.mode}`,
         targeting ? 'targeting-active' : '',
+        targetingPlayers ? 'targeting-players' : '',
+        targetingTiles ? 'targeting-tiles' : '',
+        targetingHand ? 'targeting-hand' : '',
         inUseMode ? 'use-mode' : '',
         sd.active ? 'sudden-death-live' : '',
         humanAtRisk ? 'sd-human-risk' : '',
@@ -190,11 +195,13 @@ export function Game() {
         spectating ? 'spectating' : '',
         live ? 'widgets-in' : '',
         poolRevealOpen ? 'pool-peek-open' : '',
+        eventLive ? 'event-live' : '',
       ]
         .filter(Boolean)
         .join(' ')}
       style={{
         ['--grid-cols' as string]: cols,
+        ...eventGlowStyle,
       }}
     >
       <aside className="game-rail" aria-label="Standings and match items">
@@ -208,12 +215,7 @@ export function Game() {
         <MatchPoolPanel itemPool={game.itemPool} />
       </aside>
 
-      <div
-        className={['game-play', eventLive ? 'event-live' : '']
-          .filter(Boolean)
-          .join(' ')}
-        style={eventGlowStyle}
-      >
+      <div className="game-play">
         <GameChrome
           roundMs={game.roundMs}
           elapsedMs={game.elapsedMs}
@@ -330,12 +332,25 @@ export function Game() {
                   const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
                   const threatened =
                     !!item && humanSwapMark.ids.has(item.instanceId);
+                  const handTargetable =
+                    !!targetingHand &&
+                    !!item &&
+                    item.instanceId !== targeting?.instanceId &&
+                    item.itemId !== 'bomb' &&
+                    item.itemId !== 'dynamite' &&
+                    human.isAlive &&
+                    !spectating;
+                  const handPicked =
+                    targeting?.selectedHandInstanceId === item?.instanceId;
                   return (
                     <HandSlot
                       key={item?.instanceId ?? `empty-${i}`}
                       item={item}
                       index={i}
-                      selected={!!item && item.instanceId === focusedId}
+                      selected={
+                        (!!item && item.instanceId === focusedId) || handPicked
+                      }
+                      targetable={handTargetable}
                       fxKind={fx?.kind ?? null}
                       fxLabel={fx?.label ?? null}
                       walletCoins={human.coins}

@@ -1,10 +1,10 @@
 :root {
-  /* Bid Rush NES palette (aligned with docs/sprites/STYLE.md) */
-  --ink: #1a1420;
-  --floor: #3d2f4a;
-  --panel: #2a2430;
-  --panel-2: #4a3f58;
-  --line: #6b7280;
+  /* Bid Rush — warm brown floor (was purple-grey) */
+  --ink: #1c1410;
+  --floor: #3d2e22;
+  --panel: #2a2218;
+  --panel-2: #534536;
+  --line: #7a6a58;
   --text: #f4e8c8;
   --muted: #c4b8a0;
   --yell: #f0c040;
@@ -14,12 +14,15 @@
   --warn: #f97316;
   --teal: #2a9d8f;
   --sky: #7dd3fc;
-  --purple: #7c3aed;
+  /* Accent kept for FX; chrome uses brown panels above */
+  --purple: #8b5e3c;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --font-display: 'Press Start 2P', 'Pixelify Sans', monospace;
+  /* Clearer digits at small sizes (Press Start 2/3 look like 8) */
+  --font-nums: 'Pixelify Sans', 'Trebuchet MS', monospace;
   --font-body: 'Pixelify Sans', 'Trebuchet MS', monospace;
   --app-width: 480px;
   --px: 2px;
@@ -139,20 +142,20 @@ button {
   background-color: var(--floor);
   /* Cheap dithered floor — no blur, no large shadows */
   background-image:
-    linear-gradient(180deg, #4a3f58 0%, transparent 48%),
+    linear-gradient(180deg, #5a4a3a 0%, transparent 48%),
     repeating-linear-gradient(
       0deg,
       transparent,
       transparent 3px,
-      rgba(26, 20, 32, 0.22) 3px,
-      rgba(26, 20, 32, 0.22) 4px
+      rgba(28, 21, 16, 0.22) 3px,
+      rgba(28, 21, 16, 0.22) 4px
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
       transparent 3px,
-      rgba(26, 20, 32, 0.12) 3px,
-      rgba(26, 20, 32, 0.12) 4px
+      rgba(28, 21, 16, 0.12) 3px,
+      rgba(28, 21, 16, 0.12) 4px
     );
 }
 
@@ -372,6 +375,7 @@ button {
   position: absolute;
   top: 3px;
   right: 3px;
+  font-family: var(--font-nums);
   font-size: clamp(0.45rem, 1.6vw, 0.58rem);
   font-weight: 800;
   background: rgba(20, 16, 12, 0.72);
@@ -949,8 +953,22 @@ button {
 }
 
 .pool-reveal-emoji {
-  font-size: clamp(1.2rem, 4.5vw, 1.65rem);
+  font-size: clamp(1.85rem, 7vw, 2.55rem);
   line-height: 1;
+  width: clamp(2.2rem, 9vw, 3rem);
+  height: clamp(2.2rem, 9vw, 3rem);
+  overflow: visible;
+}
+
+.pool-reveal-emoji.sprite-icon {
+  width: clamp(2.2rem, 9vw, 3rem);
+  height: clamp(2.2rem, 9vw, 3rem);
+}
+
+.pool-reveal-cell {
+  overflow: visible;
+  padding: 10px 4px 8px;
+  gap: 4px;
 }
 
 .pool-reveal-name {
@@ -986,8 +1004,14 @@ button {
 }
 
 .pool-reveal-detail-emoji {
-  font-size: 1.45rem;
+  font-size: 2rem;
   line-height: 1;
+  overflow: visible;
+}
+
+.pool-reveal-detail-emoji.sprite-icon {
+  width: 2.4rem;
+  height: 2.4rem;
 }
 
 .pool-reveal-detail-name {
@@ -1150,13 +1174,30 @@ button {
   justify-content: center;
 }
 
-.game-screen.targeting-active::before {
+.game-screen.targeting-active .game-play::before {
   content: '';
   position: absolute;
   inset: 0;
   background: #141210b3;
   z-index: 5;
   pointer-events: none;
+}
+
+.game-screen.targeting-active .status-dock,
+.game-screen.targeting-active .targeting-banner,
+.game-screen.targeting-active .use-mode-banner {
+  position: relative;
+  z-index: 6;
+}
+
+.game-screen.targeting-players .game-rail {
+  z-index: 8;
+}
+
+.game-screen.targeting-players .mobile-full-strip,
+.game-screen.targeting-players .purse-strip {
+  position: relative;
+  z-index: 7;
 }
 
 .round-clock {
@@ -1335,8 +1376,8 @@ button {
 }
 
 .game-chrome-banner {
-  /* Single-banner reserve — shop grid stays put */
-  --banner-reserve: 54px;
+  /* Tall enough for long names like "Money Money Money" */
+  --banner-reserve: 72px;
   position: relative;
   width: 100%;
   min-width: 0;
@@ -1569,19 +1610,38 @@ button {
   animation: sd-grid-pulse 1.6s ease-in-out infinite;
 }
 
-/* World-event glow — lobby-style edge wash; accents bleed across soft blobs */
-.game-play.event-live {
+/* World-event glow — full screen edges (touches chrome + board) */
+.game-screen.event-live {
   isolation: isolate;
 }
 
-.game-play.event-live::after {
+.game-screen.event-live::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 3;
-  border-radius: inherit;
   background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--event-glow-1, #f59e0b) 38%, transparent),
+      transparent 14%
+    ),
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--event-glow-2, var(--event-glow-1, #f59e0b)) 34%, transparent),
+      transparent 14%
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--event-glow-1, #f59e0b) 36%, transparent),
+      transparent 12%
+    ),
+    linear-gradient(
+      270deg,
+      color-mix(in srgb, var(--event-glow-3, var(--event-glow-1, #f59e0b)) 36%, transparent),
+      transparent 12%
+    ),
     radial-gradient(
       ellipse 95% 80% at 8% 12%,
       color-mix(in srgb, var(--event-glow-1, #f59e0b) 46%, transparent),
@@ -1596,26 +1656,19 @@ button {
       ellipse 85% 70% at 48% 100%,
       color-mix(in srgb, var(--event-glow-3, var(--event-glow-1, #f59e0b)) 34%, transparent),
       transparent 55%
-    ),
-    radial-gradient(
-      ellipse at center,
-      transparent 48%,
-      color-mix(in srgb, var(--event-glow-1, #f59e0b) 26%, transparent) 100%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--event-glow-1, #f59e0b) 16%, transparent),
-      transparent 26%,
-      transparent 74%,
-      color-mix(in srgb, var(--event-glow-2, var(--event-glow-1, #f59e0b)) 12%, transparent)
     );
   mix-blend-mode: soft-light;
-  opacity: 0.9;
+  opacity: 0.95;
   animation: event-vignette 1.8s ease-in-out infinite alternate;
 }
 
-.game-play.event-live .shop-grid {
+.game-screen.event-live .shop-grid {
   animation: event-grid-pulse 1.6s ease-in-out infinite;
+}
+
+/* Keep old selector harmless if leftover */
+.game-play.event-live::after {
+  display: none;
 }
 
 @keyframes event-vignette {
@@ -1897,8 +1950,16 @@ button {
 }
 
 .spectate-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 0.72rem;
   color: var(--muted);
+}
+
+.spectate-coin-icon.sprite-icon {
+  width: 0.75em;
+  height: 0.75em;
 }
 
 .spectate-hand {
@@ -2091,21 +2152,27 @@ button {
 }
 
 .event-banner-title {
-  font-family: var(--font-display);
-  font-size: clamp(1rem, 3.8vw, 1.25rem);
+  font-family: var(--font-body);
+  font-size: clamp(0.78rem, 3.2vw, 1.05rem);
   font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
   color: var(--text);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  max-width: 100%;
 }
 
 .event-banner-line {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .event-banner-timeblock {
@@ -2365,7 +2432,8 @@ button {
   position: absolute;
   top: 4px;
   right: 4px;
-  font-size: 0.65rem;
+  font-family: var(--font-nums);
+  font-size: 0.72rem;
   font-weight: 800;
   background: var(--ink);
   color: var(--text);
@@ -2405,6 +2473,22 @@ button {
 
 .shop-tile.frozen {
   filter: saturate(0.65);
+}
+
+.shop-tile.golden:not(.has-bidder) {
+  background: color-mix(in srgb, var(--panel) 55%, var(--yell));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--yell) 70%, var(--ink));
+}
+
+.shop-tile-golden-tag {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--yell);
+  text-shadow: 1px 1px 0 var(--ink);
+  pointer-events: none;
 }
 
 .shop-tile.pop {
@@ -2987,16 +3071,15 @@ button {
 }
 
 .purse-value {
-  font-family: var(--font-display);
-  font-size: clamp(2.1rem, 9vw, 2.85rem);
+  font-family: var(--font-nums);
+  font-size: clamp(1.55rem, 7.2vw, 2.55rem);
   font-variant-numeric: tabular-nums;
   font-weight: 800;
   line-height: 0.95;
   letter-spacing: 0.02em;
   color: var(--yell);
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
 }
 
@@ -3221,14 +3304,13 @@ button {
 
 .score-chip.anon .score-coins {
   justify-self: end;
-  font-family: var(--font-display);
+  font-family: var(--font-nums);
   font-variant-numeric: tabular-nums;
   font-weight: 800;
   letter-spacing: 0.02em;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
 }
 
@@ -3247,11 +3329,25 @@ button {
 
 .score-chip.targetable {
   cursor: pointer;
-  outline: 1px dashed var(--yell);
+  outline: 3px solid var(--yell);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--yell) 55%, transparent);
+  animation: target-pulse 0.7s steps(2, end) infinite;
+  z-index: 2;
 }
 
 .score-chip.targetable:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.12);
+}
+
+@keyframes target-pulse {
+  0%,
+  100% {
+    outline-color: var(--yell);
+  }
+  50% {
+    outline-color: #fff3a0;
+  }
 }
 
 .score-rank {
@@ -3274,10 +3370,19 @@ button {
 }
 
 .score-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-nums);
   font-size: 0.72rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--yell);
+}
+
+.score-coin-icon.sprite-icon {
+  width: 0.75em;
+  height: 0.75em;
 }
 
 .score-badge,
@@ -3690,9 +3795,18 @@ button {
 }
 
 .hand-sell {
-  font-size: 0.58rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-nums);
+  font-size: 0.62rem;
   font-weight: 800;
   opacity: 0.9;
+}
+
+.hand-sell-coin.sprite-icon {
+  width: 0.7em;
+  height: 0.7em;
 }
 
 .hand-fuse {
@@ -3913,11 +4027,19 @@ button {
 }
 
 .results-winner-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-display);
   font-size: 1.15rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--yell);
+}
+
+.results-champ-coin.sprite-icon {
+  width: 1em;
+  height: 1em;
 }
 
 .results-winner-coins.rainbow {
@@ -4008,10 +4130,18 @@ button {
 }
 
 .rank-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-display);
   font-size: 0.85rem;
+}
+
+.rank-coin-icon.sprite-icon {
+  width: 0.85em;
+  height: 0.85em;
 }
 
 .rank-out {
@@ -4549,15 +4679,16 @@ button {
   position: absolute;
   top: calc(10px + var(--safe-top));
   left: calc(10px + var(--safe-left));
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
   border-radius: 2px;
   background: var(--panel);
   color: var(--yell);
   display: grid;
   place-items: center;
   z-index: 5;
+  border: 2px solid var(--ink);
 }
 
 .trophy-btn:active {
@@ -5270,6 +5401,55 @@ button {
   text-align: center;
 }
 
+.queue-panel {
+  gap: 16px;
+  align-items: center;
+}
+
+.queue-hint {
+  margin: 0;
+  max-width: 28ch;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.account-name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto 12px;
+}
+
+.account-name-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.account-name-row {
+  display: flex;
+  width: 100%;
+}
+
+.account-name-input {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+
 .online-room {
   gap: 12px;
 }
@@ -5406,48 +5586,6 @@ button {
   flex-shrink: 0;
 }
 
-.naming-meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  margin-top: 8px;
-}
-
-.naming-bids {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 4px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  min-width: 72px;
-}
-
-.naming-bids.empty {
-  border-color: var(--danger);
-}
-
-.naming-bids-label {
-  font-size: 0.55rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.naming-bids-count {
-  font-family: var(--font-display);
-  font-size: 1.65rem;
-  line-height: 1;
-  color: var(--yell);
-}
-
-.naming-bids.empty .naming-bids-count {
-  color: var(--danger);
-}
-
 .naming-pool-btn {
   margin-top: 12px;
   width: min(280px, 100%);
@@ -5480,7 +5618,7 @@ button {
 }
 
 .naming-clock {
-  margin-top: 0;
+  margin-top: 8px;
   font-family: var(--font-display);
   font-size: 3rem;
   line-height: 1;
@@ -5503,29 +5641,19 @@ button {
   transition: width 0.1s linear;
 }
 
-.naming-tag-grid .tag-card {
+.naming-tag-grid .shop-tile {
   width: var(--tile-size);
   height: var(--tile-size);
   gap: 2px;
   padding: 4px;
 }
 
-.naming-tag-grid .tag-card.claimed {
+.naming-tag-grid .shop-tile.has-bidder {
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-.naming-tag-grid .tag-card.mine {
-  outline: 3px solid #fff;
-  outline-offset: -3px;
-}
-
-.tag-avatar {
-  font-size: clamp(1.25rem, 5vw, 1.85rem);
-  line-height: 1;
-}
-
-.tag-name {
+.naming-tag-grid .tag-name {
   font-weight: 800;
   font-size: clamp(0.55rem, 2.4vw, 0.72rem);
   text-align: center;
@@ -5535,24 +5663,6 @@ button {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-}
-
-.tag-price {
-  font-size: clamp(0.55rem, 2.2vw, 0.68rem);
-  font-weight: 800;
-}
-
-.tag-yours {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  font-size: 0.5rem;
-  font-weight: 900;
-  background: #fff;
-  color: #1a1408;
-  text-shadow: none;
-  padding: 1px 3px;
-  border-radius: 2px;
 }
 
 @keyframes hand-slide-in {
@@ -5619,6 +5729,10 @@ button {
   gap: 6px;
   justify-content: center;
   padding: 0 12px 8px;
+}
+
+.codex-section-tabs {
+  margin: 0 12px 10px;
 }
 
 .codex-rank-hint {
@@ -5787,6 +5901,20 @@ button {
     background:
       linear-gradient(180deg, #5a5146 0%, var(--floor) 28%, #3d372f 100%);
     box-shadow: inset -18px 0 40px rgba(20, 16, 12, 0.18);
+  }
+
+  /* Sit just inside the play column, beside the guide rail */
+  .lobby-stage > .trophy-btn {
+    left: 14px;
+    top: calc(14px + var(--safe-top));
+    width: 72px;
+    height: 72px;
+    min-width: 72px;
+  }
+
+  .lobby-stage > .trophy-btn .lobby-rail-icon.sprite-icon {
+    width: 2.65rem;
+    height: 2.65rem;
   }
 
   .lobby-rail .codex-sheet.embedded {
@@ -6322,4 +6450,66 @@ button {
   50% {
     outline: 2px solid var(--danger);
   }
+}
+
+/* —— Bigger item icons + no clip (codex / custom / ranked) —— */
+.codex-emoji,
+.codex-emoji.sprite-icon {
+  width: 3rem !important;
+  height: 3rem !important;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.codex-row {
+  overflow: visible;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.custom-item-cell {
+  overflow: visible;
+  min-height: 76px;
+  padding: 10px 4px 8px;
+}
+
+.custom-item-cell-icon,
+.custom-item-cell-icon.sprite-icon {
+  width: 2.35rem !important;
+  height: 2.35rem !important;
+  overflow: visible;
+}
+
+.lobby-rail-icon.sprite-icon {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.leaderboard-title-icon.sprite-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.leaderboard-sheet {
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ranked-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+
+.event-chip-emoji.sprite-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.game-chrome-banner .event-banner-title {
+  font-size: clamp(0.72rem, 2.8vw, 0.95rem);
 }

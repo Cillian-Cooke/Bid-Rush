@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 output/
+nakama/build/
+**/__pycache__/
+*.pyc
 
 # Editor directories and files
 .vscode/*

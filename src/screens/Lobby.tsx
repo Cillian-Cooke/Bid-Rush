@@ -1,5 +1,5 @@
-import { ArrowLeft, BookOpen, Copy, Settings, Trophy, Users } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, Copy, Settings } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { MODE_SETUP } from '../game/constants';
 import {
   loadCustomSettings,
@@ -15,6 +15,18 @@ import {
   setOnlineReady,
   startOnlineMatch,
 } from '../net/onlineSession';
+import {
+  cancelMatchmaking,
+  getMatchmakingStatus,
+  setMatchmakingListener,
+  startMatchmaking,
+  type MatchmakingStatus,
+} from '../net/matchmaking';
+import {
+  getNakamaProfile,
+  refreshNakamaProfile,
+  setNakamaDisplayName,
+} from '../net/nakama';
 import { useGameStore } from '../store';
 import { CustomSettingsPanel } from '../components/CustomSettingsPanel';
 import { ItemsCodex } from '../components/ItemsCodex';
@@ -37,6 +49,23 @@ const DIFFICULTIES: {
 ];
 
 type LobbyView = 'home' | 'casual' | 'create';
+
+function queueLabel(status: MatchmakingStatus): string {
+  switch (status) {
+    case 'connecting':
+      return 'Connecting…';
+    case 'searching':
+      return 'Finding players…';
+    case 'found':
+      return 'Match found';
+    case 'joining':
+      return 'Joining room…';
+    case 'error':
+      return 'Matchmaking failed';
+    default:
+      return '';
+  }
+}
 
 export function Lobby() {
   const lobby = useGameStore((s) => s.lobby);
@@ -61,6 +90,29 @@ export function Lobby() {
     () => loadCustomSettings(),
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [queueStatus, setQueueStatus] = useState<MatchmakingStatus>('idle');
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [nameDraft, setNameDraft] = useState('');
+
+  useEffect(() => {
+    setMatchmakingListener((s, err) => {
+      setQueueStatus(s);
+      setQueueError(err ?? null);
+    });
+    setQueueStatus(getMatchmakingStatus());
+    void refreshNakamaProfile().then((p) => {
+      if (p?.displayName) {
+        setDisplayName(p.displayName);
+        setNameDraft(p.displayName);
+      } else {
+        const fallback = getNakamaProfile()?.displayName ?? '';
+        setDisplayName(fallback);
+        setNameDraft(fallback);
+      }
+    });
+    return () => setMatchmakingListener(null);
+  }, []);
 
   const updateCustom = (next: CustomMatchSettings) => {
     setCustomSettings(next);
@@ -75,6 +127,27 @@ export function Lobby() {
     startNaming(mode);
   };
 
+  const queuePlay = (mode: GameMode, kind: 'ranked' | 'casual') => {
+    void startMatchmaking({
+      kind,
+      mode,
+      botFallbackMs: 20_000,
+      onBotFallback: () => playLocal(mode, kind),
+    });
+  };
+
+  const saveName = async () => {
+    const next = nameDraft.trim().slice(0, 24);
+    if (!next) return;
+    try {
+      const saved = await setNakamaDisplayName(next);
+      setDisplayName(saved);
+      setNameDraft(saved);
+    } catch {
+      setDisplayName(next);
+    }
+  };
+
   const createRoom = async (mode: GameMode) => {
     setBusy(true);
     useGameStore.setState({ onlineError: null });
@@ -83,6 +156,7 @@ export function Lobby() {
         mode,
         difficulty: lobby.difficulty,
         custom: customSettings,
+        displayName: displayName || undefined,
       });
     } catch (err) {
       useGameStore.setState({
@@ -98,7 +172,9 @@ export function Lobby() {
     setBusy(true);
     useGameStore.setState({ onlineError: null });
     try {
-      await joinOnlineRoom(joinCode);
+      await joinOnlineRoom(joinCode, {
+        displayName: displayName || undefined,
+      });
     } catch (err) {
       useGameStore.setState({
         onlineError:
@@ -121,8 +197,36 @@ export function Lobby() {
   };
 
   const mySeat = onlineSeats.find((s) => s.sessionId === sessionId);
+  const queuing = queueStatus !== 'idle' && queueStatus !== 'error';
 
-  /* —— Connected room lobby —— */
+  if (queuing || queueStatus === 'error') {
+    return (
+      <div className="screen lobby-screen">
+        <LobbyAuctionBg onEventChange={setLobbyEvent} />
+        <div className="lobby-content home-menu queue-panel">
+          <div className="lobby-hero">
+            <h1 className="brand">Bid Rush</h1>
+            <p className="friends-subtitle">{queueLabel(queueStatus)}</p>
+          </div>
+          {queueStatus === 'searching' && (
+            <p className="queue-hint">
+              Looking for players. After 20s you&apos;ll play vs bots — rank
+              still counts.
+            </p>
+          )}
+          {queueError && <p className="online-error">{queueError}</p>}
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => void cancelMatchmaking()}
+          >
+            {queueStatus === 'error' ? 'Back' : 'Cancel'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (online && roomCode) {
     const maxPlayers = MODE_SETUP[lobby.mode].players;
     return (
@@ -148,84 +252,33 @@ export function Lobby() {
             {copied && <span className="online-copied">Copied</span>}
           </div>
 
-          <div className="online-seats">
-            <div className="online-seats-head">
-              <Users size={16} />
-              <span>
-                {onlineSeats.length}/{maxPlayers} players
-              </span>
-            </div>
-            <ul className="online-seat-list">
-              {onlineSeats.map((seat) => (
-                <li key={seat.sessionId} className="online-seat">
+          <ul className="online-seat-list" aria-label="Players">
+            {Array.from({ length: maxPlayers }, (_, i) => {
+              const seat = onlineSeats.find((s) => s.seatIndex === i);
+              return (
+                <li
+                  key={i}
+                  className={`online-seat${seat ? '' : ' empty'}${
+                    seat?.sessionId === sessionId ? ' you' : ''
+                  }`}
+                >
                   <span
                     className="online-seat-dot"
-                    style={{ background: seat.color }}
+                    style={{
+                      background: seat?.color ?? 'rgba(255,255,255,0.2)',
+                    }}
+                    aria-hidden
                   />
                   <span className="online-seat-name">
-                    {seat.displayName}
-                    {seat.sessionId === sessionId ? ' (you)' : ''}
-                    {onlineHost && seat.sessionId === sessionId ? ' · host' : ''}
+                    {seat ? seat.displayName : 'Open seat'}
                   </span>
-                  <span className="online-seat-ready">
-                    {seat.ready ? 'Ready' : '…'}
-                  </span>
+                  {seat?.ready && (
+                    <span className="online-seat-ready">ready</span>
+                  )}
                 </li>
-              ))}
-            </ul>
-            <p className="online-fill-hint">
-              Empty seats fill with bots when you start.
-            </p>
-          </div>
-
-          {onlineHost && (
-            <div className="field lobby-diff">
-              <span>Mode</span>
-              <div className="diff-row">
-                {(['duel', 'blitz'] as GameMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className={`diff-chip${lobby.mode === mode ? ' selected' : ''}`}
-                    onClick={() => {
-                      useGameStore.getState().setMode(mode);
-                      setOnlineOptions({ mode });
-                    }}
-                  >
-                    {MODE_SETUP[mode].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {onlineHost && (
-            <div className="field lobby-diff">
-              <span>Bots</span>
-              <div className="diff-row">
-                {DIFFICULTIES.map((d) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    className={`diff-chip${lobby.difficulty === d.id ? ' selected' : ''}`}
-                    onClick={() => {
-                      setDifficulty(d.id);
-                      setOnlineOptions({ difficulty: d.id });
-                    }}
-                  >
-                    <SpriteIcon
-                      id={d.sprite}
-                      className="diff-chip-icon"
-                      aria-hidden
-                    />{' '}
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {onlineError && <p className="online-error">{onlineError}</p>}
+              );
+            })}
+          </ul>
 
           <div className="online-actions">
             {!onlineHost && (
@@ -243,7 +296,7 @@ export function Lobby() {
                 className="btn primary"
                 onClick={() => startOnlineMatch()}
               >
-                Start match
+                Start
               </button>
             )}
             <button
@@ -262,7 +315,6 @@ export function Lobby() {
     );
   }
 
-  /* —— Casual: pick Duel or Blitz —— */
   if (view === 'casual') {
     return (
       <div className="screen lobby-screen">
@@ -287,18 +339,18 @@ export function Lobby() {
             <button
               type="button"
               className="home-play-btn"
-              onClick={() => playLocal('duel', 'casual')}
+              onClick={() => queuePlay('duel', 'casual')}
             >
               <span className="home-play-title">Duel</span>
-              <span className="home-play-meta">vs bot · 3×3</span>
+              <span className="home-play-meta">find 1v1 · bots if empty</span>
             </button>
             <button
               type="button"
               className="home-play-btn featured"
-              onClick={() => playLocal('blitz', 'casual')}
+              onClick={() => queuePlay('blitz', 'casual')}
             >
               <span className="home-play-title">Blitz</span>
-              <span className="home-play-meta">vs bots · 4×4</span>
+              <span className="home-play-meta">find players · 4×4</span>
             </button>
           </nav>
         </div>
@@ -306,7 +358,6 @@ export function Lobby() {
     );
   }
 
-  /* —— Create / join room —— */
   if (view === 'create') {
     return (
       <div className="screen lobby-screen">
@@ -435,7 +486,6 @@ export function Lobby() {
     );
   }
 
-  /* —— Home —— */
   return (
     <div className="screen lobby-screen">
       <LobbyAuctionBg onEventChange={setLobbyEvent} />
@@ -444,66 +494,74 @@ export function Lobby() {
         <ItemsCodex embedded onClose={() => setCodexOpen(false)} />
       </aside>
 
-      <button
-        type="button"
-        className="trophy-btn"
-        onClick={() => setLeaderboardOpen(true)}
-        aria-label="Ranked leaderboard"
-      >
-        <Trophy size={20} />
-      </button>
-
-      <button
-        type="button"
-        className="codex-btn"
-        onClick={() => setCodexOpen(true)}
-        aria-label="Item guide"
-      >
-        <BookOpen size={20} />
-      </button>
-
       <div className="lobby-stage">
+        <button
+          type="button"
+          className="trophy-btn"
+          onClick={() => setLeaderboardOpen(true)}
+          aria-label="Ranked leaderboard"
+        >
+          <SpriteIcon id="trophy" className="lobby-rail-icon" aria-hidden />
+        </button>
+
         <button
           type="button"
           className="codex-btn mobile-codex-btn"
           onClick={() => setCodexOpen(true)}
-          aria-label="Item guide"
+          aria-label="Item and event guide"
         >
-          <BookOpen size={20} />
+          <SpriteIcon id="book" className="lobby-rail-icon" aria-hidden />
         </button>
 
-      <div className="lobby-content home-menu">
-        <div className="lobby-hero">
-          <h1 className="brand">Bid Rush</h1>
-        </div>
+        <div className="lobby-content home-menu">
+          <div className="lobby-hero">
+            <h1 className="brand">Bid Rush</h1>
+          </div>
 
-        <nav className="home-play" aria-label="Play">
-          <button
-            type="button"
-            className="home-play-btn featured"
-            onClick={() => playLocal('duel', 'ranked')}
-          >
-            <span className="home-play-title">Ranked</span>
-            <span className="home-play-meta">Duel · 1v1</span>
-          </button>
-          <button
-            type="button"
-            className="home-play-btn"
-            onClick={() => setView('casual')}
-          >
-            <span className="home-play-title">Casual</span>
-            <span className="home-play-meta">Duel or Blitz</span>
-          </button>
-          <button
-            type="button"
-            className="home-play-btn ghost"
-            onClick={() => setView('create')}
-          >
-            <span className="home-play-title">Custom</span>
-            <span className="home-play-meta">Host room · pick items & rules</span>
-          </button>
-        </nav>
-      </div>
+          <label className="account-name-field">
+            <span className="account-name-label">Name</span>
+            <div className="account-name-row">
+              <input
+                className="account-name-input"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value.slice(0, 24))}
+                onBlur={() => void saveName()}
+                placeholder="Your name"
+                maxLength={24}
+                spellCheck={false}
+              />
+            </div>
+          </label>
+
+          <nav className="home-play" aria-label="Play">
+            <button
+              type="button"
+              className="home-play-btn featured"
+              onClick={() => queuePlay('duel', 'ranked')}
+            >
+              <span className="home-play-title">Ranked</span>
+              <span className="home-play-meta">Find duel · keep your RP</span>
+            </button>
+            <button
+              type="button"
+              className="home-play-btn"
+              onClick={() => setView('casual')}
+            >
+              <span className="home-play-title">Casual</span>
+              <span className="home-play-meta">Find Duel or Blitz</span>
+            </button>
+            <button
+              type="button"
+              className="home-play-btn ghost"
+              onClick={() => setView('create')}
+            >
+              <span className="home-play-title">Custom</span>
+              <span className="home-play-meta">
+                Host room · pick items & rules
+              </span>
+            </button>
+          </nav>
+        </div>
       </div>
 
       {codexOpen && <ItemsCodex onClose={() => setCodexOpen(false)} />}

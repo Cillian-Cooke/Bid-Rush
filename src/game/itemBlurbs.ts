@@ -80,7 +80,7 @@ export function goldenBlurb(id: string): string {
     time_freeze: 'Golden: briefly mega-freezes the whole board.',
     fast_forward: 'Golden: also resolves a second random tile.',
     swap_portal: 'Golden: swap a hand item with a board tile.',
-    shop_refresh: 'Golden: also -1 price and +2s on every tile.',
+    shop_refresh: 'Golden: restocks the whole shop with golden listings.',
     handcuffs: 'Golden: lasts twice as long.',
     pickpocket: 'Golden: steals twice as much.',
     heist_kit: 'Golden: steals two items.',

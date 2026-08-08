@@ -10,7 +10,7 @@ import {
   applyUseItem,
   reorderHand,
 } from './game/engine';
-import { getItem, fullMatchPool, pickMatchPool } from './game/items';
+import { getItem, canInstantUse, pickMatchPool } from './game/items';
 import {
   bidOnNameTag,
   createNameAuction,
@@ -31,15 +31,18 @@ import type {
   TargetingMode,
 } from './game/types';
 import type { OnlineSeatView } from './net/protocol';
-import { getOnlineRoom, sendOnline, setOnlineRoom } from './net/roomRef';
+import { sendOnline } from './net/roomRef';
+import { leaveOnlineRoom } from './net/onlineSession';
 import {
   applyRankedMatchResult,
   getRankDef,
   loadRankProgress,
   rankedPoolForRank,
+  rankedEventPoolForRank,
   recordRankedHistory,
   rollRankedBotDifficulty,
 } from './game/ranked';
+import { RANDOM_WORLD_EVENT_IDS } from './game/worldEvents';
 export type FloatText = {
   id: number;
   playerId: string;
@@ -331,14 +334,43 @@ function maybeRecordRanked(get: () => Store, game: GameState) {
   const won = game.winnerId === human.id;
   const before = loadRankProgress();
   const rankId = getRankDef(before.rankIndex).id;
-  applyRankedMatchResult(won);
-  recordRankedHistory({
+  const historyInput = {
     name: human.name,
     avatar: human.avatar,
     coins: human.coins,
     won,
     rankId,
-  });
+  };
+
+  // Online ranked: Nakama match handler already wrote RP — refresh + history only.
+  if (get().online) {
+    recordRankedHistory(historyInput);
+    void import('./net/nakama')
+      .then(({ refreshNakamaProfile }) => refreshNakamaProfile())
+      .catch(() => {});
+    return;
+  }
+
+  // Prefer Nakama authoritative RP when the account session is up (local bots).
+  void import('./net/nakama')
+    .then(async ({ applyRankedOnServer }) => {
+      const server = await applyRankedOnServer({
+        won,
+        coins: human.coins,
+        name: human.name,
+        avatar: human.avatar,
+      });
+      if (server) {
+        recordRankedHistory(historyInput);
+        return;
+      }
+      applyRankedMatchResult(won);
+      recordRankedHistory(historyInput);
+    })
+    .catch(() => {
+      applyRankedMatchResult(won);
+      recordRankedHistory(historyInput);
+    });
 }
 
 /** Apply item use locally or send to Colyseus when online. */
@@ -476,8 +508,7 @@ export const useGameStore = create<Store>((set, get) => ({
       poolRevealOpen: false,
       poolRevealEndsAt: null,
       poolRevealPeeked: false,
-      matchKind: null,
-      rankedRankIndex: null,
+      // Keep matchKind if matchmaking already set ranked/casual for RP.
     });
   },
 
@@ -584,15 +615,17 @@ export const useGameStore = create<Store>((set, get) => ({
   applyOnlineMatchEnded: (winnerId) => {
     stopLoop();
     const game = get().game;
+    const ended = game
+      ? { ...game, ended: true, winnerId: winnerId ?? game.winnerId }
+      : game;
     set({
       phase: 'results',
       knockoutOffer: false,
       targeting: null,
       handFocus: null,
-      game: game
-        ? { ...game, ended: true, winnerId: winnerId ?? game.winnerId }
-        : game,
+      game: ended,
     });
+    if (ended) maybeRecordRanked(get, ended);
   },
 
   startNaming: (mode, seed) => {
@@ -607,12 +640,12 @@ export const useGameStore = create<Store>((set, get) => ({
         : get().lobby.difficulty;
     const naming = createNameAuction(mode, difficulty, seed);
     const poolRng = createRng(naming.seed ^ 0x51ceed);
+    // Always exactly 16 types per match. Casual: from all spawnable.
+    // Ranked: from the rank's unlock catalog (grows with rank).
     const matchPool =
       ranked && progress
-        ? rankedPoolForRank(progress.rankIndex)
-        : get().matchKind === 'casual'
-          ? fullMatchPool()
-          : pickMatchPool(poolRng);
+        ? pickMatchPool(poolRng, rankedPoolForRank(progress.rankIndex))
+        : pickMatchPool(poolRng);
     set({
       phase: 'naming',
       lobby: { ...get().lobby, mode, difficulty },
@@ -691,9 +724,13 @@ export const useGameStore = create<Store>((set, get) => ({
 
   finishNaming: () => {
     stopNamingLoop();
-    const { naming, lobby, matchPool } = get();
+    const { naming, lobby, matchPool, matchKind, rankedRankIndex } = get();
     if (!naming) return;
     const identities = resolveNameAuction(naming);
+    const eventPool =
+      matchKind === 'ranked' && rankedRankIndex != null
+        ? rankedEventPoolForRank(rankedRankIndex)
+        : [...RANDOM_WORLD_EVENT_IDS];
     let game = createInitialState(
       {
         mode: naming.mode,
@@ -702,6 +739,7 @@ export const useGameStore = create<Store>((set, get) => ({
       },
       naming.seed,
       matchPool ?? undefined,
+      eventPool,
     );
     startCountdownFromGame(get, set, game);
     set({ lobby: { ...lobby, mode: naming.mode, identities } });
@@ -723,15 +761,7 @@ export const useGameStore = create<Store>((set, get) => ({
     stopLoop();
     stopCountdown();
     stopNamingLoop();
-    const room = getOnlineRoom();
-    setOnlineRoom(null);
-    if (room) {
-      try {
-        void room.leave();
-      } catch {
-        /* ignore */
-      }
-    }
+    void leaveOnlineRoom(false);
     set({
       phase: 'lobby',
       game: null,
@@ -788,6 +818,11 @@ export const useGameStore = create<Store>((set, get) => ({
       matchPool: null,
     });
     if (lobby.identities && lobby.identities.length > 0) {
+      const { matchKind, rankedRankIndex } = get();
+      const eventPool =
+        matchKind === 'ranked' && rankedRankIndex != null
+          ? rankedEventPoolForRank(rankedRankIndex)
+          : [...RANDOM_WORLD_EVENT_IDS];
       const game = createInitialState(
         {
           mode: lobby.mode,
@@ -795,6 +830,8 @@ export const useGameStore = create<Store>((set, get) => ({
           identities: lobby.identities,
         },
         Date.now(),
+        undefined,
+        eventPool,
       );
       startCountdownFromGame(get, set, game);
       return;
@@ -857,14 +894,7 @@ export const useGameStore = create<Store>((set, get) => ({
     if (!human?.isAlive || !handFocus) return;
     const item = human.hand.find((h) => h.instanceId === handFocus);
     if (!item) return;
-    const def = getItem(item.itemId);
-    const instant =
-      def.kind === 'active' &&
-      (def.target === 'none' ||
-        def.target === 'all-items' ||
-        (item.itemId === 'time_freeze' && item.golden) ||
-        (item.itemId === 'ipo' && item.golden));
-    if (!instant) return;
+    if (!canInstantUse(item)) return;
     if (online) {
       sendOnline('use', { instanceId: handFocus, targets: {} });
       set({ targeting: null, handFocus: null });
@@ -917,15 +947,8 @@ export const useGameStore = create<Store>((set, get) => ({
 
     const def = getItem(item.itemId);
 
-    // Passives, bombs, and instant actives: select first (Use / Sell above)
-    if (
-      def.kind !== 'active' ||
-      def.target === 'special' ||
-      def.target === 'none' ||
-      def.target === 'all-items' ||
-      (item.itemId === 'time_freeze' && item.golden) ||
-      (item.itemId === 'ipo' && item.golden)
-    ) {
+    // Passives / bombs / instant actives: select first (Use only if instant)
+    if (def.kind !== 'active' || canInstantUse(item) || def.target === 'special') {
       set({ handFocus: instanceId, targeting: null });
       return;
     }

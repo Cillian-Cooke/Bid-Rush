@@ -74,6 +74,14 @@ export default function App() {
   const poolRevealPeeked = useGameStore((s) => s.poolRevealPeeked);
   const closePoolReveal = useGameStore((s) => s.closePoolReveal);
 
+  useEffect(() => {
+    void import('./net/nakama')
+      .then(({ ensureNakamaSession }) => ensureNakamaSession())
+      .catch(() => {
+        /* Nakama optional until docker is up */
+      });
+  }, []);
+
   // Keep match mounted under results so lobby stays the true bottom of the stack
   const wantMatch =
     phase === 'naming' ||

@@ -5,17 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "npm --prefix server run dev",
-    "dev:all": "npm run dev:server & npm run dev",
+    "dev:nakama": "npm --prefix nakama run docker:up",
+    "dev:all": "npm run dev:nakama && npm run dev",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "sprites:slice": "node scripts/sprites/slice.mjs",
-    "sprites:paint": "python3 scripts/sprites/paint.py",
-    "smoke:colyseus": "tsx scripts/smoke-colyseus.mts"
+    "sprites:paint": "python3 scripts/sprites/paint.py"
   },
   "dependencies": {
-    "@colyseus/sdk": "^0.17.43",
+    "@heroiclabs/nakama-js": "^2.8.0",
     "lucide-react": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

@@ -2,6 +2,7 @@ import { EventBannerCard } from './EventBanner';
 import { PaceBanner } from './PaceBanner';
 import { RoundClock } from './RoundClock';
 import { SuddenDeathBanner } from './SuddenDeathBanner';
+import { SpriteIcon } from './SpriteIcon';
 import { CONFIG } from '../game/constants';
 import { getWorldEvent } from '../game/worldEvents';
 import type { Player, SuddenDeathState, WorldEventState } from '../game/types';
@@ -69,9 +70,11 @@ export function GameChrome({
                     style={{ ['--event-accent' as string]: def.accent }}
                     title={`${def.name} — ${formatSec(live.activeMs)} left`}
                   >
-                    <span className="event-chip-emoji" aria-hidden>
-                      {def.emoji}
-                    </span>
+                    <SpriteIcon
+                      id={live.id}
+                      className="event-chip-emoji"
+                      aria-hidden
+                    />
                     <span className="event-chip-timer">
                       {formatSec(live.activeMs)}
                     </span>

@@ -1,4 +1,4 @@
-import type { BotArchetype, DifficultyMode, ItemId } from './types';
+import type { BotArchetype, DifficultyMode, ItemId, WorldEventId } from './types';
 import { ITEM_LIST } from './items';
 
 const PROGRESS_KEY = 'bid-rush-ranked-progress-v2';
@@ -71,14 +71,30 @@ export const RANKED_ITEM_ORDER: ItemId[] = (() => {
   return ordered;
 })();
 
+/** Floor-event unlock order (excludes golden_chaos — Chaos Die only). */
+export const RANKED_EVENT_ORDER: WorldEventId[] = [
+  'money_money_money',
+  'coin_shower',
+  'fire_sale',
+  'deep_freeze',
+  'turbo_market',
+  'tax_collector',
+  'shuffle_storm',
+  'inflation_wave',
+  'bomb_bazaar',
+  'mystery_mall',
+];
+
 export type RankId = 1 | 2 | 3 | 4 | 5;
 
 export type RankDef = {
   id: RankId;
   name: string;
   blurb: string;
-  /** Match item pool size (cumulative unlocks) */
+  /** Unlock catalog size (match still picks 16 from this set) */
   poolSize: number;
+  /** World-event unlock catalog size (scheduled events pick from this set) */
+  eventPoolSize: number;
   /** RP gained on win */
   winRp: number;
   /** RP lost on defeat (positive number) */
@@ -92,8 +108,9 @@ export const RANKED_RANKS: readonly RankDef[] = [
   {
     id: 1,
     name: 'Bronze',
-    blurb: 'Starter floor · 16 items',
+    blurb: '16 items · 4 events',
     poolSize: 16,
+    eventPoolSize: 4,
     winRp: 28,
     lossRp: 8,
     botWeights: { chill: 0.7, balanced: 0.25, ruthless: 0.05 },
@@ -101,8 +118,9 @@ export const RANKED_RANKS: readonly RankDef[] = [
   {
     id: 2,
     name: 'Silver',
-    blurb: '20 items unlocked',
+    blurb: '20 items · 6 events',
     poolSize: 20,
+    eventPoolSize: 6,
     winRp: 22,
     lossRp: 12,
     botWeights: { chill: 0.45, balanced: 0.4, ruthless: 0.15 },
@@ -110,8 +128,9 @@ export const RANKED_RANKS: readonly RankDef[] = [
   {
     id: 3,
     name: 'Gold',
-    blurb: '24 items unlocked',
+    blurb: '24 items · 8 events',
     poolSize: 24,
+    eventPoolSize: 8,
     winRp: 16,
     lossRp: 18,
     botWeights: { chill: 0.25, balanced: 0.45, ruthless: 0.3 },
@@ -119,8 +138,9 @@ export const RANKED_RANKS: readonly RankDef[] = [
   {
     id: 4,
     name: 'Platinum',
-    blurb: '28 items unlocked',
+    blurb: '28 items · 9 events',
     poolSize: 28,
+    eventPoolSize: 9,
     winRp: 12,
     lossRp: 22,
     botWeights: { chill: 0.1, balanced: 0.4, ruthless: 0.5 },
@@ -128,8 +148,9 @@ export const RANKED_RANKS: readonly RankDef[] = [
   {
     id: 5,
     name: 'Diamond',
-    blurb: '32 items · top floor',
+    blurb: '32 items · 10 events',
     poolSize: 32,
+    eventPoolSize: 10,
     winRp: 8,
     lossRp: 28,
     botWeights: { chill: 0.05, balanced: 0.25, ruthless: 0.7 },
@@ -220,7 +241,7 @@ export function applyRankedMatchResult(won: boolean): RankMatchResult {
   return { progress, delta, promoted, demoted, prevRankIndex };
 }
 
-/** Items unlocked at this rank (cumulative). */
+/** Unlock catalog at this rank (cumulative). Match pools sample 16 from this. */
 export function rankedPoolForRank(rankIndex: number): ItemId[] {
   const size = getRankDef(rankIndex).poolSize;
   return RANKED_ITEM_ORDER.slice(0, Math.min(size, RANKED_ITEM_ORDER.length));
@@ -241,6 +262,30 @@ export function rankedNewItemsAtRank(rankIndex: number): ItemId[] {
   const cur = rankedPoolForRank(rankIndex);
   if (rankIndex <= 0) return cur;
   const prev = new Set(rankedPoolForRank(rankIndex - 1));
+  return cur.filter((id) => !prev.has(id));
+}
+
+/** Event unlock catalog at this rank (cumulative). */
+export function rankedEventPoolForRank(rankIndex: number): WorldEventId[] {
+  const size = getRankDef(rankIndex).eventPoolSize;
+  return RANKED_EVENT_ORDER.slice(0, Math.min(size, RANKED_EVENT_ORDER.length));
+}
+
+/** Rank id that first unlocks this event, or null if not ranked. */
+export function rankedEventUnlockRank(eventId: WorldEventId): RankId | null {
+  if (eventId === 'golden_chaos') return 5;
+  const idx = RANKED_EVENT_ORDER.indexOf(eventId);
+  if (idx < 0) return null;
+  for (let r = 0; r < RANKED_RANKS.length; r++) {
+    if (idx < RANKED_RANKS[r]!.eventPoolSize) return RANKED_RANKS[r]!.id;
+  }
+  return RANKED_RANKS[RANKED_RANKS.length - 1]!.id;
+}
+
+export function rankedNewEventsAtRank(rankIndex: number): WorldEventId[] {
+  const cur = rankedEventPoolForRank(rankIndex);
+  if (rankIndex <= 0) return cur;
+  const prev = new Set(rankedEventPoolForRank(rankIndex - 1));
   return cur.filter((id) => !prev.has(id));
 }
 

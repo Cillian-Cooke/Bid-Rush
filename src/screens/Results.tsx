@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { SpriteIcon } from '../components/SpriteIcon';
 import { coinTint } from '../game/coinHeat';
 import { MODE_SETUP } from '../game/constants';
 import { buildRanking } from '../game/engine';
@@ -116,7 +117,8 @@ export function Results() {
                         : { color: `rgb(${r}, ${g}, ${b})` }
                     }
                   >
-                    🪙 {player.coins}
+                    <SpriteIcon id="coin" className="rank-coin-icon" aria-hidden />
+                    {player.coins}
                   </span>
                 </div>
                 {!player.isAlive && <span className="rank-out">Out</span>}
@@ -172,7 +174,8 @@ function ChampCoins({ coins }: { coins: number }) {
             }
       }
     >
-      🪙 {coins}
+      <SpriteIcon id="coin" className="results-champ-coin" aria-hidden />
+      {coins}
     </span>
   );
 }
