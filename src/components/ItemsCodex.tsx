@@ -126,15 +126,19 @@ export function ItemsCodex({ onClose, embedded = false }: Props) {
                 key={item.id}
                 className={`codex-row${golden ? ' golden-view' : ''}${locked ? ' is-rank-locked' : ''}`}
               >
-                <SpriteIcon
-                  id={item.id}
-                  className="codex-emoji"
-                  golden={golden}
-                  aria-hidden
-                />
+                <div className="codex-icon" aria-hidden>
+                  <SpriteIcon
+                    id={item.id}
+                    className="codex-emoji"
+                    golden={golden}
+                    aria-hidden
+                  />
+                </div>
                 <div className="codex-body">
                   <div className="codex-name">
                     {golden ? `Golden ${item.name}` : item.name}
+                  </div>
+                  <div className="codex-sub">
                     <span className="codex-kind">{item.kind}</span>
                     {unlock != null && (
                       <span
@@ -166,7 +170,9 @@ export function ItemsCodex({ onClose, embedded = false }: Props) {
                       Golden
                     </button>
                   </div>
-                  <p>{golden ? goldenBlurb(item.id) : regularBlurb(item.id)}</p>
+                  <p className="codex-blurb">
+                    {golden ? goldenBlurb(item.id) : regularBlurb(item.id)}
+                  </p>
                   <span className="codex-sell">
                     Start {item.startPrice ?? Math.max(1, item.sellValue - 2)} ·
                     Sell ≈ {item.sellValue || 'special'}
@@ -193,10 +199,12 @@ export function ItemsCodex({ onClose, embedded = false }: Props) {
                 key={ev.id}
                 className={`codex-row${locked ? ' is-rank-locked' : ''}`}
               >
-                <SpriteIcon id={ev.id} className="codex-emoji" aria-hidden />
+                <div className="codex-icon" aria-hidden>
+                  <SpriteIcon id={ev.id} className="codex-emoji" aria-hidden />
+                </div>
                 <div className="codex-body">
-                  <div className="codex-name">
-                    {ev.name}
+                  <div className="codex-name">{ev.name}</div>
+                  <div className="codex-sub">
                     <span className="codex-kind">
                       {special ? 'chaos die' : 'event'}
                     </span>
@@ -210,7 +218,8 @@ export function ItemsCodex({ onClose, embedded = false }: Props) {
                       </span>
                     )}
                   </div>
-                  <p>{ev.blurb}</p>
+                  <div className="codex-toggle is-spacer" aria-hidden />
+                  <p className="codex-blurb">{ev.blurb}</p>
                   <span className="codex-sell">
                     {special
                       ? 'Golden Chaos Die only'

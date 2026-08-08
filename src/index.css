@@ -20,10 +20,11 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
-  /* DotGothic16 everywhere - readable pixel type including digits */
+  /* DotGothic16 everywhere - single weight; avoid fake-bold stretch */
   --font-display: 'DotGothic16', sans-serif;
   --font-nums: 'DotGothic16', sans-serif;
   --font-body: 'DotGothic16', sans-serif;
+  --font-weight-ui: 400;
   --app-width: 480px;
   --px: 2px;
   --radius: 0px;
@@ -46,13 +47,16 @@ body,
   background: var(--ink);
   color: var(--text);
   font-family: var(--font-body);
+  font-weight: var(--font-weight-ui);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  font-smooth: never;
   font-variant-numeric: lining-nums;
+  letter-spacing: 0;
 }
 
 /* Portrait-only gate for phones held sideways */
@@ -690,9 +694,9 @@ button {
 
 .lobby-eyebrow {
   margin: 0 0 6px;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--yell);
 }
@@ -700,22 +704,24 @@ button {
 .brand {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.8rem, 14vw, 3.6rem);
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  font-size: clamp(4.6rem, 24vw, 7rem);
+  font-weight: 400;
+  letter-spacing: 0.04em;
   color: var(--yell);
   line-height: 0.95;
   text-transform: uppercase;
   text-shadow:
-    0 2px 0 rgba(20, 16, 12, 0.55),
-    0 8px 24px rgba(20, 16, 12, 0.45);
+    3px 3px 0 var(--ink),
+    0 10px 28px rgba(20, 16, 12, 0.45);
 }
 
 .tagline {
   margin: 10px 0 0;
   color: var(--muted);
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
 }
 
 .lobby-actions {
@@ -731,8 +737,9 @@ button {
   gap: 8px;
   padding: 14px 20px;
   border-radius: 2px;
-  font-weight: 700;
+  font-weight: 400;
   font-size: 1.05rem;
+  letter-spacing: 0.02em;
   transition: transform 0.1s ease;
 }
 
@@ -5173,10 +5180,11 @@ button {
   min-height: 40px;
   border-radius: 4px;
   background: var(--panel);
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: 0.82rem;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  line-height: 1.2;
 }
 
 .ranked-tabs button.on {
@@ -5358,23 +5366,23 @@ button {
 }
 
 .home-play-btn.ghost .home-play-title {
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
 .home-play-title {
   font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 800;
+  font-size: 1.3rem;
+  font-weight: 400;
   text-transform: uppercase;
-  line-height: 1.1;
-  letter-spacing: 0.02em;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
 }
 
 .home-play-meta {
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 400;
   color: var(--muted);
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .lobby-back {
@@ -5705,7 +5713,7 @@ button {
 .login-loading-copy {
   margin: 0;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .login-shell,
@@ -5732,8 +5740,9 @@ button {
   margin: 0;
   color: var(--muted);
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.4;
+  letter-spacing: 0.02em;
 }
 
 .login-card,
@@ -5760,23 +5769,25 @@ button {
 .onboarding-title {
   margin: 0 0 10px;
   font-family: var(--font-display);
-  font-size: clamp(1.45rem, 5vw, 1.85rem);
+  font-size: clamp(1.7rem, 6vw, 2.1rem);
+  font-weight: 400;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
 }
 
 .onboarding-body {
   margin: 0 auto;
-  max-width: 32ch;
+  max-width: 34ch;
   color: var(--muted);
-  font-size: 0.98rem;
-  font-weight: 600;
-  line-height: 1.45;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 .onboarding-hello {
   margin: 0 0 8px;
-  font-weight: 800;
+  font-weight: 400;
   color: var(--yell);
 }
 
@@ -6394,16 +6405,19 @@ button {
 .settings-title {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-size: clamp(2.1rem, 8vw, 2.6rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
+  line-height: 1.1;
 }
 
 .settings-title-icon.sprite-icon {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.7rem;
+  height: 1.7rem;
 }
 
 .settings-scroll {
@@ -6428,9 +6442,12 @@ button {
 .settings-block-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: 1.12rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--yell);
+  line-height: 1.25;
 }
 
 .settings-toggle,
@@ -6438,8 +6455,9 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 700;
-  font-size: 0.9rem;
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.35;
 }
 
 .settings-toggle {
@@ -6468,7 +6486,7 @@ button {
 .settings-slider em {
   font-style: normal;
   font-family: var(--font-nums);
-  font-weight: 800;
+  font-weight: 400;
   min-width: 2.5ch;
   color: var(--muted);
 }
@@ -6479,9 +6497,10 @@ button {
 
 .settings-hint {
   margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.85rem;
+  font-weight: 400;
   color: var(--ok);
+  line-height: 1.35;
 }
 
 @media (min-width: 960px) {
@@ -6770,11 +6789,12 @@ button {
 }
 
 .account-name-label {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
+  line-height: 1.3;
 }
 
 .account-name-row {
@@ -6791,8 +6811,9 @@ button {
   background: rgba(0, 0, 0, 0.28);
   color: inherit;
   font-family: var(--font-body);
-  font-size: inherit;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
 }
 
 .online-room {
@@ -7052,11 +7073,24 @@ button {
   background: var(--panel);
 }
 
+.rail-kicker {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--yell);
+  line-height: 1.3;
+}
+
 .codex-head h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-size: clamp(2.1rem, 8vw, 2.6rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
+  line-height: 1.1;
 }
 
 .codex-close {
@@ -7082,24 +7116,25 @@ button {
 
 .codex-rank-hint {
   margin: 0 14px 8px;
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 400;
   color: var(--muted);
   text-align: center;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .codex-rank-badge {
-  margin-left: 6px;
-  padding: 1px 6px;
+  margin-left: 0;
+  padding: 2px 6px;
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.28);
-  font-size: 0.62rem;
-  font-weight: 800;
+  font-size: 0.68rem;
+  font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--yell);
-  vertical-align: middle;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .codex-rank-badge.locked {
@@ -7121,59 +7156,99 @@ button {
 }
 
 .codex-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  min-height: 9.75rem;
   background: var(--panel);
   border-radius: 2px;
+  overflow: hidden;
 }
 
 .codex-row.golden-view {
   background: color-mix(in srgb, var(--panel) 78%, #c9a227);
 }
 
+.codex-icon {
+  width: 3.25rem;
+  height: 3.25rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+
 .codex-emoji {
   font-size: 1.8rem;
   line-height: 1;
-  flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 2.2rem;
-  align-self: center;
+  width: 2.4rem;
+  height: 2.4rem;
 }
 
 .codex-body {
-  flex: 1;
+  display: grid;
+  grid-template-rows: 1.3rem 1.1rem 1.7rem minmax(2.7rem, auto) 1.15rem;
+  gap: 4px;
   min-width: 0;
+  align-content: start;
+  overflow-wrap: anywhere;
 }
 
 .codex-name {
-  font-weight: 800;
+  font-weight: 400;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.codex-sub {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .codex-kind {
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .codex-toggle {
   display: inline-flex;
-  margin: 6px 0 4px;
+  align-self: start;
+  height: 1.7rem;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 2px;
   overflow: hidden;
 }
 
+.codex-toggle.is-spacer {
+  visibility: hidden;
+  pointer-events: none;
+  border-color: transparent;
+  width: 1px;
+}
+
 .codex-toggle button {
-  padding: 4px 10px;
-  font-size: 0.68rem;
-  font-weight: 800;
+  padding: 0 10px;
+  height: 100%;
+  font-size: 0.72rem;
+  font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
@@ -7189,16 +7264,27 @@ button {
   background: #e8c547;
 }
 
+.codex-blurb,
 .codex-body p {
-  margin: 4px 0;
-  font-size: 0.85rem;
-  font-weight: 600;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: 2.7rem;
 }
 
 .codex-sell {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 400;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .game-screen.mode-blitz .shop-tile-emoji,
@@ -7278,7 +7364,7 @@ button {
   }
 
   .lobby-rail .codex-head h2 {
-    font-size: 1.55rem;
+    font-size: 2.4rem;
   }
 
   .lobby-rail .codex-list {
@@ -7287,8 +7373,9 @@ button {
   }
 
   .lobby-rail .codex-row {
-    align-items: flex-start;
+    align-items: start;
     padding: 12px;
+    min-height: 9.75rem;
     background: color-mix(in srgb, var(--panel) 88%, #000);
     border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
   }
@@ -7323,7 +7410,7 @@ button {
   }
 
   .lobby-screen .brand {
-    font-size: clamp(3.4rem, 6vw, 4.6rem);
+    font-size: clamp(5rem, 8vw, 7rem);
   }
 
   .lobby-screen .tagline {
@@ -7407,19 +7494,20 @@ button {
 
   .rail-kicker {
     margin: 0;
-    font-size: 0.58rem;
-    font-weight: 800;
-    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--yell);
   }
 
   .rail-title {
     font-family: var(--font-display);
-    font-size: 1.25rem;
-    font-weight: 800;
+    font-size: 1.35rem;
+    font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    line-height: 1.2;
   }
 
   .purse-strip.rail-standings {
@@ -7733,14 +7821,22 @@ button {
 }
 
 /* -- Pixel chrome pass (cheap: borders/opacity/transform only) -- */
-.brand,
 .naming-title,
 .knockout-title,
-.results-title,
-.codex-head h2 {
-  font-size: clamp(0.85rem, 3.8vw, 1.15rem);
+.results-title {
+  font-size: clamp(1.6rem, 6vw, 2.2rem);
+  font-weight: 400;
   letter-spacing: 0.04em;
-  line-height: 1.35;
+  line-height: 1.2;
+  text-shadow: 2px 2px 0 var(--ink);
+}
+
+.codex-head h2,
+.settings-title,
+.leaderboard-title {
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
   text-shadow: 2px 2px 0 var(--ink);
 }
 
@@ -7822,8 +7918,8 @@ button {
 /* -- Bigger item icons (codex / custom / ranked) -- */
 .codex-emoji,
 .codex-emoji.sprite-icon {
-  width: 3rem !important;
-  height: 3rem !important;
+  width: 2.4rem !important;
+  height: 2.4rem !important;
   overflow: hidden;
   flex-shrink: 0;
   object-fit: contain;
@@ -7831,8 +7927,6 @@ button {
 
 .codex-row {
   overflow: hidden;
-  align-items: flex-start;
-  gap: 14px;
 }
 
 .custom-item-cell {
