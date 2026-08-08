@@ -25,9 +25,7 @@ import {
 } from '../net/matchmaking';
 import {
   getNakamaProfile,
-  logOutAccount,
   refreshNakamaProfile,
-  setNakamaDisplayName,
 } from '../net/nakama';
 import { useGameStore } from '../store';
 import { CustomSettingsPanel } from '../components/CustomSettingsPanel';
@@ -38,6 +36,7 @@ import {
   type LobbyBgEvent,
 } from '../components/LobbyAuctionBg';
 import { SpriteIcon } from '../components/SpriteIcon';
+import { SettingsScreen } from './SettingsScreen';
 
 const DIFFICULTIES: {
   id: DifficultyMode;
@@ -92,12 +91,11 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
     () => loadCustomSettings(),
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
   const [queueStatus, setQueueStatus] = useState<MatchmakingStatus>('idle');
   const [queueError, setQueueError] = useState<string | null>(null);
   const [queueProgress, setQueueProgress] = useState(0);
   const [displayName, setDisplayName] = useState('');
-  const [nameDraft, setNameDraft] = useState('');
-  const [authBusy, setAuthBusy] = useState(false);
 
   const QUEUE_MS = 10_000;
 
@@ -110,11 +108,8 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
     void refreshNakamaProfile().then((p) => {
       if (p?.displayName) {
         setDisplayName(p.displayName);
-        setNameDraft(p.displayName);
       } else {
-        const fallback = getNakamaProfile()?.displayName ?? '';
-        setDisplayName(fallback);
-        setNameDraft(fallback);
+        setDisplayName(getNakamaProfile()?.displayName ?? '');
       }
     });
     return () => setMatchmakingListener(null);
@@ -156,28 +151,6 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
       fallbackMs: QUEUE_MS,
       onFallback: () => playLocal(mode, kind),
     });
-  };
-
-  const saveName = async () => {
-    const next = nameDraft.trim().slice(0, 24);
-    if (!next) return;
-    try {
-      const saved = await setNakamaDisplayName(next);
-      setDisplayName(saved);
-      setNameDraft(saved);
-    } catch {
-      setDisplayName(next);
-    }
-  };
-
-  const handleLogout = async () => {
-    setAuthBusy(true);
-    try {
-      await logOutAccount();
-      onLoggedOut?.();
-    } finally {
-      setAuthBusy(false);
-    }
   };
 
   const createRoom = async (mode: GameMode) => {
@@ -561,31 +534,6 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
             <h1 className="brand">Bid Rush</h1>
           </div>
 
-          <section className="account-panel" aria-label="Account">
-            <label className="account-name-field">
-              <span className="account-name-label">Signed in as</span>
-              <div className="account-name-row">
-                <input
-                  className="account-name-input"
-                  value={nameDraft}
-                  onChange={(e) => setNameDraft(e.target.value.slice(0, 24))}
-                  onBlur={() => void saveName()}
-                  placeholder="Display name"
-                  maxLength={24}
-                  spellCheck={false}
-                />
-              </div>
-            </label>
-            <button
-              type="button"
-              className="btn account-logout-btn"
-              disabled={authBusy}
-              onClick={() => void handleLogout()}
-            >
-              Log out
-            </button>
-          </section>
-
           <nav className="home-play" aria-label="Play">
             <button
               type="button"
@@ -615,11 +563,28 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
             </button>
           </nav>
         </div>
+
+        <button
+          type="button"
+          className="settings-btn"
+          onClick={() => setPlayerSettingsOpen(true)}
+          aria-label="Settings"
+        >
+          <SpriteIcon id="settings" className="lobby-rail-icon" aria-hidden />
+        </button>
       </div>
 
       {codexOpen && <ItemsCodex onClose={() => setCodexOpen(false)} />}
       {leaderboardOpen && (
         <RankedLeaderboard onClose={() => setLeaderboardOpen(false)} />
+      )}
+      {playerSettingsOpen && (
+        <SettingsScreen
+          displayName={displayName}
+          onDisplayNameChange={setDisplayName}
+          onLoggedOut={onLoggedOut}
+          onClose={() => setPlayerSettingsOpen(false)}
+        />
       )}
     </div>
   );

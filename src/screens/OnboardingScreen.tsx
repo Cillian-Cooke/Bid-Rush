@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { LobbyAuctionBg } from '../components/LobbyAuctionBg';
 import { SpriteIcon } from '../components/SpriteIcon';
+import { PLAYER_COLORS } from '../game/constants';
 import { markOnboardingComplete } from '../net/onboarding';
+
+const YOU = PLAYER_COLORS[0]!;
 
 const STEPS = [
   {
@@ -32,36 +35,67 @@ type Props = {
   onDone: () => void;
 };
 
-function MiniTile({
+function DemoShopTile({
   itemId,
   price,
   yours,
+  className = '',
 }: {
   itemId: string;
   price: number;
   yours?: boolean;
+  className?: string;
 }) {
   return (
-    <div className={`onboard-mini-tile${yours ? ' is-yours' : ''}`}>
-      <SpriteIcon id={itemId} className="onboard-demo-item" />
-      <div className="onboard-demo-timer onboard-mini-timer">
-        <span className="onboard-demo-timer-fill" />
+    <div
+      className={[
+        'shop-tile',
+        yours ? 'has-bidder yours' : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={
+        yours
+          ? ({ ['--bidder' as string]: YOU, background: YOU } as object)
+          : undefined
+      }
+    >
+      <SpriteIcon id={itemId} className="shop-tile-emoji" aria-hidden />
+      <span className="shop-tile-price">
+        <SpriteIcon id="coin" className="shop-tile-coin" aria-hidden />
+        {price}
+      </span>
+      <div className="shop-tile-timer" aria-hidden>
+        <div className="shop-tile-timer-fill onboard-real-timer" />
       </div>
-      <div className="onboard-demo-price">
-        <SpriteIcon id="coin" className="onboard-demo-coin" />
-        <span>{price}</span>
-      </div>
-      {yours ? <span className="onboard-mini-you">YOU</span> : null}
+      {yours ? <span className="onboard-tile-you">YOU</span> : null}
+    </div>
+  );
+}
+
+function DemoHandSlot({
+  itemId,
+  className = '',
+}: {
+  itemId: string;
+  className?: string;
+}) {
+  return (
+    <div className={`hand-slot filled ${className}`.trim()}>
+      <SpriteIcon id={itemId} className="hand-emoji" aria-hidden />
     </div>
   );
 }
 
 function DemoBid() {
   return (
-    <div className="onboard-demo demo-bid demo-bid-triple" aria-hidden>
-      <MiniTile itemId="golden_goose" price={3} yours />
-      <MiniTile itemId="coin_mine" price={2} yours />
-      <MiniTile itemId="bargain" price={4} yours />
+    <div className="onboard-demo demo-bid demo-bid-real" aria-hidden>
+      <div className="onboard-shop-row">
+        <DemoShopTile itemId="golden_goose" price={3} yours />
+        <DemoShopTile itemId="coin_mine" price={2} yours />
+        <DemoShopTile itemId="bargain" price={4} yours className="onboard-bid-pulse" />
+      </div>
       <span className="onboard-demo-finger" />
     </div>
   );
@@ -69,35 +103,34 @@ function DemoBid() {
 
 function DemoBuy() {
   return (
-    <div className="onboard-demo demo-buy" aria-hidden>
-      <div className="onboard-demo-tile onboard-demo-tile-resolve">
-        <SpriteIcon id="coin_mine" className="onboard-demo-item" />
-        <div className="onboard-demo-price">
-          <SpriteIcon id="coin" className="onboard-demo-coin" />
-          <span>4</span>
-        </div>
-        <span className="onboard-demo-bid-flash is-win">WIN</span>
-      </div>
+    <div className="onboard-demo demo-buy demo-buy-real" aria-hidden>
+      <DemoShopTile
+        itemId="coin_mine"
+        price={4}
+        yours
+        className="onboard-tile-resolve"
+      />
       <div className="onboard-demo-arrow">→</div>
-      <div className="onboard-demo-hand">
-        <div className="onboard-demo-hand-slot">
-          <SpriteIcon id="coin_mine" className="onboard-demo-item" />
+      <div className="hand-bar onboard-hand-bar">
+        <div className="hand-slots">
+          <DemoHandSlot itemId="coin_mine" className="onboard-hand-catch" />
+          <div className="hand-slot empty" />
+          <div className="hand-slot empty" />
         </div>
-        <span className="onboard-demo-sell">IN HAND</span>
       </div>
+      <span className="onboard-demo-sell">IN HAND</span>
     </div>
   );
 }
 
 function DemoWin() {
   return (
-    <div className="onboard-demo demo-win" aria-hidden>
-      <div className="onboard-demo-hand onboard-demo-hand-wide">
-        <div className="onboard-demo-hand-slot is-cast">
-          <SpriteIcon id="pickpocket" className="onboard-demo-item" />
-        </div>
-        <div className="onboard-demo-hand-slot is-earn">
-          <SpriteIcon id="golden_goose" className="onboard-demo-item" />
+    <div className="onboard-demo demo-win demo-win-real" aria-hidden>
+      <div className="hand-bar onboard-hand-bar">
+        <div className="hand-slots">
+          <DemoHandSlot itemId="pickpocket" className="onboard-hand-cast" />
+          <DemoHandSlot itemId="golden_goose" className="onboard-hand-earn" />
+          <DemoHandSlot itemId="time_freeze" />
         </div>
       </div>
       <div className="onboard-demo-arrow">→</div>
@@ -105,7 +138,7 @@ function DemoWin() {
         <div className="onboard-purse is-you">
           <span className="onboard-purse-label">You</span>
           <span className="onboard-purse-coins">
-            <SpriteIcon id="coin" className="onboard-demo-coin" />
+            <SpriteIcon id="coin" className="onboard-demo-coin" aria-hidden />
             <span className="onboard-purse-num-stack">
               <span className="onboard-purse-a">12</span>
               <span className="onboard-purse-b">18</span>
@@ -115,7 +148,7 @@ function DemoWin() {
         <div className="onboard-purse is-rival">
           <span className="onboard-purse-label">Rival</span>
           <span className="onboard-purse-coins">
-            <SpriteIcon id="coin" className="onboard-demo-coin" />
+            <SpriteIcon id="coin" className="onboard-demo-coin" aria-hidden />
             <span className="onboard-purse-num-stack">
               <span className="onboard-rival-a">5</span>
               <span className="onboard-rival-b">0</span>

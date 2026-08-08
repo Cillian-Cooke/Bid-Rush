@@ -84,7 +84,8 @@ export type UiGlyphId =
   | 'mute_status'
   | 'roi_status'
   | 'book'
-  | 'trophy';
+  | 'trophy'
+  | 'settings';
 
 /** Common Unicode → UI glyph for status / FX strings. */
 export const EMOJI_TO_UI_GLYPH: Record<string, UiGlyphId> = {
@@ -105,6 +106,7 @@ export const EMOJI_TO_UI_GLYPH: Record<string, UiGlyphId> = {
   '📚': 'book',
   '📖': 'book',
   '🏆': 'trophy',
+  '⚙️': 'settings',
 };
 
 const emojiToItemId = new Map<string, ItemId>();
