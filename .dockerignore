@@ -1,0 +1,14 @@
+# Fly / Docker build context = repo root
+.git
+**/node_modules
+**/dist
+**/build
+nakama/build
+output
+docs
+public
+*.md
+!nakama/README.md
+.env*
+scripts/sprites
+server

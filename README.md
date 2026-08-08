@@ -33,11 +33,18 @@ VITE_NAKAMA_USE_SSL=false
 
 Nakama console: http://127.0.0.1:7351
 
-## Deploy (Vercel)
+## Deploy (production)
 
-1. Import the GitHub repo (Vite → `dist`).
-2. Set `VITE_NAKAMA_*` to your hosted Nakama (Heroic Cloud or Docker on Fly/Railway).
-3. Client-only on Vercel — **Nakama is the game server**.
+**Client (Vercel):** Vite → `dist`. Set `VITE_NAKAMA_*` to your hosted Nakama.
+
+**Game server (Fly.io):** Nakama + Postgres — see [`nakama/FLY.md`](nakama/FLY.md).
+
+Quick local online stack:
+
+```bash
+npm run dev:nakama
+npm run dev
+```
 
 The old Colyseus `server/` folder is unused by the client (kept for reference).
 
