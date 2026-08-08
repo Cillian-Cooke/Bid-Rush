@@ -115,7 +115,7 @@ export async function startMatchmaking(opts: {
             onlineError: null,
           });
           if (matched.token && !matchId) {
-            // Relayed match — should not happen with our authoritative hook
+            // Relayed match - should not happen with our authoritative hook
             await socket.joinMatch(undefined, matched.token);
           }
           await joinMatchedGame(matchId, {
@@ -166,7 +166,7 @@ export async function startMatchmaking(opts: {
       'error',
       err instanceof Error
         ? err.message
-        : 'Matchmaking unavailable — is Nakama running?',
+        : 'Matchmaking unavailable. Is Nakama running?',
     );
   }
 }

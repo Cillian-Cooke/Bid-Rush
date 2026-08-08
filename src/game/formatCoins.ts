@@ -5,7 +5,7 @@ export function formatCoins(value: number): string {
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n);
 
-  // Always show the full integer under 1000 — never ellipsis / scientific.
+  // Always show the full integer under 1000 - never ellipsis / scientific.
   if (abs < 1_000) return `${sign}${abs}`;
 
   if (abs >= 1_000_000_000_000) return `${sign}${compact(abs, 1_000_000_000_000, 'T')}`;
@@ -15,7 +15,7 @@ export function formatCoins(value: number): string {
 }
 
 /**
- * 1.23k / 12.3k / 123k style — enough digits to read, short enough to fit.
+ * 1.23k / 12.3k / 123k style - enough digits to read, short enough to fit.
  */
 function compact(abs: number, div: number, suffix: string): string {
   const raw = abs / div;

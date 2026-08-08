@@ -30,7 +30,7 @@ export function SuddenDeathBanner({ suddenDeath, players }: Props) {
           </span>
           <span className="event-banner-line">
             {atRisk.length === 0
-              ? `All clear — next bar doubles soon`
+              ? `All clear: next bar doubles soon`
               : `${atRisk.length} at risk · ${safeCount} safe · stay above ${suddenDeath.bracket}`}
           </span>
         </div>

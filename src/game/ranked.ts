@@ -70,7 +70,7 @@ export const RANKED_ITEM_ORDER: ItemId[] = (() => {
   return ordered;
 })();
 
-/** Floor-event unlock order (excludes golden_chaos — Chaos Die only). */
+/** Floor-event unlock order (excludes golden_chaos - Chaos Die only). */
 export const RANKED_EVENT_ORDER: WorldEventId[] = [
   'money_money_money',
   'coin_shower',
@@ -102,7 +102,7 @@ export type RankDef = {
   botWeights: Record<BotArchetype, number>;
 };
 
-/** Five ranks — higher tiers: smaller wins, harsher losses, tougher bots, bigger pools. */
+/** Five ranks - higher tiers: smaller wins, harsher losses, tougher bots, bigger pools. */
 export const RANKED_RANKS: readonly RankDef[] = [
   {
     id: 1,

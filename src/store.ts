@@ -89,7 +89,7 @@ type Store = {
   poolRevealOpen: boolean;
   /** Wall-clock ms when pool reveal must end / match starts */
   poolRevealEndsAt: number | null;
-  /** Opened pool during Tag Sale — skip re-entrance on countdown */
+  /** Opened pool during Tag Sale - skip re-entrance on countdown */
   poolRevealPeeked: boolean;
 
   /** Connected to a Colyseus room */
@@ -342,7 +342,7 @@ function maybeRecordRanked(get: () => Store, game: GameState) {
     rankId,
   };
 
-  // Online ranked: Nakama match handler already wrote RP — refresh + history only.
+  // Online ranked: Nakama match handler already wrote RP - refresh + history only.
   if (get().online) {
     recordRankedHistory(historyInput);
     void import('./net/nakama')

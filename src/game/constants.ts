@@ -19,7 +19,7 @@ const LIVE_CONFIG = {
   BOMB_FUSE_MS: 5_000,
   /** Minimum coins to defuse a regular bomb */
   BOMB_SELL_MIN: 30,
-  /** Or this fraction of current wallet — whichever is higher */
+  /** Or this fraction of current wallet - whichever is higher */
   BOMB_SELL_PCT: 0.1,
   DYNAMITE_TICK_MS: 2_000,
   MUTE_MS: 8_000,

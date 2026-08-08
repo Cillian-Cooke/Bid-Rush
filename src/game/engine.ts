@@ -150,7 +150,7 @@ function maxInPlayFor(state: GameState): number {
 /**
  * Draw a shop item under the per-type in-play cap
  * (duel 10 / blitz 16). Golden copies already in hand count as 3 each.
- * Going golden mid-match may push past the cap — that's fine; we just
+ * Going golden mid-match may push past the cap - that's fine; we just
  * stop stocking more until the weighted count drops below the limit.
  */
 function drawShopItem(state: GameState, rng: () => number): ItemId {
@@ -159,7 +159,7 @@ function drawShopItem(state: GameState, rng: () => number): ItemId {
   if (available.length > 0) {
     return weightedRandomItem(rng, available);
   }
-  // Everything at/over cap — pick the scarcest pool item
+  // Everything at/over cap - pick the scarcest pool item
   let best = state.itemPool[0]!;
   let bestCount = countInPlay(state, best);
   for (const id of state.itemPool) {
@@ -636,12 +636,12 @@ function deathHeadline(
   if (reason === 'roi') return 'You failed the ROI challenge.';
   if (reason === 'leech') {
     return fatal?.label
-      ? `Drained to 0 — ${fatal.label}.`
+      ? `Drained to 0: ${fatal.label}.`
       : 'You were drained to 0 coins.';
   }
   if (reason === 'unpaid') {
     return fatal?.label
-      ? `Couldn’t pay your bid — ${fatal.label}.`
+      ? `Couldn’t pay your bid: ${fatal.label}.`
       : 'You couldn’t pay your bid.';
   }
   return 'You’re out of the match.';
@@ -691,7 +691,7 @@ function buildDeathReport(
     };
   }
 
-  // unpaid / leech — show last harmful swings (up to 3), ensure fatal is included
+  // unpaid / leech - show last harmful swings (up to 3), ensure fatal is included
   const hurts = player.coinTrail.filter((s) => s.delta < 0);
   let swings = hurts.slice(-3);
   if (fatal) {
@@ -753,7 +753,7 @@ function eliminate(
   }
 }
 
-/** Clamp coins at 0 — broke is allowed; elimination is unpaid / bomb / bracket / ROI. */
+/** Clamp coins at 0 - broke is allowed; elimination is unpaid / bomb / bracket / ROI. */
 function cullBrokePlayers(state: GameState): void {
   for (const player of state.players) {
     if (player.isAlive && player.coins < 0) player.coins = 0;
@@ -766,7 +766,7 @@ function giveItem(
   itemId: ItemId,
   asGolden = false,
 ): void {
-  // Pre-golden listings skip the 3-merge path — they arrive golden already
+  // Pre-golden listings skip the 3-merge path - they arrive golden already
   if (!asGolden && tryMergeIncoming(state, player, itemId)) {
     tryAutoMerge(state, player);
     return;
@@ -933,7 +933,7 @@ export function sellItem(
       const cost = bombDefuseCost(player.coins);
       if (player.coins < cost) return next;
       player.coins -= cost;
-      // Surviving a defuse never KOs you — leave a single coin if it emptied the purse
+      // Surviving a defuse never KOs you - leave a single coin if it emptied the purse
       if (player.coins <= 0) player.coins = 1;
       emitLoss(next, player, cost, '💣', 'Defused bomb');
     }
@@ -1360,7 +1360,7 @@ function applyActiveEffect(
 
 function tickPassives(state: GameState, dt: number, rng: () => number = Math.random): void {
   const pace = matchPaceMult(state.elapsedMs);
-  // Snapshot player ids — eliminations may occur mid-loop
+  // Snapshot player ids - eliminations may occur mid-loop
   for (const player of [...state.players]) {
     if (!player.isAlive) continue;
 
@@ -1399,7 +1399,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Dynamite — chew left (or whole hand if golden) every 2s
+      // Dynamite - chew left (or whole hand if golden) every 2s
       if (item.itemId === 'dynamite') {
         item.passiveAccMs += dt;
         while (item.passiveAccMs >= CONFIG.DYNAMITE_TICK_MS) {
@@ -1462,7 +1462,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Chrysalis — after 20s become a random golden pool item (golden: replace whole hand)
+      // Chrysalis - after 20s become a random golden pool item (golden: replace whole hand)
       if (item.itemId === 'chrysalis') {
         if (blocked) continue;
         item.passiveAccMs += tick;
@@ -1513,7 +1513,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Curse Idol — no personal income; drain rivals every 3s
+      // Curse Idol - no personal income; drain rivals every 3s
       if (item.itemId === 'curse_idol') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= CONFIG.CURSE_TICK_MS) {
@@ -1534,7 +1534,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Gilder — turn neighbors golden after 30s
+      // Gilder - turn neighbors golden after 30s
       if (item.itemId === 'gilder') {
         if (blocked) continue;
         item.gilderAccMs += tick;
@@ -1598,7 +1598,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Interest — every 5s add sell value to every hand item (no coins)
+      // Interest - every 5s add sell value to every hand item (no coins)
       if (item.itemId === 'interest') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= CONFIG.INTEREST_TICK_MS) {
@@ -1634,7 +1634,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Stock Market — sell value ×2 every 20s (golden ×3), starts at 1
+      // Stock Market - sell value ×2 every 20s (golden ×3), starts at 1
       if (item.itemId === 'stock_market') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= CONFIG.STOCK_MARKET_MS) {
@@ -1659,7 +1659,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Money Printer — every 10s print a Bank Note into hand
+      // Money Printer - every 10s print a Bank Note into hand
       if (item.itemId === 'money_printer') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= CONFIG.PRINTER_NOTE_MS) {
@@ -1688,7 +1688,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Coin Mine — stacks speed up (1 slow, 2 = old pace, 3+ faster)
+      // Coin Mine - stacks speed up (1 slow, 2 = old pace, 3+ faster)
       if (item.itemId === 'coin_mine') {
         item.passiveAccMs += tick;
         const mines = player.hand.filter((h) => h.itemId === 'coin_mine').length;
@@ -1712,7 +1712,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Golden Goose — steady fast drip; golden doubles coins only
+      // Golden Goose - steady fast drip; golden doubles coins only
       if (item.itemId === 'golden_goose') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= CONFIG.GOOSE_MS) {
@@ -1734,7 +1734,7 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Coin leech — blitz: random victim
+      // Coin leech - blitz: random victim
       if (item.itemId === 'coin_leech') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= (def.passiveIntervalMs ?? 4000)) {
@@ -1845,7 +1845,7 @@ function applySuddenDeathCull(state: GameState): void {
   }
 
   if (safe.length === 0) {
-    // Nobody meets the bar — keep the richest, cull the rest
+    // Nobody meets the bar - keep the richest, cull the rest
     const sorted = [...alive].sort((a, b) => b.coins - a.coins);
     const keeper = sorted[0]!;
     for (const p of alive) {
@@ -2044,7 +2044,7 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
     .filter((t) => t.timerMs <= 0)
     .map((t) => t.index);
   for (const idx of toResolve) {
-    // Re-check — fast-forward may have already restocked
+    // Re-check - fast-forward may have already restocked
     const tile = next.tiles[idx];
     if (tile && tile.timerMs <= 0) {
       resolveTile(next, idx, rng);
@@ -2071,7 +2071,7 @@ function tickRubberBand(state: GameState, dt: number): void {
   const richest = sorted[0]!;
   const second = sorted[1]!;
 
-  // Crown tax — runaway leader bleeds slowly
+  // Crown tax - runaway leader bleeds slowly
   if (richest.coins - second.coins >= CONFIG.LEADER_TAX_GAP) {
     state.leaderTaxAccMs += dt;
     while (state.leaderTaxAccMs >= CONFIG.LEADER_TAX_INTERVAL_MS) {
@@ -2084,7 +2084,7 @@ function tickRubberBand(state: GameState, dt: number): void {
     state.leaderTaxAccMs = 0;
   }
 
-  // Underdog income — light drip only when well behind (not while muted/frozen)
+  // Underdog income - light drip only when well behind (not while muted/frozen)
   for (const player of alive) {
     if (passivesBlocked(state, player)) {
       player.comebackAccMs = 0;
@@ -2096,7 +2096,7 @@ function tickRubberBand(state: GameState, dt: number): void {
       continue;
     }
     player.comebackAccMs += dt;
-    // Cap at +1 even on big gaps — catch-up should not snowball
+    // Cap at +1 even on big gaps - catch-up should not snowball
     const amount = 1;
     while (player.comebackAccMs >= CONFIG.COMEBACK_INTERVAL_MS) {
       player.comebackAccMs -= CONFIG.COMEBACK_INTERVAL_MS;

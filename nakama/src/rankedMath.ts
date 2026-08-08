@@ -1,4 +1,4 @@
-/** Server-side ranked math — keep in sync with src/game/ranked.ts */
+/** Server-side ranked math - keep in sync with src/game/ranked.ts */
 
 export const RP_PER_RANK = 100;
 export const RANK_COUNT = 5;

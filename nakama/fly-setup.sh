@@ -17,7 +17,7 @@ if ! fly auth whoami >/dev/null 2>&1; then
 fi
 
 echo "==> Ensuring app $APP exists"
-fly apps create "$APP" 2>/dev/null || echo "App may already exist — continuing"
+fly apps create "$APP" 2>/dev/null || echo "App may already exist - continuing"
 
 if ! fly status --app "$DB" >/dev/null 2>&1; then
   echo "==> Creating Postgres $DB in $REGION"
@@ -46,7 +46,7 @@ if ! fly secrets list --app "$APP" 2>/dev/null | grep -q NAKAMA_SOCKET_SERVER_KE
     NAKAMA_SESSION_ENCRYPTION_KEY="$(openssl rand -hex 16)" \
     NAKAMA_SESSION_REFRESH_KEY="$(openssl rand -hex 16)"
   echo ""
-  echo "IMPORTANT — save these for Vercel:"
+  echo "IMPORTANT - save these for Vercel:"
   echo "  VITE_NAKAMA_HOST=${APP}.fly.dev"
   echo "  VITE_NAKAMA_PORT=443"
   echo "  VITE_NAKAMA_SERVER_KEY=${SOCKET_KEY}"

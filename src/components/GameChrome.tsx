@@ -68,7 +68,7 @@ export function GameChrome({
                       newestLive?.key === live.key ? ' focus' : ''
                     }`}
                     style={{ ['--event-accent' as string]: def.accent }}
-                    title={`${def.name} — ${formatSec(live.activeMs)} left`}
+                    title={`${def.name}: ${formatSec(live.activeMs)} left`}
                   >
                     <SpriteIcon
                       id={live.id}

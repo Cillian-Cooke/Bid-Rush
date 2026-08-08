@@ -136,7 +136,7 @@ export function tickNameAuction(
         pick = unclaimed.sort((a, b) => a.price - b.price)[0]!;
       }
     } else if (rng() > 0.55) {
-      // Already have a claim — sometimes fight for a cooler one
+      // Already have a claim - sometimes fight for a cooler one
       p.cooldownMs = 400 + rng() * 500;
       continue;
     }

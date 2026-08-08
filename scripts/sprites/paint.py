@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Paint true 32×32 Bid Rush icons — ability-first silhouettes, not emoji copies.
+Paint true 32×32 Bid Rush icons - ability-first silhouettes, not emoji copies.
 Writes individual PNGs + assembled sheets + atlas.json (same layout as slice.py).
 """
 
@@ -212,7 +212,7 @@ class Canvas:
             self.p(cx - 1, cy - 1, PAPER)
 
 
-# —— Ability painters ——
+# -- Ability painters --
 
 
 def paint_coin_mine() -> Image.Image:
@@ -244,7 +244,7 @@ def paint_money_printer() -> Image.Image:
 
 
 def paint_golden_goose() -> Image.Image:
-    """Fast passive income — goose + coin egg."""
+    """Fast passive income - goose + coin egg."""
     c = Canvas()
     c.disc(14, 16, 7, GOLD, INK)
     c.disc(20, 12, 4, GOLD, INK)
@@ -265,7 +265,7 @@ def paint_bank_note() -> Image.Image:
 
 
 def paint_stock_market() -> Image.Image:
-    """Sell value doubles on a timer — rising bars ×2."""
+    """Sell value doubles on a timer - rising bars ×2."""
     c = Canvas()
     c.outline_rect(5, 6, 26, 26, SHADOW, INK)
     c.rect(8, 18, 11, 23, TEAL)
@@ -306,7 +306,7 @@ def paint_chrysalis() -> Image.Image:
 
 
 def paint_ipo() -> Image.Image:
-    """Cash out a hand item's sell value — hand + coin burst."""
+    """Cash out a hand item's sell value - hand + coin burst."""
     c = Canvas()
     c.outline_rect(6, 14, 18, 26, PAPER, INK)
     c.rect(8, 16, 16, 24, MUTE)
@@ -352,7 +352,7 @@ def paint_mystery_box() -> Image.Image:
 
 
 def paint_price_doubler() -> Image.Image:
-    """Doubles one shop tile price — price tag ×2."""
+    """Doubles one shop tile price - price tag ×2."""
     c = Canvas()
     c.outline_rect(6, 8, 20, 22, EMBER, INK)
     c.rect(8, 10, 18, 20, GOLD)
@@ -383,7 +383,7 @@ def paint_reset_hammer() -> Image.Image:
 
 
 def paint_inflation() -> Image.Image:
-    """+3 to every shop tile — rising prices board-wide."""
+    """+3 to every shop tile - rising prices board-wide."""
     c = Canvas()
     for i, x in enumerate((6, 13, 20)):
         h = 10 + i * 4
@@ -421,7 +421,7 @@ def paint_time_freeze() -> Image.Image:
 
 
 def paint_fast_forward() -> Image.Image:
-    """Resolve tile now — timer skip."""
+    """Resolve tile now - timer skip."""
     c = Canvas()
     # timer bar
     c.outline_rect(5, 22, 26, 26, SHADOW, INK)
@@ -472,7 +472,7 @@ def paint_shop_refresh() -> Image.Image:
 
 
 def paint_handcuffs() -> Image.Image:
-    """Stop a rival from bidding — keep inset so the wide cuffs don’t clip in UI."""
+    """Stop a rival from bidding - keep inset so the wide cuffs don’t clip in UI."""
     c = Canvas()
     # Slightly smaller / inset vs edge-to-edge so codex & detail rows stay even
     c.disc(11, 16, 4, MUTE, INK)
@@ -495,7 +495,7 @@ def paint_pickpocket() -> Image.Image:
 
 
 def paint_heist_kit() -> Image.Image:
-    """Steal a hand item — bag grabbing a tile."""
+    """Steal a hand item - bag grabbing a tile."""
     c = Canvas()
     c.outline_rect(14, 8, 26, 18, TEAL, INK)
     c.rect(16, 10, 24, 16, GOLD)
@@ -529,7 +529,7 @@ def paint_cold_market() -> Image.Image:
 
 
 def paint_roi() -> Image.Image:
-    """1.5× now — hit 2× or die."""
+    """1.5× now - hit 2× or die."""
     c = Canvas()
     c.outline_rect(5, 6, 26, 26, SHADOW, INK)
     c.hline(8, 14, 20, TEAL)
@@ -595,7 +595,7 @@ def paint_curse_idol() -> Image.Image:
 
 
 def paint_bomb() -> Image.Image:
-    """Fuse — pay or explode."""
+    """Fuse - pay or explode."""
     c = Canvas()
     c.disc(15, 18, 8, SHADOW, INK)
     c.disc(15, 18, 6, MUTE, MUTE)
@@ -828,7 +828,7 @@ def paint_roi_status() -> Image.Image:
     return paint_roi()
 
 
-# Avatars — simple face chips
+# Avatars - simple face chips
 
 
 def _face(skin: tuple, hair: tuple | None = None, eyes: str = "normal") -> Image.Image:
@@ -959,7 +959,7 @@ def paint_robot() -> Image.Image:
     return c.im
 
 
-# Events — ability/feel icons
+# Events - ability/feel icons
 
 
 def paint_money_money_money() -> Image.Image:

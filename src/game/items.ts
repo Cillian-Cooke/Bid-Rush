@@ -408,7 +408,7 @@ export function purchasePriceFor(
   return Math.max(1, Math.floor(listedPrice * 0.5));
 }
 
-/** Active items that fire immediately — no tile/player/hand pick. */
+/** Active items that fire immediately - no tile/player/hand pick. */
 export function canInstantUse(item: {
   itemId: ItemId;
   golden: boolean;
@@ -438,7 +438,7 @@ export function needsTargetPick(item: {
   return !canInstantUse(item);
 }
 
-/** Every spawnable item — Casual can draw its match-16 from this set. */
+/** Every spawnable item - Casual can draw its match-16 from this set. */
 export function fullMatchPool(): ItemId[] {
   return ITEM_LIST.filter((i) => i.spawnWeight > 0)
     .map((i) => i.id)

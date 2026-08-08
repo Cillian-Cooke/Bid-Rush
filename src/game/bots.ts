@@ -69,7 +69,7 @@ const PASSIVE_BID: Partial<Record<ItemId, number>> = {
   bargain: 40,
   chrysalis: 22,
   bank_note: 18,
-  // Self-sabotage unless desperate — scored separately
+  // Self-sabotage unless desperate - scored separately
   curse_idol: 4,
 };
 
@@ -203,7 +203,7 @@ function keepValue(hand: readonly HandItem[], index: number): number {
         return 50 + left.currentSellValue + (left.golden ? 10 : 0);
       }
     }
-    // Idle mirror — weak keep unless we expect engines soon
+    // Idle mirror - weak keep unless we expect engines soon
     return handHasMoneyEngine(hand) ? 18 : 10;
   }
 
@@ -235,7 +235,7 @@ function keepValue(hand: readonly HandItem[], index: number): number {
     return 8;
   }
 
-  // Held actives — keep if useful, else sell for slots/cash
+  // Held actives - keep if useful, else sell for slots/cash
   const def = getItem(h.itemId);
   if (def.kind === 'active') {
     return 12 + h.currentSellValue + (ACTIVE_BID[h.itemId] ?? 0) * 0.25;
@@ -300,7 +300,7 @@ function scoreTile(
   if (isMoneyEngine(tile.itemId)) {
     score += PASSIVE_BID[tile.itemId] ?? 40;
     score += (def.passiveAmount ?? 0) * 8;
-    // Extra mines stack speed — still want more
+    // Extra mines stack speed - still want more
     if (tile.itemId === 'coin_mine') {
       score += countItem(hand, 'coin_mine') * 6;
     }
@@ -377,7 +377,7 @@ function decideReorder(player: Player): BotIntent | null {
 
     // Already copying this engine from the left
     if (mi === engineIdx - 1) continue;
-    // Golden mirror on the right also copies — fine if that's the only engine
+    // Golden mirror on the right also copies - fine if that's the only engine
     if (mirror.golden && mi === engineIdx + 1) continue;
 
     // Move mirror to immediately left of the engine
@@ -514,7 +514,7 @@ function decideUse(
     };
   }
 
-  // Bid lock — golden locks the whole board; otherwise lock own valuable lead
+  // Bid lock - golden locks the whole board; otherwise lock own valuable lead
   const lock = findHeld(player, 'bid_lock');
   if (lock && rng() < 0.45) {
     if (lock.golden) {
@@ -677,7 +677,7 @@ export function decideBotAction(
   const arch = player.archetype ?? 'balanced';
   const profile = PROFILES[arch];
 
-  // 1. Safety: dump hazards immediately — unless we're planting via Quick Swap
+  // 1. Safety: dump hazards immediately - unless we're planting via Quick Swap
   const hazard = player.hand.find((h) => isHazardItem(h.itemId));
   if (hazard) {
     const planting = state.pendingQuickSwaps.some(
@@ -697,7 +697,7 @@ export function decideBotAction(
       if (hi > 0) {
         return { kind: 'reorder', fromIndex: hi, toIndex: 0 };
       }
-      // Hazard already leftmost — hold still for the swap
+      // Hazard already leftmost - hold still for the swap
       return null;
     }
     return { kind: 'sell', instanceId: hazard.instanceId };
@@ -734,7 +734,7 @@ export function decideBotAction(
     if (reorder) return reorder;
   }
 
-  // 3. Hand management — free a slot for better engines (only if affordable)
+  // 3. Hand management - free a slot for better engines (only if affordable)
   if (handNonBombCount(player) >= CONFIG.HAND_SLOTS) {
     const bestBoard = state.tiles
       .filter(

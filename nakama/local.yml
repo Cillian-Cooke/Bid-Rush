@@ -8,7 +8,7 @@ runtime:
 session:
   token_expiry_sec: 7200
 socket:
-  # Game snapshots can be large — keep above typical GameState JSON size
+  # Game snapshots can be large - keep above typical GameState JSON size
   max_message_size_bytes: 131072
   max_request_size_bytes: 262144
 matchmaker:

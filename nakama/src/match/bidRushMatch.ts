@@ -618,7 +618,7 @@ function handleAction(
         if (s.seatIndex < max) continue;
         delete state.seats[s.userId];
         if (s.presence) {
-          // presence will leave on reject next — just drop seat
+          // presence will leave on reject next - just drop seat
         }
       }
     }

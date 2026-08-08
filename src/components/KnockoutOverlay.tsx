@@ -12,7 +12,7 @@ type Props = {
 function reasonFallback(reason: Props['reason']): string {
   if (reason === 'bomb') return 'The bomb went off.';
   if (reason === 'bracket') return 'You fell under the coin bracket.';
-  if (reason === 'roi') return 'ROI failed — you couldn’t hit the target.';
+  if (reason === 'roi') return 'ROI failed: you couldn’t hit the target.';
   if (reason === 'leech') return 'Drained dry.';
   if (reason === 'unpaid') return 'You couldn’t pay your bid.';
   return 'You’re out of the match.';
@@ -61,7 +61,7 @@ export function KnockoutOverlay({
             ))}
           </ul>
         )}
-        <p className="knockout-sub">The match is still going — pick one:</p>
+        <p className="knockout-sub">The match is still going. Pick one:</p>
         <div className="knockout-actions">
           <button type="button" className="btn primary" onClick={onPlayAgain}>
             Play Again

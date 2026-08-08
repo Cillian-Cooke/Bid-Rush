@@ -1,5 +1,5 @@
 /** Bump this key to force every account through onboarding again. */
-const ONBOARDING_KEY = 'bid-rush-onboarding-done-v2';
+const ONBOARDING_KEY = 'bid-rush-onboarding-done-v4';
 
 function readMap(): Record<string, true> {
   try {

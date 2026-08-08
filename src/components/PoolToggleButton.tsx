@@ -4,7 +4,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** Shared See / Back control — lives in the Sell/Use dock slot. */
+/** Shared See / Back control - lives in the Sell/Use dock slot. */
 export function PoolToggleButton({ open, onOpen, onClose }: Props) {
   return (
     <button

@@ -12,9 +12,9 @@ import { SpriteIcon } from './SpriteIcon';
 type Props = {
   countdown: number;
   itemPool: ItemId[];
-  /** Match mode — keeps icon size in sync with shop tiles */
+  /** Match mode - keeps icon size in sync with shop tiles */
   mode?: 'duel' | 'blitz';
-  /** Dismissible peek (Tag Sale or mid-match) — shows Back instead of countdown */
+  /** Dismissible peek (Tag Sale or mid-match) - shows Back instead of countdown */
   early?: boolean;
   /** Skip cell entrance animation (already shown during Tag Sale) */
   skipEntrance?: boolean;

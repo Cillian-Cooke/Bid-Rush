@@ -50,7 +50,7 @@ export function regularBlurb(id: string): string {
     bid_lock:
       'Locks a shop tile so nobody can outbid it. Swaps can still move it.',
     mirror:
-      'Copies the passive to its right — same payout or sell-value growth on the Mirror itself.',
+      'Copies the passive to its right: same payout or sell-value growth on the Mirror itself.',
     gilder: 'After 30 seconds, turns the item on its right golden.',
     tip_jar: 'Adds 1 extra coin to every passive payout you earn.',
     haste_gear: 'Speeds up all your ticking passives by 1.5×.',

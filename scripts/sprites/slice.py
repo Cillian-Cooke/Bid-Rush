@@ -161,7 +161,7 @@ def is_background(r: int, g: int, b: int, a: int = 255) -> bool:
 def knock_out_bg(im: Image.Image) -> Image.Image:
     """Make sheet background transparent via edge flood-fill only.
 
-    Cream/white face fills must stay — only bg connected to the image border
+    Cream/white face fills must stay - only bg connected to the image border
     is removed (avoids hollow panda/badger sprites).
     """
     rgba = im.convert("RGBA")

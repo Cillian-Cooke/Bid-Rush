@@ -101,7 +101,7 @@ export function EventBannerStack({ worldEvent, roundMs, dense }: Props) {
       window.clearTimeout(enterTimer);
       window.clearTimeout(exitTimer);
     };
-    // remainMs updates every tick via live — refresh timers without remounting
+    // remainMs updates every tick via live - refresh timers without remounting
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     worldEvent.phase,
@@ -147,7 +147,7 @@ export function EventBannerStack({ worldEvent, roundMs, dense }: Props) {
   );
 }
 
-/** @deprecated single-slot wrapper — prefer EventBannerStack */
+/** @deprecated single-slot wrapper - prefer EventBannerStack */
 export function EventBanner({ worldEvent, roundMs }: Props) {
   return <EventBannerStack worldEvent={worldEvent} roundMs={roundMs} />;
 }

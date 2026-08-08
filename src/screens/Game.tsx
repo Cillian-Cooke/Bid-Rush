@@ -235,8 +235,8 @@ export function Game() {
             <SpriteIcon id={focusedItem.itemId} aria-hidden />
             <span>
               {canUse
-                ? 'Use or Sell above — tap again to cancel'
-                : 'Sell above — tap again to cancel'}
+                ? 'Use or Sell above. Tap again to cancel'
+                : 'Sell above. Tap again to cancel'}
             </span>
             <button type="button" className="use-mode-cancel" onClick={cancelTargeting}>
               Cancel

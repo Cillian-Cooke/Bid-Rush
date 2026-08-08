@@ -60,7 +60,7 @@ export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
     emoji: '🧾',
     blurb: 'Everyone loses 10 coins every 5 seconds',
     warnLine: 'The collector is coming',
-    activeLine: 'Pay up — 10🪙 / 5s',
+    activeLine: 'Pay up: 10🪙 / 5s',
     accent: '#ef4444',
     fxKind: 'event_tax',
   },
@@ -148,7 +148,7 @@ export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
     id: 'golden_chaos',
     name: 'Golden Chaos',
     emoji: '🌟',
-    blurb: 'Gilded mayhem — gold rain, wild shelves, and wild prices',
+    blurb: 'Gilded mayhem: gold rain, wild shelves, and wild prices',
     warnLine: 'Something gilded stirs…',
     activeLine: 'Golden Chaos reigns!',
     accent: '#fbbf24',
@@ -158,7 +158,7 @@ export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
 
 export const WORLD_EVENT_IDS = Object.keys(WORLD_EVENTS) as WorldEventId[];
 
-/** Random pool — excludes Chaos Die’s unique golden event */
+/** Random pool - excludes Chaos Die’s unique golden event */
 export const RANDOM_WORLD_EVENT_IDS = WORLD_EVENT_IDS.filter(
   (id) => id !== 'golden_chaos',
 );

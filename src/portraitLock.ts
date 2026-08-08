@@ -7,7 +7,7 @@ export function lockPortraitOrientation(): void {
     | undefined;
   if (!orient || typeof orient.lock !== 'function') return;
   void orient.lock('portrait').catch(() => {
-    // Browsers often reject outside fullscreen / installed web app — ignore.
+    // Browsers often reject outside fullscreen / installed web app - ignore.
   });
 }
 

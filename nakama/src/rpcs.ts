@@ -155,7 +155,7 @@ export function rpcMigrateRanked(
     rp: Number(req.rp) || 0,
   });
   writeProgress(nk, ctx.userId, progress);
-  // Do not write the public leaderboard here — anonymous device sessions were
+  // Do not write the public leaderboard here - anonymous device sessions were
   // creating nameless score-0 rows. Accounts call ensure_leaderboard instead.
   return JSON.stringify({ progress, migrated: true });
 }

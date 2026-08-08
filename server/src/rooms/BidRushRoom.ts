@@ -423,7 +423,7 @@ export class BidRushRoom extends Room {
       this.naming.seed,
       this.matchPool ?? undefined,
     );
-    // humanId is first human — clients remap to their own playerId
+    // humanId is first human - clients remap to their own playerId
     this.naming = null;
     this.state.phase = 'countdown';
     this.poolRevealEndsAt = Date.now() + CONFIG.POOL_REVEAL_MS;

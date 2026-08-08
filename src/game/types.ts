@@ -109,7 +109,7 @@ export type ItemDef = {
 export type HandItem = {
   instanceId: string;
   itemId: ItemId;
-  /** Three-of-a-kind merge — doubles effects, sells for combined value */
+  /** Three-of-a-kind merge - doubles effects, sells for combined value */
   golden: boolean;
   /** Accumulator for passive tick timing */
   passiveAccMs: number;
@@ -170,7 +170,7 @@ export type Player = {
   itemsSold: number;
   /** Recent score swings (purchases, drains, taxes) for death autopsy */
   coinTrail: CoinSwing[];
-  /** Filled when eliminated — why they died */
+  /** Filled when eliminated - why they died */
   deathReport: DeathReport | null;
 };
 
@@ -238,7 +238,7 @@ export type WorldEventId =
   | 'shuffle_storm'
   | 'inflation_wave'
   | 'mystery_mall'
-  /** Only triggered by golden Chaos Die — not in the random pool */
+  /** Only triggered by golden Chaos Die - not in the random pool */
   | 'golden_chaos';
 
 export type WorldEventPhase = 'pending' | 'warning' | 'active' | 'done';
@@ -256,7 +256,7 @@ export type WorldEventState = {
   /** Scheduled / warning pick (also mirrored into `live` while active) */
   id: WorldEventId | null;
   phase: WorldEventPhase;
-  /** @deprecated prefer live[0] — kept in sync with primary scheduled live event */
+  /** @deprecated prefer live[0] - kept in sync with primary scheduled live event */
   activeMs: number;
   pulseAccMs: number;
   fxAccMs: number;
@@ -332,7 +332,7 @@ export type SuddenDeathState = {
   bracketMult: number;
 };
 
-/** Armed Quick Swap — resolves after msLeft against current hand edges / full hands. */
+/** Armed Quick Swap - resolves after msLeft against current hand edges / full hands. */
 export type PendingQuickSwap = {
   casterId: string;
   targetId: string;
@@ -353,7 +353,7 @@ export type GameState = {
   players: Player[];
   tiles: Tile[];
   roundMs: number;
-  /** Wall-clock match time — keeps rising through sudden death */
+  /** Wall-clock match time - keeps rising through sudden death */
   elapsedMs: number;
   /** Ms left showing the pace-up banner (0 = hidden) */
   paceBannerMs: number;

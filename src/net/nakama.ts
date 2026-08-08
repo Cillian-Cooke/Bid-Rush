@@ -251,7 +251,7 @@ export async function ensureNakamaSession(): Promise<Session> {
       } catch {
         clearPersistedSession();
         if (kind === 'email') {
-          throw new Error('Session expired — please log in again');
+          throw new Error('Session expired. Please log in again');
         }
         s = await c.authenticateDevice(deviceId(), true);
         return await adoptSession(s, 'guest', { publishLeaderboard: false });

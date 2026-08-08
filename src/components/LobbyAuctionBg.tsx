@@ -42,7 +42,7 @@ type LobbyTile = {
   timerMs: number;
   freezeMs: number;
   flashMs: number;
-  /** Last painted snapshot — skip DOM work when unchanged */
+  /** Last painted snapshot - skip DOM work when unchanged */
   painted?: string;
 };
 

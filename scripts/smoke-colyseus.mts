@@ -26,7 +26,7 @@ async function main() {
 
   roomA.send('start', {});
   await namingPromise;
-  console.log('naming started — ok');
+  console.log('naming started - ok');
 
   await roomA.leave();
   await roomB.leave();

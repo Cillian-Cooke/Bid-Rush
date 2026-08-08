@@ -14,7 +14,7 @@ export PATH="$HOME/.fly/bin:$PATH"
 # Log in (browser)
 fly auth login
 
-# From repo root — create app, Postgres, secrets, deploy
+# From repo root - create app, Postgres, secrets, deploy
 cd "/home/cillian/Personal Projects/Bidding Game"
 ./nakama/fly-setup.sh
 ```

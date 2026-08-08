@@ -1,4 +1,4 @@
-# Bid Rush — Nakama backend
+# Bid Rush - Nakama backend
 #
 # Single authoritative backend: accounts, ranked RP, leaderboards,
 # matchmaking, custom rooms, and live auction matches.

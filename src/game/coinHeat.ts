@@ -71,7 +71,7 @@ function lerpRgb(a: RGB, b: RGB, t: number): RGB {
   return [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u)];
 }
 
-/** Smoothstep — ease both ends so bands melt into each other. */
+/** Smoothstep - ease both ends so bands melt into each other. */
 function smoothstep(t: number): number {
   const u = Math.max(0, Math.min(1, t));
   return u * u * (3 - 2 * u);

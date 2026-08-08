@@ -7,7 +7,7 @@ Mobile-first auction party game. Bid on a live shop, collect money engines, sabo
 ```bash
 npm install
 
-# Nakama — accounts, matchmaking, ranked RP, live matches (Docker)
+# Nakama - accounts, matchmaking, ranked RP, live matches (Docker)
 npm run dev:nakama
 
 # Client
@@ -16,7 +16,7 @@ npm run dev
 
 Open the local URL (default `http://localhost:5173`).
 
-Optional env (defaults work with local Docker) — see `.env.example`:
+Optional env (defaults work with local Docker) - see `.env.example`:
 
 ```bash
 VITE_NAKAMA_HOST=127.0.0.1
@@ -37,7 +37,7 @@ Nakama console: http://127.0.0.1:7351
 
 **Client (Vercel):** Vite → `dist`. Set `VITE_NAKAMA_*` to your hosted Nakama.
 
-**Game server (Fly.io):** Nakama + Postgres — see [`nakama/FLY.md`](nakama/FLY.md).
+**Game server (Fly.io):** Nakama + Postgres - see [`nakama/FLY.md`](nakama/FLY.md).
 
 Quick local online stack:
 
@@ -52,5 +52,5 @@ The old Colyseus `server/` folder is unused by the client (kept for reference).
 
 - Vite + React + TypeScript + Zustand
 - Pure game logic in `src/game/` (shared with Nakama via esbuild)
-- Nakama (`nakama/`) — auth, RP, matchmaking, authoritative matches
+- Nakama (`nakama/`) - auth, RP, matchmaking, authoritative matches
 - 8-bit sprites: `npm run sprites:slice`

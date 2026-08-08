@@ -1,9 +1,9 @@
-# Bid Rush — 8-bit sprite style card
+# Bid Rush - 8-bit sprite style card
 
 **Source of truth:** emoji-faithful raw sheets in `docs/sprites/*-raw.png`.  
 Slice with `npm run sprites:slice` → `public/sprites/`.
 
-Icons should read as the item’s emoji (pickaxe, piggy, goose/duck, bomb, magnet, etc.) in NES pixel style — recognizable subjects, not abstract ability diagrams.
+Icons should read as the item’s emoji (pickaxe, piggy, goose/duck, bomb, magnet, etc.) in NES pixel style - recognizable subjects, not abstract ability diagrams.
 
 ## Cell & sheet geometry
 
@@ -38,4 +38,4 @@ Icons should read as the item’s emoji (pickaxe, piggy, goose/duck, bomb, magne
 1. Follow the item emoji’s subject closely (distinct silhouettes).
 2. 1px ink outline, light from top-left, no anti-alias where possible.
 3. Prefer clear characters/objects over abstract charts/boxes.
-4. Optional: `scripts/sprites/paint.py` is experimental — do not overwrite emoji sheets unless asked.
+4. Optional: `scripts/sprites/paint.py` is experimental - do not overwrite emoji sheets unless asked.
