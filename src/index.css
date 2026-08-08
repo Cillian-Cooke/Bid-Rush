@@ -20,10 +20,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
-  --font-display: 'Press Start 2P', 'Pixelify Sans', monospace;
-  /* Clearer digits at small sizes (Press Start 2/3 look like 8) */
-  --font-nums: 'Pixelify Sans', 'Trebuchet MS', monospace;
-  --font-body: 'Pixelify Sans', 'Trebuchet MS', monospace;
+  /* Bungee for titles; Atkinson Hyperlegible for body/digits (2/3/8 stay distinct) */
+  --font-display: 'Bungee', 'Atkinson Hyperlegible', sans-serif;
+  --font-nums: 'Atkinson Hyperlegible', 'Bungee', sans-serif;
+  --font-body: 'Atkinson Hyperlegible', sans-serif;
   --app-width: 480px;
   --px: 2px;
   --radius: 0px;
@@ -50,9 +50,9 @@ body,
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
-  /* Keep glyphs crisp when scaled */
-  -webkit-font-smoothing: none;
-  image-rendering: pixelated;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: lining-nums;
 }
 
 /* Portrait-only gate for phones held sideways */
@@ -1011,12 +1011,18 @@ button {
 .pool-reveal-detail-emoji {
   font-size: 2rem;
   line-height: 1;
-  overflow: visible;
+  overflow: hidden;
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
 }
 
 .pool-reveal-detail-emoji.sprite-icon {
   width: 2.4rem;
   height: 2.4rem;
+  object-fit: contain;
 }
 
 .pool-reveal-detail-name {
@@ -4755,8 +4761,8 @@ button {
 }
 
 .leaderboard-overlay {
-  padding: 0;
-  padding-bottom: 0;
+  padding: 12px;
+  padding-bottom: calc(12px + var(--safe-bottom));
   align-items: flex-end;
   justify-content: center;
   background: #1a1612d8;
@@ -4764,17 +4770,15 @@ button {
 
 .leaderboard-overlay .leaderboard-sheet {
   width: 100%;
-  max-width: none;
-  max-height: min(94vh, 100dvh);
-  height: min(94vh, 100dvh);
+  max-width: var(--app-width);
+  /* Same mobile sheet height budget as the items codex */
+  max-height: 85vh;
+  height: auto;
   margin: 0;
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
-  border-top: 2px solid var(--ink);
-  border-radius: 0;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
   animation: leaderboard-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
-  padding-bottom: var(--safe-bottom);
+  padding-bottom: 0;
 }
 
 @keyframes leaderboard-rise {
@@ -4800,18 +4804,18 @@ button {
 }
 
 .leaderboard-overlay .ranked-you {
-  margin: 12px 16px 10px;
-  padding: 14px 16px;
+  margin: 10px 12px 8px;
+  padding: 12px 14px;
 }
 
 .leaderboard-overlay .ranked-tabs {
-  margin: 0 16px 12px;
+  margin: 0 12px 10px;
   padding-left: 0;
   padding-right: 0;
 }
 
 .leaderboard-overlay .ranked-scroll {
-  padding-bottom: calc(16px + var(--safe-bottom));
+  padding-bottom: 12px;
 }
 
 .leaderboard-blurb {
@@ -5136,18 +5140,18 @@ button {
 
 .ranked-ladder {
   list-style: none;
-  margin: 0 0 12px;
-  padding: 0;
+  margin: 0;
+  padding: 2px 0 4px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .ranked-ladder-row {
   display: flex;
   gap: 10px;
-  align-items: flex-start;
-  padding: 10px 12px;
+  align-items: center;
+  padding: 8px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.22);
 }
@@ -5548,14 +5552,22 @@ button {
   align-items: center;
 }
 
-.queue-hint {
-  margin: 0;
-  max-width: 28ch;
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.4;
-  font-weight: 600;
+.queue-load {
+  width: min(280px, 100%);
+  margin: 4px 0 0;
+}
+
+.queue-load-track {
+  height: 10px;
+  border: 2px solid var(--ink);
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.queue-load-fill {
+  height: 100%;
+  background: var(--yell);
+  transition: width 0.08s linear;
 }
 
 .account-name-field {
@@ -5627,6 +5639,149 @@ button {
 .account-auth-sheet {
   max-width: 360px;
   width: min(360px, 100%);
+}
+
+.login-screen,
+.onboarding-screen {
+  position: relative;
+  overflow: hidden;
+  justify-content: center;
+  padding: calc(20px + var(--safe-top)) 18px calc(24px + var(--safe-bottom));
+}
+
+.login-loading {
+  display: grid;
+  place-items: center;
+  background: var(--floor);
+}
+
+.login-loading-copy {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.login-shell,
+.onboarding-shell {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: home-play-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-hero {
+  text-align: center;
+}
+
+.login-brand {
+  margin: 4px 0 8px;
+}
+
+.login-tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.login-card,
+.onboarding-card {
+  width: 100%;
+  padding: 18px 16px 16px;
+  background: rgba(20, 16, 12, 0.72);
+  border: 2px solid var(--ink);
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.06);
+}
+
+.login-card .account-name-field,
+.login-card .account-auth-field {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.onboarding-card {
+  text-align: center;
+  padding: 28px 20px 22px;
+}
+
+.onboarding-icon {
+  display: grid;
+  place-items: center;
+  margin: 12px auto 10px;
+  width: 72px;
+  height: 72px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid var(--ink);
+}
+
+.onboarding-sprite.sprite-icon {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.onboarding-title {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 5vw, 1.85rem);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.onboarding-body {
+  margin: 0 auto;
+  max-width: 28ch;
+  color: var(--muted);
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.onboarding-hello {
+  margin: 12px 0 0;
+  font-weight: 800;
+  color: var(--yell);
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 22px 0 18px;
+}
+
+.onboarding-dot {
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--ink);
+}
+
+.onboarding-dot.on {
+  background: var(--yell);
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 720px) {
+  .login-shell,
+  .onboarding-shell {
+    width: min(460px, 100%);
+  }
+
+  .login-card,
+  .onboarding-card {
+    padding: 24px 22px 20px;
+  }
 }
 
 .leaderboard-row.is-you {
@@ -6683,23 +6838,24 @@ button {
   }
 }
 
-/* —— Bigger item icons + no clip (codex / custom / ranked) —— */
+/* —— Bigger item icons (codex / custom / ranked) —— */
 .codex-emoji,
 .codex-emoji.sprite-icon {
   width: 3rem !important;
   height: 3rem !important;
-  overflow: visible;
+  overflow: hidden;
   flex-shrink: 0;
+  object-fit: contain;
 }
 
 .codex-row {
-  overflow: visible;
+  overflow: hidden;
   align-items: flex-start;
   gap: 14px;
 }
 
 .custom-item-cell {
-  overflow: visible;
+  overflow: hidden;
   min-height: 76px;
   padding: 10px 4px 8px;
 }
@@ -6708,7 +6864,8 @@ button {
 .custom-item-cell-icon.sprite-icon {
   width: 2.35rem !important;
   height: 2.35rem !important;
-  overflow: visible;
+  overflow: hidden;
+  object-fit: contain;
 }
 
 .lobby-rail-icon.sprite-icon {
@@ -6733,6 +6890,21 @@ button {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 8px;
+}
+
+/* Ranks ladder: fit all five without scroll so Bronze isn’t clipped under the tabs */
+.ranked-scroll.is-ladder {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: 2px;
+  padding-bottom: 8px;
+}
+
+.ranked-scroll.is-ladder .ranked-ladder {
+  flex: 1;
+  min-height: 0;
 }
 
 .event-chip-emoji.sprite-icon {

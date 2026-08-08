@@ -1,6 +1,6 @@
 import { CONFIG } from './constants';
 import { handNonBombCount } from './engine';
-import { getItem, isHazardItem, isMoneyEngine } from './items';
+import { getItem, isHazardItem, isMoneyEngine, purchasePriceFor } from './items';
 import type {
   BotArchetype,
   GameState,
@@ -66,6 +66,7 @@ const PASSIVE_BID: Partial<Record<ItemId, number>> = {
   magnet: 28,
   kickback: 26,
   broker: 24,
+  bargain: 40,
   chrysalis: 22,
   bank_note: 18,
   // Self-sabotage unless desperate — scored separately
@@ -79,14 +80,12 @@ const ACTIVE_BID: Partial<Record<ItemId, number>> = {
   pickpocket: 24,
   heist_kit: 22,
   quick_swap: 22,
-  reset_hammer: 22,
   time_freeze: 22,
-  bid_lock: 20,
+  bid_lock: 24,
   swap_portal: 20,
   mute: 18,
   inflation: 16,
   shop_refresh: 16,
-  cold_market: 14,
   roi: 14,
   ipo: 14,
   chaos_die: 12,
@@ -102,9 +101,11 @@ function getPlayer(state: GameState, id: string | null): Player | undefined {
 }
 
 function committedSpend(state: GameState, playerId: string): number {
+  const player = getPlayer(state, playerId);
+  if (!player) return 0;
   return state.tiles
     .filter((t) => t.highBidderId === playerId)
-    .reduce((s, t) => s + t.price, 0);
+    .reduce((s, t) => s + purchasePriceFor(player, t.price), 0);
 }
 
 function canAffordNewBid(
@@ -112,24 +113,29 @@ function canAffordNewBid(
   player: Player,
   nextPrice: number,
 ): boolean {
-  return committedSpend(state, player.id) + nextPrice <= player.coins;
+  return (
+    committedSpend(state, player.id) + purchasePriceFor(player, nextPrice) <=
+    player.coins
+  );
 }
 
 function wouldDieOnTile(state: GameState, tile: Tile): boolean {
   const bidder = getPlayer(state, tile.highBidderId);
   if (!bidder || !bidder.isAlive) return false;
+  const due = purchasePriceFor(bidder, tile.price);
   const other = state.tiles
     .filter((t) => t.highBidderId === bidder.id && t.index !== tile.index)
-    .reduce((s, t) => s + t.price, 0);
-  return tile.price > bidder.coins || tile.price + other > bidder.coins;
+    .reduce((s, t) => s + purchasePriceFor(bidder, t.price), 0);
+  return due > bidder.coins || due + other > bidder.coins;
 }
 
 function isDoomedLead(state: GameState, tile: Tile): boolean {
   if (!tile.highBidderId) return false;
   if (!wouldDieOnTile(state, tile)) return false;
+  const bidder = getPlayer(state, tile.highBidderId);
   return (
     tile.timerMs < 6000 ||
-    tile.price > (getPlayer(state, tile.highBidderId)?.coins ?? 0)
+    purchasePriceFor(bidder!, tile.price) > (bidder?.coins ?? 0)
   );
 }
 
@@ -508,24 +514,31 @@ function decideUse(
     };
   }
 
-  // Bid lock own valuable lead
+  // Bid lock — golden locks the whole board; otherwise lock own valuable lead
   const lock = findHeld(player, 'bid_lock');
   if (lock && rng() < 0.45) {
-    const mine = state.tiles
-      .filter(
-        (t) =>
-          t.highBidderId === player.id &&
-          !t.bidLocked &&
-          player.coins >= t.price &&
-          (isMoneyEngine(t.itemId) || t.price >= 4),
-      )
-      .sort((a, b) => b.price - a.price)[0];
-    if (mine) {
-      return {
-        kind: 'use',
-        instanceId: lock.instanceId,
-        targets: { tileIndex: mine.index },
-      };
+    if (lock.golden) {
+      const unlocked = state.tiles.some((t) => !t.bidLocked);
+      if (unlocked) {
+        return { kind: 'use', instanceId: lock.instanceId, targets: {} };
+      }
+    } else {
+      const mine = state.tiles
+        .filter(
+          (t) =>
+            t.highBidderId === player.id &&
+            !t.bidLocked &&
+            player.coins >= purchasePriceFor(player, t.price) &&
+            (isMoneyEngine(t.itemId) || t.price >= 4),
+        )
+        .sort((a, b) => b.price - a.price)[0];
+      if (mine) {
+        return {
+          kind: 'use',
+          instanceId: lock.instanceId,
+          targets: { tileIndex: mine.index },
+        };
+      }
     }
   }
 
@@ -539,7 +552,7 @@ function decideUse(
       (t) =>
         t.highBidderId === player.id &&
         t.timerMs < 3500 &&
-        player.coins >= t.price &&
+        player.coins >= purchasePriceFor(player, t.price) &&
         t.freezeMs <= 0,
     );
     if (ownUrgent && rng() < 0.55) {
@@ -569,7 +582,9 @@ function decideUse(
   // Fast-forward own lead only if we can pay
   if (ff) {
     const mine = state.tiles.find(
-      (t) => t.highBidderId === player.id && player.coins >= t.price,
+      (t) =>
+        t.highBidderId === player.id &&
+        player.coins >= purchasePriceFor(player, t.price),
     );
     if (mine && rng() < 0.5) {
       return {
@@ -592,52 +607,10 @@ function decideUse(
     }
   }
 
-  // Cold market when threat is farming hard
-  const cold = findHeld(player, 'cold_market');
-  if (cold && threat && state.coldMarketMs <= 0 && rng() < profile.sabotage * 0.5) {
-    if (handHasMoneyEngine(threat.hand) || threat.coins > player.coins) {
-      return { kind: 'use', instanceId: cold.instanceId, targets: {} };
-    }
-  }
-
   // ROI when sitting on a pile
   const roi = findHeld(player, 'roi');
   if (roi && player.coins >= 12 && player.roiTargetCoins == null && rng() < 0.4) {
     return { kind: 'use', instanceId: roi.instanceId, targets: {} };
-  }
-
-  const hammer = findHeld(player, 'reset_hammer');
-  if (hammer) {
-    const ownExpensive = [...state.tiles]
-      .filter(
-        (t) =>
-          !isHazardItem(t.itemId) &&
-          isMoneyEngine(t.itemId) &&
-          !isDoomedLead(state, t) &&
-          (t.highBidderId === null || t.highBidderId === player.id),
-      )
-      .sort((a, b) => b.price - a.price)[0];
-    if (ownExpensive && ownExpensive.price >= 5 && rng() < 0.35) {
-      return {
-        kind: 'use',
-        instanceId: hammer.instanceId,
-        targets: { tileIndex: ownExpensive.index },
-      };
-    }
-    const rival = state.tiles.find(
-      (t) =>
-        t.price >= 5 &&
-        !isDoomedLead(state, t) &&
-        t.highBidderId !== null &&
-        t.highBidderId !== player.id,
-    );
-    if (rival && rng() < 0.35) {
-      return {
-        kind: 'use',
-        instanceId: hammer.instanceId,
-        targets: { tileIndex: rival.index },
-      };
-    }
   }
 
   const refresh = findHeld(player, 'shop_refresh');
@@ -746,7 +719,10 @@ export function decideBotAction(
   const looming = state.tiles.filter(
     (t) => t.highBidderId === player.id && t.timerMs < 4000,
   );
-  const totalDue = looming.reduce((s, t) => s + t.price, 0);
+  const totalDue = looming.reduce(
+    (s, t) => s + purchasePriceFor(player, t.price),
+    0,
+  );
   if (totalDue > player.coins && player.hand.length > 0) {
     const sellId = weakestHeld(player);
     if (sellId) return { kind: 'sell', instanceId: sellId };

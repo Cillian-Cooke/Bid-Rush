@@ -123,6 +123,9 @@ export function spriteUrl(id: string): string | null {
 }
 
 export function itemSpriteId(id: ItemId): string {
+  // Reuse art: Bargain keeps the old hammer sprite; Freeze uses Cold Market’s ice.
+  if (id === 'bargain') return 'reset_hammer';
+  if (id === 'time_freeze') return 'cold_market';
   return id;
 }
 
@@ -138,6 +141,13 @@ export function resolveSpriteId(
   idOrEmoji: string,
 ): { kind: 'sprite'; id: string } | { kind: 'emoji'; emoji: string } {
   if (hasSprite(idOrEmoji)) return { kind: 'sprite', id: idOrEmoji };
+  // Item ids that remapped sprites (bargain → hammer art, freeze → ice art)
+  if (idOrEmoji === 'bargain' && hasSprite('reset_hammer')) {
+    return { kind: 'sprite', id: 'reset_hammer' };
+  }
+  if (idOrEmoji === 'time_freeze' && hasSprite('cold_market')) {
+    return { kind: 'sprite', id: 'cold_market' };
+  }
   const avatar = avatarSpriteId(idOrEmoji);
   if (avatar) return { kind: 'sprite', id: avatar };
   const glyph = EMOJI_TO_UI_GLYPH[idOrEmoji];

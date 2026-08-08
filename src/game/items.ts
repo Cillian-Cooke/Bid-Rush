@@ -135,14 +135,14 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     startPrice: 1,
     spawnWeight: 4,
   },
-  reset_hammer: {
-    id: 'reset_hammer',
-    name: 'Reset Hammer',
-    emoji: '🔨',
-    kind: 'active',
-    target: 'item',
-    sellValue: 2,
-    startPrice: 1,
+  bargain: {
+    id: 'bargain',
+    name: 'Bargain',
+    emoji: '🏷️',
+    kind: 'passive',
+    target: 'none',
+    sellValue: 4,
+    startPrice: 2,
     spawnWeight: 4,
   },
   inflation: {
@@ -168,8 +168,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
   time_freeze: {
     id: 'time_freeze',
-    name: 'Time Freeze',
-    emoji: '❄️',
+    name: 'Freeze',
+    emoji: '🧊',
     kind: 'active',
     target: 'item',
     sellValue: 3,
@@ -246,26 +246,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     startPrice: 3,
     spawnWeight: 3,
   },
-  cold_market: {
-    id: 'cold_market',
-    name: 'Cold Market',
-    emoji: '🧊',
+  roi: {
+    id: 'roi',
+    name: 'ROI',
+    emoji: '📈',
     kind: 'active',
     target: 'none',
-    sellValue: 5,
-    startPrice: 4,
+    sellValue: 3,
+    startPrice: 3,
     spawnWeight: 2,
   },
-    roi: {
-      id: 'roi',
-      name: 'ROI',
-      emoji: '📈',
-      kind: 'active',
-      target: 'none',
-      sellValue: 3,
-      startPrice: 3,
-      spawnWeight: 2,
-    },
   coin_leech: {
     id: 'coin_leech',
     name: 'Coin Leech',
@@ -399,6 +389,25 @@ export function getItem(id: ItemId): ItemDef {
   return ITEMS[id];
 }
 
+/** True if the player holds Bargain (purchases cost half). */
+export function hasBargain(player: { hand: HandItem[] }): boolean {
+  return player.hand.some((h) => h.itemId === 'bargain');
+}
+
+/** Golden Bargain also resolves shop purchases 25% faster. */
+export function hasGoldenBargain(player: { hand: HandItem[] }): boolean {
+  return player.hand.some((h) => h.itemId === 'bargain' && h.golden);
+}
+
+/** Shop price the player actually pays after Bargain (50% off, min 1). */
+export function purchasePriceFor(
+  player: { hand: HandItem[] },
+  listedPrice: number,
+): number {
+  if (!hasBargain(player)) return listedPrice;
+  return Math.max(1, Math.floor(listedPrice * 0.5));
+}
+
 /** Active items that fire immediately — no tile/player/hand pick. */
 export function canInstantUse(item: {
   itemId: ItemId;
@@ -414,6 +423,7 @@ export function canInstantUse(item: {
     return false;
   }
   if (item.itemId === 'time_freeze' && item.golden) return true;
+  if (item.itemId === 'bid_lock' && item.golden) return true;
   if (item.itemId === 'ipo' && item.golden) return true;
   return def.target === 'none' || def.target === 'all-items';
 }

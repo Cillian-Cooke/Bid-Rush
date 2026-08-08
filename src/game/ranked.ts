@@ -31,7 +31,7 @@ export const RANKED_ITEM_ORDER: ItemId[] = (() => {
     'shop_refresh',
     'fast_forward',
     'time_freeze',
-    'reset_hammer',
+    'bargain',
     // +4 rank 3
     'inflation',
     'magnet',
@@ -41,7 +41,7 @@ export const RANKED_ITEM_ORDER: ItemId[] = (() => {
     'swap_portal',
     'handcuffs',
     'mute',
-    'cold_market',
+    'bid_lock',
     // +4 rank 5
     'pickpocket',
     'heist_kit',
@@ -52,7 +52,6 @@ export const RANKED_ITEM_ORDER: ItemId[] = (() => {
     'curse_idol',
     'bomb',
     'dynamite',
-    'bid_lock',
   ];
   const seen = new Set<ItemId>();
   const ordered: ItemId[] = [];

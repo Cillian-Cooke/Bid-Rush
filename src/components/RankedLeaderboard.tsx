@@ -118,7 +118,9 @@ export function RankedLeaderboard({ onClose }: Props) {
           ))}
         </div>
 
-        <div className="ranked-scroll">
+        <div
+          className={`ranked-scroll${tab === 'ladder' ? ' is-ladder' : ''}`}
+        >
           {tab === 'scores' && (
             <>
               <p className="leaderboard-blurb">Live global rankings</p>
@@ -216,18 +218,12 @@ export function RankedLeaderboard({ onClose }: Props) {
                 </div>
               )}
               <ul className="ranked-item-chips">
-                {inspectPool.map((id) => {
-                  const isNew = inspectNew.includes(id);
-                  return (
-                    <li
-                      key={id}
-                      className={`ranked-item-chip${isNew && inspectRank > 0 ? ' is-new' : ''}`}
-                    >
-                      <SpriteIcon id={id} className="ranked-item-chip-icon" aria-hidden />
-                      {getItem(id).name}
-                    </li>
-                  );
-                })}
+                {inspectPool.map((id) => (
+                  <li key={id} className="ranked-item-chip">
+                    <SpriteIcon id={id} className="ranked-item-chip-icon" aria-hidden />
+                    {getItem(id).name}
+                  </li>
+                ))}
               </ul>
             </div>
           )}

@@ -472,12 +472,13 @@ def paint_shop_refresh() -> Image.Image:
 
 
 def paint_handcuffs() -> Image.Image:
-    """Stop a rival from bidding."""
+    """Stop a rival from bidding — keep inset so the wide cuffs don’t clip in UI."""
     c = Canvas()
-    c.disc(10, 16, 5, MUTE, INK)
-    c.disc(22, 16, 5, MUTE, INK)
-    c.hline(14, 18, 16, MUTE)
-    c.hline(14, 18, 17, INK)
+    # Slightly smaller / inset vs edge-to-edge so codex & detail rows stay even
+    c.disc(11, 16, 4, MUTE, INK)
+    c.disc(21, 16, 4, MUTE, INK)
+    c.hline(14, 18, 15, MUTE)
+    c.hline(14, 18, 16, INK)
     return c.im
 
 

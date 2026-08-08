@@ -1,5 +1,14 @@
 import { AVATAR_EMOJIS, CONFIG, MODE_SETUP, PLAYER_COLORS } from './constants';
-import { getItem, pickMatchPool, startPriceOf, bombDefuseCost, weightedRandomItem, coinMineIntervalMs } from './items';
+import {
+  getItem,
+  pickMatchPool,
+  startPriceOf,
+  bombDefuseCost,
+  weightedRandomItem,
+  coinMineIntervalMs,
+  purchasePriceFor,
+  hasGoldenBargain,
+} from './items';
 import { matchPaceMult } from './pace';
 import { createRng } from './rng';
 import type {
@@ -970,8 +979,8 @@ function resolveTile(
   if (winnerId) {
     const winner = getPlayer(state, winnerId);
     if (winner && winner.isAlive) {
-      if (winner.coins >= tile.price) {
-        const price = tile.price;
+      const price = purchasePriceFor(winner, tile.price);
+      if (winner.coins >= price) {
         const def = getItem(tile.itemId);
         winner.coins -= price;
         emitLoss(
@@ -1000,11 +1009,11 @@ function resolveTile(
         }
       } else {
         const def = getItem(tile.itemId);
-        const short = tile.price - winner.coins;
+        const short = price - winner.coins;
         eliminate(state, winnerId, 'unpaid', {
           emoji: def.emoji,
-          label: `${def.name} cost ${tile.price}🪙 (${short} short)`,
-          delta: -tile.price,
+          label: `${def.name} cost ${price}🪙 (${short} short)`,
+          delta: -price,
         });
       }
     }
@@ -1076,25 +1085,6 @@ function applyActiveEffect(
       tile.flash = 'double';
       tile.flashMs = 500;
       emitFx(state, 'double', { tileIndex: tile.index });
-      break;
-    }
-    case 'reset_hammer': {
-      const tile = state.tiles[targets.tileIndex ?? -1];
-      if (!tile) return;
-      tile.price = startPriceOf(tile.itemId);
-      tile.highBidderId = null;
-      tile.bidLocked = false;
-      emitFx(state, 'hammer', { tileIndex: tile.index });
-      if (item.golden) {
-        const others = state.tiles.filter((t) => t.index !== tile.index);
-        if (others.length > 0) {
-          const pick = others[Math.floor(rng() * others.length)]!;
-          pick.price = startPriceOf(pick.itemId);
-          pick.highBidderId = null;
-          pick.bidLocked = false;
-          emitFx(state, 'hammer', { tileIndex: pick.index });
-        }
-      }
       break;
     }
     case 'inflation': {
@@ -1315,11 +1305,6 @@ function applyActiveEffect(
       emitFx(state, 'mute', { playerId: target.id });
       break;
     }
-    case 'cold_market': {
-      state.coldMarketMs = Math.max(state.coldMarketMs, CONFIG.COLD_MARKET_MS * mult);
-      emitFx(state, 'cold_market', { label: 'COLD' });
-      break;
-    }
     case 'roi': {
       const baseline = player.coins;
       const boosted = Math.floor(baseline * 1.5);
@@ -1339,12 +1324,18 @@ function applyActiveEffect(
       break;
     }
     case 'bid_lock': {
+      if (item.golden) {
+        for (const tile of state.tiles) {
+          tile.bidLocked = true;
+          tile.flash = 'bid';
+          tile.flashMs = 400;
+          emitFx(state, 'cuffs', { tileIndex: tile.index, label: 'LOCK' });
+        }
+        break;
+      }
       const tile = state.tiles[targets.tileIndex ?? -1];
       if (!tile) return;
       tile.bidLocked = true;
-      if (item.golden) {
-        tile.freezeMs = Math.max(tile.freezeMs, CONFIG.TIME_FREEZE_MS);
-      }
       tile.flash = 'bid';
       tile.flashMs = 400;
       emitFx(state, 'cuffs', { tileIndex: tile.index, label: 'LOCK' });
@@ -2039,7 +2030,13 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
       continue;
     }
     if (timerScale === 0) continue;
-    tile.timerMs -= dtMs * timerScale;
+    let scale = timerScale;
+    // Golden Bargain: purchases resolve 25% faster while you hold the lead
+    if (tile.highBidderId) {
+      const bidder = getPlayer(next, tile.highBidderId);
+      if (bidder && hasGoldenBargain(bidder)) scale *= 1.25;
+    }
+    tile.timerMs -= dtMs * scale;
   }
 
   // Resolve expired tiles (snapshot indices that hit 0)

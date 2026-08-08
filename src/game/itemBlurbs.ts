@@ -21,8 +21,8 @@ export function regularBlurb(id: string): string {
       'Stores coins into itself over time. Sell it to cash out the stash.',
     mystery_box: 'Sell only. Rolls a random payout from 1 to 20 coins.',
     price_doubler: 'Instantly doubles one shop tile’s price.',
-    reset_hammer:
-      'Resets a shop tile to its start price and clears its high bidder.',
+    bargain:
+      'All shop purchases cost half (rounded down, min 1). Hold it and every win is cheaper.',
     inflation: 'Adds 3 to the price of every shop tile.',
     interest:
       'Every 5 seconds adds sell value to every item in your hand. Pays no coins.',
@@ -37,7 +37,6 @@ export function regularBlurb(id: string): string {
     quick_swap:
       'Pick a rival. After 10 seconds, swap your leftmost hand item with their rightmost. Works one-way if either hand is empty.',
     mute: 'Silences a rival’s passives for 8 seconds.',
-    cold_market: 'Freezes all passives for everyone for 10 seconds.',
     roi: 'Your coins jump to 1.5× now. Hit 2× your old total in 30s or die.',
     coin_leech: 'Drains coins from rivals over time.',
     magnet: 'Whenever anyone else earns passive income, you gain 1 coin.',
@@ -74,7 +73,8 @@ export function goldenBlurb(id: string): string {
     piggy_bank: 'Golden: stores coins twice as fast.',
     mystery_box: 'Golden: rolls twice and adds both results (1–20 + 1–20).',
     price_doubler: 'Golden: doubles a tile’s price twice (×4).',
-    reset_hammer: 'Golden: also resets a second random tile.',
+    bargain:
+      'Golden: same half-price purchases, and your winning auctions resolve 25% faster.',
     inflation: 'Golden: adds 6 to every shop tile’s price.',
     interest: 'Golden: +2 sell value to every hand item every 5 seconds.',
     time_freeze: 'Golden: briefly mega-freezes the whole board.',
@@ -86,7 +86,6 @@ export function goldenBlurb(id: string): string {
     heist_kit: 'Golden: steals two items.',
     quick_swap: 'Golden: after 10 seconds, swap your entire hand with theirs.',
     mute: 'Golden: lasts twice as long.',
-    cold_market: 'Golden: lasts twice as long.',
     roi: 'Golden: 60 seconds to hit the target instead of 30.',
     coin_leech: 'Golden: double drain.',
     magnet: 'Golden: +2 whenever anyone else earns income.',
@@ -94,7 +93,7 @@ export function goldenBlurb(id: string): string {
     curse_idol: 'Golden: rivals lose 2 every 3 seconds.',
     bomb: 'Golden: fuse times add on merge. Defuse pays you +100.',
     dynamite: 'Golden: every 2 seconds wipes your whole hand (keeps the stick).',
-    bid_lock: 'Golden: also freezes that tile.',
+    bid_lock: 'Golden: locks every shop tile on the board.',
     mirror: 'Golden: also copies the passive item to its left.',
     gilder: 'Golden: turns both neighbors golden.',
     tip_jar: 'Golden: +2 coin on every passive payout.',
