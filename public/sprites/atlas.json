@@ -137,6 +137,15 @@
       "folder": "items",
       "file": "items/reset_hammer.png"
     },
+    "bargain": {
+      "sheet": "items-a.png",
+      "x": 0,
+      "y": 99,
+      "w": 32,
+      "h": 32,
+      "folder": "items",
+      "file": "items/bargain.png"
+    },
     "inflation": {
       "sheet": "items-a.png",
       "x": 33,

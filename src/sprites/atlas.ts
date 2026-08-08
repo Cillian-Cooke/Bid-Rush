@@ -119,20 +119,14 @@ export function hasSprite(id: string): boolean {
 }
 
 export function spriteUrl(id: string): string | null {
-  const remapped =
-    id === 'bargain'
-      ? 'reset_hammer'
-      : id === 'time_freeze'
-        ? 'cold_market'
-        : id;
+  const remapped = id === 'time_freeze' ? 'cold_market' : id;
   const frame = ATLAS.frames[remapped] ?? ATLAS.frames[id];
   if (!frame) return null;
   return `/sprites/${frame.file}`;
 }
 
 export function itemSpriteId(id: ItemId): string {
-  // Reuse art: Bargain keeps the old hammer sprite; Freeze uses Cold Market’s ice.
-  if (id === 'bargain') return 'reset_hammer';
+  // Freeze reuses Cold Market’s ice cube art.
   if (id === 'time_freeze') return 'cold_market';
   return id;
 }
@@ -150,9 +144,6 @@ export function resolveSpriteId(
 ): { kind: 'sprite'; id: string } | { kind: 'emoji'; emoji: string } {
   // Remaps must win even when the original frame still exists in the atlas
   // (Freeze still has time_freeze.png; we show Cold Market's ice cube instead).
-  if (idOrEmoji === 'bargain' && hasSprite('reset_hammer')) {
-    return { kind: 'sprite', id: 'reset_hammer' };
-  }
   if (idOrEmoji === 'time_freeze' && hasSprite('cold_market')) {
     return { kind: 'sprite', id: 'cold_market' };
   }
