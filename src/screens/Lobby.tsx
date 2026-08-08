@@ -17,6 +17,7 @@ import {
 } from '../net/onlineSession';
 import {
   cancelMatchmaking,
+  getMatchmakingStartedAt,
   getMatchmakingStatus,
   setMatchmakingListener,
   startMatchmaking,
@@ -24,15 +25,11 @@ import {
 } from '../net/matchmaking';
 import {
   getNakamaProfile,
-  isEmailAccount,
-  logInWithEmail,
   logOutAccount,
   refreshNakamaProfile,
   setNakamaDisplayName,
-  signUpWithEmail,
 } from '../net/nakama';
 import { useGameStore } from '../store';
-import { AccountAuthForm } from '../components/AccountAuthForm';
 import { CustomSettingsPanel } from '../components/CustomSettingsPanel';
 import { ItemsCodex } from '../components/ItemsCodex';
 import { RankedLeaderboard } from '../components/RankedLeaderboard';
@@ -72,7 +69,7 @@ function queueLabel(status: MatchmakingStatus): string {
   }
 }
 
-export function Lobby() {
+export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
   const lobby = useGameStore((s) => s.lobby);
   const codexOpen = useGameStore((s) => s.codexOpen);
   const setDifficulty = useGameStore((s) => s.setDifficulty);
@@ -97,12 +94,12 @@ export function Lobby() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [queueStatus, setQueueStatus] = useState<MatchmakingStatus>('idle');
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [queueProgress, setQueueProgress] = useState(0);
   const [displayName, setDisplayName] = useState('');
   const [nameDraft, setNameDraft] = useState('');
-  const [signedIn, setSignedIn] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+
+  const QUEUE_MS = 10_000;
 
   useEffect(() => {
     setMatchmakingListener((s, err) => {
@@ -111,8 +108,6 @@ export function Lobby() {
     });
     setQueueStatus(getMatchmakingStatus());
     void refreshNakamaProfile().then((p) => {
-      const email = isEmailAccount();
-      setSignedIn(email);
       if (p?.displayName) {
         setDisplayName(p.displayName);
         setNameDraft(p.displayName);
@@ -125,12 +120,22 @@ export function Lobby() {
     return () => setMatchmakingListener(null);
   }, []);
 
-  const requireAccount = (): boolean => {
-    if (isEmailAccount()) return true;
-    setAuthError(null);
-    setAuthOpen(true);
-    return false;
-  };
+  useEffect(() => {
+    if (queueStatus !== 'searching') {
+      setQueueProgress(queueStatus === 'connecting' ? 0.05 : 0);
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      const started = getMatchmakingStartedAt() || Date.now();
+      const p = Math.min(1, (Date.now() - started) / QUEUE_MS);
+      setQueueProgress(p);
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [queueStatus]);
+
   const updateCustom = (next: CustomMatchSettings) => {
     setCustomSettings(next);
     saveCustomSettings(next);
@@ -145,18 +150,17 @@ export function Lobby() {
   };
 
   const queuePlay = (mode: GameMode, kind: 'ranked' | 'casual') => {
-    if (!requireAccount()) return;
     void startMatchmaking({
       kind,
       mode,
-      botFallbackMs: 20_000,
-      onBotFallback: () => playLocal(mode, kind),
+      fallbackMs: QUEUE_MS,
+      onFallback: () => playLocal(mode, kind),
     });
   };
 
   const saveName = async () => {
     const next = nameDraft.trim().slice(0, 24);
-    if (!next || !signedIn) return;
+    if (!next) return;
     try {
       const saved = await setNakamaDisplayName(next);
       setDisplayName(saved);
@@ -166,60 +170,17 @@ export function Lobby() {
     }
   };
 
-  const handleLogin = async (email: string, password: string) => {
-    setAuthBusy(true);
-    setAuthError(null);
-    try {
-      const p = await logInWithEmail({ email, password });
-      setSignedIn(true);
-      setDisplayName(p.displayName);
-      setNameDraft(p.displayName);
-      setAuthOpen(false);
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-
-  const handleSignUp = async (
-    email: string,
-    password: string,
-    name: string,
-  ) => {
-    setAuthBusy(true);
-    setAuthError(null);
-    try {
-      const p = await signUpWithEmail({
-        email,
-        password,
-        displayName: name,
-      });
-      setSignedIn(true);
-      setDisplayName(p.displayName);
-      setNameDraft(p.displayName);
-      setAuthOpen(false);
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'Sign up failed');
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-
   const handleLogout = async () => {
     setAuthBusy(true);
     try {
       await logOutAccount();
-      setSignedIn(false);
-      setDisplayName('');
-      setNameDraft('');
+      onLoggedOut?.();
     } finally {
       setAuthBusy(false);
     }
   };
 
   const createRoom = async (mode: GameMode) => {
-    if (!requireAccount()) return;
     setBusy(true);
     useGameStore.setState({ onlineError: null });
     try {
@@ -240,7 +201,6 @@ export function Lobby() {
   };
 
   const joinRoom = async () => {
-    if (!requireAccount()) return;
     setBusy(true);
     useGameStore.setState({ onlineError: null });
     try {
@@ -281,10 +241,21 @@ export function Lobby() {
             <p className="friends-subtitle">{queueLabel(queueStatus)}</p>
           </div>
           {queueStatus === 'searching' && (
-            <p className="queue-hint">
-              Looking for players. After 20s you&apos;ll play vs bots — rank
-              still counts.
-            </p>
+            <div
+              className="queue-load"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(queueProgress * 100)}
+              aria-label="Finding match"
+            >
+              <div className="queue-load-track">
+                <div
+                  className="queue-load-fill"
+                  style={{ width: `${Math.max(4, queueProgress * 100)}%` }}
+                />
+              </div>
+            </div>
           )}
           {queueError && <p className="online-error">{queueError}</p>}
           <button
@@ -414,7 +385,7 @@ export function Lobby() {
               onClick={() => queuePlay('duel', 'casual')}
             >
               <span className="home-play-title">Duel</span>
-              <span className="home-play-meta">find 1v1 · bots if empty</span>
+              <span className="home-play-meta">find 1v1</span>
             </button>
             <button
               type="button"
@@ -591,59 +562,28 @@ export function Lobby() {
           </div>
 
           <section className="account-panel" aria-label="Account">
-            {signedIn ? (
-              <>
-                <label className="account-name-field">
-                  <span className="account-name-label">Signed in as</span>
-                  <div className="account-name-row">
-                    <input
-                      className="account-name-input"
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value.slice(0, 24))}
-                      onBlur={() => void saveName()}
-                      placeholder="Display name"
-                      maxLength={24}
-                      spellCheck={false}
-                    />
-                  </div>
-                </label>
-                <button
-                  type="button"
-                  className="btn account-logout-btn"
-                  disabled={authBusy}
-                  onClick={() => void handleLogout()}
-                >
-                  Log out
-                </button>
-              </>
-            ) : authOpen ? (
-              <AccountAuthForm
-                busy={authBusy}
-                error={authError}
-                onLogin={handleLogin}
-                onSignUp={handleSignUp}
-                onCancel={() => {
-                  setAuthOpen(false);
-                  setAuthError(null);
-                }}
-              />
-            ) : (
-              <div className="account-guest">
-                <p className="account-guest-copy">
-                  Create an account to play online and show up on the leaderboard.
-                </p>
-                <button
-                  type="button"
-                  className="btn primary"
-                  onClick={() => {
-                    setAuthError(null);
-                    setAuthOpen(true);
-                  }}
-                >
-                  Sign up / Log in
-                </button>
+            <label className="account-name-field">
+              <span className="account-name-label">Signed in as</span>
+              <div className="account-name-row">
+                <input
+                  className="account-name-input"
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value.slice(0, 24))}
+                  onBlur={() => void saveName()}
+                  placeholder="Display name"
+                  maxLength={24}
+                  spellCheck={false}
+                />
               </div>
-            )}
+            </label>
+            <button
+              type="button"
+              className="btn account-logout-btn"
+              disabled={authBusy}
+              onClick={() => void handleLogout()}
+            >
+              Log out
+            </button>
           </section>
 
           <nav className="home-play" aria-label="Play">
@@ -680,36 +620,6 @@ export function Lobby() {
       {codexOpen && <ItemsCodex onClose={() => setCodexOpen(false)} />}
       {leaderboardOpen && (
         <RankedLeaderboard onClose={() => setLeaderboardOpen(false)} />
-      )}
-      {authOpen && !signedIn && view !== 'home' && (
-        <div className="codex-overlay" role="dialog" aria-label="Account">
-          <div className="codex-sheet account-auth-sheet">
-            <div className="codex-head">
-              <h2 className="leaderboard-title">Account</h2>
-              <button
-                type="button"
-                className="codex-close"
-                onClick={() => {
-                  setAuthOpen(false);
-                  setAuthError(null);
-                }}
-                aria-label="Close"
-              >
-                <ArrowLeft size={22} />
-              </button>
-            </div>
-            <AccountAuthForm
-              busy={authBusy}
-              error={authError}
-              onLogin={handleLogin}
-              onSignUp={handleSignUp}
-              onCancel={() => {
-                setAuthOpen(false);
-                setAuthError(null);
-              }}
-            />
-          </div>
-        </div>
       )}
     </div>
   );

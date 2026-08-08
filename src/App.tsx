@@ -2,12 +2,23 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { LandscapeBlocker } from './components/LandscapeBlocker';
 import { useGameStore } from './store';
 import { Lobby } from './screens/Lobby';
+import { LoginScreen } from './screens/LoginScreen';
+import { OnboardingScreen } from './screens/OnboardingScreen';
 import { NameAuction } from './screens/NameAuction';
 import { Game } from './screens/Game';
 import { Results } from './screens/Results';
 import { MatchPoolReveal } from './components/MatchPoolReveal';
+import {
+  getNakamaProfile,
+  isEmailAccount,
+  restoreEmailSessionIfAny,
+  type AuthResult,
+  type NakamaProfile,
+} from './net/nakama';
+import { hasCompletedOnboarding } from './net/onboarding';
 
 type Sheet = 'match' | 'results';
+type Gate = 'loading' | 'login' | 'onboarding' | 'play';
 
 const SHEET_MS = 400;
 
@@ -65,6 +76,13 @@ function StackSheet({
   );
 }
 
+function gateAfterProfile(profile: NakamaProfile, forceOnboarding: boolean): Gate {
+  if (forceOnboarding || !hasCompletedOnboarding(profile.userId)) {
+    return 'onboarding';
+  }
+  return 'play';
+}
+
 export default function App() {
   const phase = useGameStore((s) => s.phase);
   const countdown = useGameStore((s) => s.countdown);
@@ -74,21 +92,55 @@ export default function App() {
   const poolRevealPeeked = useGameStore((s) => s.poolRevealPeeked);
   const closePoolReveal = useGameStore((s) => s.closePoolReveal);
 
+  const [gate, setGate] = useState<Gate>('loading');
+  const [profile, setProfile] = useState<NakamaProfile | null>(null);
+
   useEffect(() => {
-    void import('./net/nakama')
-      .then(({ ensureNakamaSession }) => ensureNakamaSession())
-      .catch(() => {
-        /* Nakama optional until docker is up */
-      });
+    let cancelled = false;
+    void (async () => {
+      try {
+        const restored = await restoreEmailSessionIfAny();
+        if (cancelled) return;
+        if (restored && isEmailAccount()) {
+          setProfile(restored);
+          setGate(gateAfterProfile(restored, false));
+          return;
+        }
+        setGate('login');
+      } catch {
+        if (!cancelled) setGate('login');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const onAuthenticated = (result: AuthResult) => {
+    setProfile(result.profile);
+    setGate(gateAfterProfile(result.profile, result.isNewAccount));
+  };
+
+  const onOnboardingDone = () => {
+    const p = profile ?? getNakamaProfile();
+    if (p) setProfile(p);
+    setGate('play');
+  };
+
+  const onLoggedOut = () => {
+    setProfile(null);
+    setGate('login');
+    useGameStore.getState().returnToLobby();
+  };
 
   // Keep match mounted under results so lobby stays the true bottom of the stack
   const wantMatch =
-    phase === 'naming' ||
-    phase === 'countdown' ||
-    phase === 'playing' ||
-    phase === 'results';
-  const wantResults = phase === 'results';
+    gate === 'play' &&
+    (phase === 'naming' ||
+      phase === 'countdown' ||
+      phase === 'playing' ||
+      phase === 'results');
+  const wantResults = gate === 'play' && phase === 'results';
   const matchSheet = useSheet(wantMatch);
   const resultsSheet = useSheet(wantResults);
 
@@ -115,6 +167,39 @@ export default function App() {
 
   const view = matchView.current;
 
+  if (gate === 'loading') {
+    return (
+      <div className="app-stack">
+        <LandscapeBlocker />
+        <div className="screen login-screen login-loading">
+          <p className="login-loading-copy">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (gate === 'login') {
+    return (
+      <div className="app-stack">
+        <LandscapeBlocker />
+        <LoginScreen onAuthenticated={onAuthenticated} />
+      </div>
+    );
+  }
+
+  if (gate === 'onboarding' && profile) {
+    return (
+      <div className="app-stack">
+        <LandscapeBlocker />
+        <OnboardingScreen
+          userId={profile.userId}
+          displayName={profile.displayName}
+          onDone={onOnboardingDone}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="app-stack">
       <LandscapeBlocker />
@@ -122,7 +207,7 @@ export default function App() {
         className={`stack-base${lobbyBuried ? ' is-buried' : ''}`}
         aria-hidden={lobbyBuried}
       >
-        <Lobby />
+        <Lobby onLoggedOut={onLoggedOut} />
       </div>
 
       <StackSheet

@@ -23,7 +23,8 @@ let status: MatchmakingStatus = 'idle';
 let lastError: string | null = null;
 let onStatus: ((s: MatchmakingStatus, err?: string | null) => void) | null =
   null;
-let botFallbackTimer = 0;
+let fallbackTimer = 0;
+let searchStartedAt = 0;
 
 export function getMatchmakingStatus(): MatchmakingStatus {
   return status;
@@ -31,6 +32,11 @@ export function getMatchmakingStatus(): MatchmakingStatus {
 
 export function getMatchmakingError(): string | null {
   return lastError;
+}
+
+/** When the current search started (ms), or 0 if not searching. */
+export function getMatchmakingStartedAt(): number {
+  return searchStartedAt;
 }
 
 export function setMatchmakingListener(
@@ -42,18 +48,20 @@ export function setMatchmakingListener(
 function setStatus(s: MatchmakingStatus, err: string | null = null) {
   status = s;
   lastError = err;
+  if (s !== 'searching') searchStartedAt = 0;
   onStatus?.(s, err);
 }
 
-function clearBotFallback() {
-  if (botFallbackTimer) {
-    window.clearTimeout(botFallbackTimer);
-    botFallbackTimer = 0;
+function clearFallback() {
+  if (fallbackTimer) {
+    window.clearTimeout(fallbackTimer);
+    fallbackTimer = 0;
   }
 }
 
 export async function cancelMatchmaking() {
-  clearBotFallback();
+  clearFallback();
+  searchStartedAt = 0;
   const socket = getNakamaSocket();
   if (socket && ticket) {
     try {
@@ -67,14 +75,15 @@ export async function cancelMatchmaking() {
 }
 
 /**
- * Queue for Ranked or Casual. On timeout with no humans, `onBotFallback` runs
- * (local bots). Ranked RP for online matches is applied by Nakama on match end.
+ * Queue for Ranked or Casual. After `fallbackMs` with no match, `onFallback`
+ * runs (typically a local offline match). Ranked RP online is applied by Nakama.
  */
 export async function startMatchmaking(opts: {
   kind: QueueKind;
   mode: GameMode;
-  botFallbackMs?: number;
-  onBotFallback?: () => void;
+  /** Search window before offline fallback. Default 10s. */
+  fallbackMs?: number;
+  onFallback?: () => void;
 }): Promise<void> {
   await cancelMatchmaking();
   setStatus('connecting');
@@ -90,7 +99,7 @@ export async function startMatchmaking(opts: {
     if (!socket) throw new Error('Nakama socket unavailable');
 
     socket.onmatchmakermatched = (matched) => {
-      clearBotFallback();
+      clearFallback();
       ticket = null;
       setStatus('found');
       const matchId = matched.match_id;
@@ -132,6 +141,7 @@ export async function startMatchmaking(opts: {
       rank: progress.rankIndex,
     };
 
+    searchStartedAt = Date.now();
     setStatus('searching');
     const result = await socket.addMatchmaker(
       query,
@@ -142,12 +152,12 @@ export async function startMatchmaking(opts: {
     );
     ticket = result.ticket;
 
-    const fallbackMs = opts.botFallbackMs ?? 20_000;
-    if (fallbackMs > 0 && opts.onBotFallback) {
-      botFallbackTimer = window.setTimeout(() => {
+    const fallbackMs = opts.fallbackMs ?? 10_000;
+    if (fallbackMs > 0 && opts.onFallback) {
+      fallbackTimer = window.setTimeout(() => {
         void (async () => {
           await cancelMatchmaking();
-          opts.onBotFallback?.();
+          opts.onFallback?.();
         })();
       }, fallbackMs);
     }

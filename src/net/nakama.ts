@@ -291,11 +291,17 @@ function sanitizeUsername(raw: string): string {
   return `player_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export type AuthResult = {
+  profile: NakamaProfile;
+  /** True when this browser just created the account (signup). */
+  isNewAccount: boolean;
+};
+
 export async function signUpWithEmail(input: {
   email: string;
   password: string;
   displayName: string;
-}): Promise<NakamaProfile> {
+}): Promise<AuthResult> {
   const email = input.email.trim().toLowerCase();
   const password = input.password;
   const displayName = input.displayName.trim().slice(0, 24);
@@ -320,13 +326,13 @@ export async function signUpWithEmail(input: {
     publishLeaderboard: true,
   });
   if (!profile) throw new Error('Could not load profile after sign up');
-  return profile;
+  return { profile, isNewAccount: true };
 }
 
 export async function logInWithEmail(input: {
   email: string;
   password: string;
-}): Promise<NakamaProfile> {
+}): Promise<AuthResult> {
   const email = input.email.trim().toLowerCase();
   const password = input.password;
   if (!email.includes('@')) throw new Error('Enter a valid email');
@@ -345,7 +351,27 @@ export async function logInWithEmail(input: {
   }
   await adoptSession(s, 'email', { publishLeaderboard: true });
   if (!profile) throw new Error('Could not load profile after login');
-  return profile;
+  return { profile, isNewAccount: false };
+}
+
+/** Restore a saved email session on boot. Does not create a guest. */
+export async function restoreEmailSessionIfAny(): Promise<NakamaProfile | null> {
+  if (readAccountKind() !== 'email') return null;
+  const existing = restoreSession();
+  if (!existing) {
+    writeAccountKind(null);
+    return null;
+  }
+  try {
+    await ensureNakamaSession();
+    if (!isEmailAccount() || !profile) return null;
+    return profile;
+  } catch {
+    clearPersistedSession();
+    writeAccountKind(null);
+    profile = null;
+    return null;
+  }
 }
 
 export async function logOutAccount(): Promise<void> {
@@ -353,13 +379,6 @@ export async function logOutAccount(): Promise<void> {
   clearPersistedSession();
   writeAccountKind(null);
   profile = null;
-  // Fresh guest session for local play without publishing to the board.
-  try {
-    const s = await getNakamaClient().authenticateDevice(deviceId(), true);
-    await adoptSession(s, 'guest', { publishLeaderboard: false });
-  } catch {
-    /* offline */
-  }
 }
 
 async function syncProfileFromServer(opts?: {
