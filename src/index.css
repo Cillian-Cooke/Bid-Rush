@@ -20,9 +20,9 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
-  /* Bungee for titles; Atkinson Hyperlegible for body/digits (2/3/8 stay distinct) */
-  --font-display: 'Bungee', 'Atkinson Hyperlegible', sans-serif;
-  --font-nums: 'Atkinson Hyperlegible', 'Bungee', sans-serif;
+  /* Pixelify Sans = readable pixel titles; Atkinson for body/digits */
+  --font-display: 'Pixelify Sans', 'Atkinson Hyperlegible', sans-serif;
+  --font-nums: 'Atkinson Hyperlegible', 'Pixelify Sans', sans-serif;
   --font-body: 'Atkinson Hyperlegible', sans-serif;
   --app-width: 480px;
   --px: 2px;
@@ -5707,22 +5707,7 @@ button {
 
 .onboarding-card {
   text-align: center;
-  padding: 28px 20px 22px;
-}
-
-.onboarding-icon {
-  display: grid;
-  place-items: center;
-  margin: 12px auto 10px;
-  width: 72px;
-  height: 72px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 2px solid var(--ink);
-}
-
-.onboarding-sprite.sprite-icon {
-  width: 2.4rem;
-  height: 2.4rem;
+  padding: 22px 18px 20px;
 }
 
 .onboarding-title {
@@ -5735,7 +5720,7 @@ button {
 
 .onboarding-body {
   margin: 0 auto;
-  max-width: 28ch;
+  max-width: 32ch;
   color: var(--muted);
   font-size: 0.98rem;
   font-weight: 600;
@@ -5743,16 +5728,422 @@ button {
 }
 
 .onboarding-hello {
-  margin: 12px 0 0;
+  margin: 0 0 8px;
   font-weight: 800;
   color: var(--yell);
+}
+
+.onboarding-demo-wrap {
+  margin: 10px auto 16px;
+  min-height: 132px;
+  display: grid;
+  place-items: center;
+  animation: onboard-step-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes onboard-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboard-demo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 120px;
+}
+
+.onboard-demo-tile {
+  position: relative;
+  width: 88px;
+  height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.05);
+}
+
+.onboard-demo-item.sprite-icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.onboard-demo-coin.sprite-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.onboard-demo-timer {
+  width: 64px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--ink);
+  overflow: hidden;
+}
+
+.onboard-demo-timer-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--ok);
+  transform-origin: left center;
+  animation: onboard-timer 2.4s ease-in-out infinite;
+}
+
+@keyframes onboard-timer {
+  0%,
+  18% {
+    transform: scaleX(1);
+    background: var(--ok);
+  }
+  45% {
+    transform: scaleX(0.35);
+    background: var(--yell);
+  }
+  52% {
+    transform: scaleX(1);
+    background: var(--ok);
+  }
+  85% {
+    transform: scaleX(0.2);
+    background: var(--danger);
+  }
+  100% {
+    transform: scaleX(1);
+    background: var(--ok);
+  }
+}
+
+.onboard-demo-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-nums);
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--yell);
+}
+
+.onboard-demo-price-stack {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1ch;
+}
+
+.onboard-demo-price-a,
+.onboard-demo-price-b {
+  grid-area: 1 / 1;
+}
+
+.onboard-demo-price-b {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.demo-bid .onboard-demo-price-a {
+  animation: onboard-price-a 2.4s ease-in-out infinite;
+}
+
+.demo-bid .onboard-demo-price-b {
+  animation: onboard-price-b 2.4s ease-in-out infinite;
+}
+
+@keyframes onboard-price-a {
+  0%,
+  48% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  52%,
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes onboard-price-b {
+  0%,
+  48% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  52% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  62%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.onboard-demo-bid-flash {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--yell);
+  background: rgba(240, 192, 64, 0.22);
+  opacity: 0;
+  animation: onboard-bid-flash 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes onboard-bid-flash {
+  0%,
+  48% {
+    opacity: 0;
+  }
+  52% {
+    opacity: 1;
+  }
+  62%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.onboard-demo-finger {
+  position: absolute;
+  right: 18%;
+  bottom: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--text);
+  border: 2px solid var(--ink);
+  transform: rotate(-35deg);
+  animation: onboard-tap 2.4s ease-in-out infinite;
+  opacity: 0.9;
+}
+
+@keyframes onboard-tap {
+  0%,
+  40% {
+    transform: rotate(-35deg) translate(8px, 10px);
+    opacity: 0;
+  }
+  48% {
+    opacity: 0.95;
+  }
+  52% {
+    transform: rotate(-35deg) translate(0, 0) scale(0.85);
+    opacity: 1;
+  }
+  62%,
+  100% {
+    transform: rotate(-35deg) translate(12px, 14px);
+    opacity: 0;
+  }
+}
+
+.onboard-demo-arrow {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--yell);
+  animation: onboard-arrow-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes onboard-arrow-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(3px);
+  }
+}
+
+.onboard-demo-hand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboard-demo-hand-wide {
+  gap: 8px;
+}
+
+.onboard-demo-hand-slot {
+  width: 52px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid var(--ink);
+}
+
+.demo-buy .onboard-demo-hand-slot {
+  animation: onboard-catch 2.8s ease-in-out infinite;
+}
+
+@keyframes onboard-catch {
+  0%,
+  35% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  48% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  58%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.onboard-demo-tile-resolve {
+  animation: onboard-resolve 2.8s ease-in-out infinite;
+}
+
+@keyframes onboard-resolve {
+  0%,
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  42% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  55%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.88);
+  }
+}
+
+.onboard-demo-sell {
+  position: absolute;
+  left: 50%;
+  bottom: -18px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--ok);
+  opacity: 0;
+  animation: onboard-sell 2.8s ease-in-out infinite;
+}
+
+@keyframes onboard-sell {
+  0%,
+  58% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  68% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+  }
+  85%,
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+}
+
+.onboard-demo-hand-slot.is-cast {
+  animation: onboard-cast 2.6s ease-in-out infinite;
+  outline: 2px solid transparent;
+}
+
+@keyframes onboard-cast {
+  0%,
+  30% {
+    outline-color: transparent;
+    transform: scale(1);
+  }
+  40% {
+    outline-color: var(--yell);
+    transform: scale(1.08);
+  }
+  55% {
+    outline-color: transparent;
+    transform: scale(0.92);
+    opacity: 0.45;
+  }
+  70%,
+  100% {
+    outline-color: transparent;
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.onboard-demo-tile.is-frozen {
+  overflow: hidden;
+}
+
+.onboard-demo-frost {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(125, 211, 252, 0.45),
+    rgba(42, 157, 143, 0.15) 55%,
+    transparent
+  );
+  opacity: 0;
+  animation: onboard-frost 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes onboard-frost {
+  0%,
+  38% {
+    opacity: 0;
+  }
+  52%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.onboard-demo-freeze-tag {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: var(--sky);
+  opacity: 0;
+  animation: onboard-frost 2.6s ease-in-out infinite;
 }
 
 .onboarding-dots {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin: 22px 0 18px;
+  margin: 20px 0 16px;
 }
 
 .onboarding-dot {
