@@ -41,6 +41,9 @@ function get_ranked(ctx, logger, nk, payload) {
 function migrate_ranked(ctx, logger, nk, payload) {
   return __bidRushHandlers.migrate_ranked(ctx, logger, nk, payload);
 }
+function ensure_leaderboard(ctx, logger, nk, payload) {
+  return __bidRushHandlers.ensure_leaderboard(ctx, logger, nk, payload);
+}
 function apply_ranked(ctx, logger, nk, payload) {
   return __bidRushHandlers.apply_ranked(ctx, logger, nk, payload);
 }
@@ -83,6 +86,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('set_display_name', set_display_name);
   initializer.registerRpc('get_ranked', get_ranked);
   initializer.registerRpc('migrate_ranked', migrate_ranked);
+  initializer.registerRpc('ensure_leaderboard', ensure_leaderboard);
   initializer.registerRpc('apply_ranked', apply_ranked);
   initializer.registerRpc('list_leaderboard', list_leaderboard);
   initializer.registerRpc('create_custom_match', create_custom_match);

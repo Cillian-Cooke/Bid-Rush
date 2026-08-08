@@ -43,6 +43,49 @@ function writeProgress(
   ]);
 }
 
+function accountLabel(nk: nkruntime.Nakama, userId: string): {
+  username: string;
+  displayName: string;
+} {
+  const account = nk.accountGetId(userId);
+  const username = String(account.user.username || '').trim();
+  const displayName = String(
+    account.user.displayName || account.user.username || 'Player',
+  )
+    .trim()
+    .slice(0, 24);
+  return { username, displayName: displayName || 'Player' };
+}
+
+/** Upsert this account onto the global ranked leaderboard immediately. */
+export function writeLeaderboardPresence(
+  nk: nkruntime.Nakama,
+  logger: nkruntime.Logger,
+  userId: string,
+  progress: RankProgress,
+  coins = 0,
+  extraMeta: { [key: string]: string | boolean | number } = {},
+): void {
+  const { username, displayName } = accountLabel(nk, userId);
+  const score = progress.rankIndex * 1000 + progress.rp;
+  try {
+    nk.leaderboardRecordWrite(
+      LEADERBOARD_ID,
+      userId,
+      username || displayName,
+      score,
+      coins,
+      {
+        name: displayName,
+        ...extraMeta,
+      },
+      undefined,
+    );
+  } catch (e) {
+    logger.warn('leaderboard presence write: %s', e);
+  }
+}
+
 export function rpcGetProfile(
   ctx: nkruntime.Context,
   _logger: nkruntime.Logger,
@@ -112,20 +155,39 @@ export function rpcMigrateRanked(
     rp: Number(req.rp) || 0,
   });
   writeProgress(nk, ctx.userId, progress);
-  try {
-    nk.leaderboardRecordWrite(
-      LEADERBOARD_ID,
-      ctx.userId,
-      undefined,
-      progress.rankIndex * 1000 + progress.rp,
-      0,
-      undefined,
-      undefined,
-    );
-  } catch (e) {
-    logger.warn('leaderboard write on migrate: %s', e);
-  }
+  // Do not write the public leaderboard here — anonymous device sessions were
+  // creating nameless score-0 rows. Accounts call ensure_leaderboard instead.
   return JSON.stringify({ progress, migrated: true });
+}
+
+export function rpcEnsureLeaderboard(
+  ctx: nkruntime.Context,
+  logger: nkruntime.Logger,
+  nk: nkruntime.Nakama,
+  payload: string,
+): string {
+  if (!ctx.userId) throw Error('No user ID');
+  let req: { displayName?: string } = {};
+  try {
+    req = JSON.parse(payload || '{}');
+  } catch {
+    throw Error('Invalid payload');
+  }
+  const wanted = String(req.displayName || '')
+    .trim()
+    .slice(0, 24);
+  if (wanted) {
+    nk.accountUpdateId(ctx.userId, null, wanted, null, null, null, null, null);
+  }
+  const progress = readProgress(nk, ctx.userId);
+  writeLeaderboardPresence(nk, logger, ctx.userId, progress);
+  const { username, displayName } = accountLabel(nk, ctx.userId);
+  return JSON.stringify({
+    ok: true,
+    username,
+    displayName,
+    progress,
+  });
 }
 
 export function rpcApplyRanked(
@@ -145,23 +207,14 @@ export function rpcApplyRanked(
   const prev = readProgress(nk, ctx.userId);
   const result = applyRankedResult(prev, !!req.won);
   writeProgress(nk, ctx.userId, result.progress);
-  try {
-    nk.leaderboardRecordWrite(
-      LEADERBOARD_ID,
-      ctx.userId,
-      undefined,
-      result.score,
-      Number(req.coins) || 0,
-      {
-        name: String(req.name || '').slice(0, 24),
-        avatar: String(req.avatar || '').slice(0, 8),
-        won: !!req.won,
-      },
-      undefined,
-    );
-  } catch (e) {
-    logger.warn('leaderboard write: %s', e);
-  }
+  const label = accountLabel(nk, ctx.userId);
+  const name =
+    String(req.name || '').trim().slice(0, 24) || label.displayName;
+  writeLeaderboardPresence(nk, logger, ctx.userId, result.progress, Number(req.coins) || 0, {
+    name,
+    avatar: String(req.avatar || '').slice(0, 8),
+    won: !!req.won,
+  });
   return JSON.stringify({
     progress: result.progress,
     delta: result.delta,
@@ -194,13 +247,22 @@ export function rpcListLeaderboard(
       0,
     );
     return JSON.stringify({
-      records: (records.records || []).map((r) => ({
-        ownerId: r.ownerId,
-        username: r.username,
-        score: r.score,
-        subscore: r.subscore,
-        metadata: r.metadata || {},
-      })),
+      records: (records.records || []).map((r) => {
+        const anyR = r as nkruntime.LeaderboardRecord & { owner_id?: string };
+        const meta = (anyR.metadata || {}) as {
+          name?: string;
+          avatar?: string;
+          won?: boolean;
+        };
+        return {
+          ownerId: anyR.ownerId || anyR.owner_id || '',
+          username: anyR.username || '',
+          score: Number(anyR.score) || 0,
+          subscore: Number(anyR.subscore) || 0,
+          rank: Number(anyR.rank) || 0,
+          metadata: meta,
+        };
+      }),
       owner: records.ownerRecords || [],
     });
   } catch (e) {

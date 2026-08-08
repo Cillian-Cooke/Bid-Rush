@@ -316,7 +316,7 @@ function applyRankedForHumans(
       nk.leaderboardRecordWrite(
         LEADERBOARD_ID,
         seat.userId,
-        undefined,
+        player.name.slice(0, 24),
         result.score,
         player.coins,
         {

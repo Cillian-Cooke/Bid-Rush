@@ -160,7 +160,6 @@ export async function startMatchmaking(opts: {
     );
   }
 }
-
 export async function abandonOnlineMatch() {
   await cancelMatchmaking();
   await leaveOnlineRoom();

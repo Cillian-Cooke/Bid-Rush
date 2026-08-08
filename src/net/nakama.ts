@@ -4,6 +4,7 @@ import { loadRankProgress, saveRankProgress, type RankProgress } from '../game/r
 
 const DEVICE_KEY = 'bid-rush-nakama-device-v1';
 const SESSION_KEY = 'bid-rush-nakama-session-v1';
+const ACCOUNT_KIND_KEY = 'bid-rush-nakama-account-kind-v1';
 
 export type NakamaProfile = {
   userId: string;
@@ -12,11 +13,14 @@ export type NakamaProfile = {
   progress: RankProgress;
 };
 
+export type AccountKind = 'email' | 'guest';
+
 let client: Client | null = null;
 let session: Session | null = null;
 let socket: Socket | null = null;
 let profile: NakamaProfile | null = null;
 let connecting: Promise<Session> | null = null;
+let accountKind: AccountKind | null = null;
 
 function host(): string {
   return import.meta.env.VITE_NAKAMA_HOST ?? '127.0.0.1';
@@ -35,6 +39,57 @@ function useSSL(): boolean {
   if (v === 'true' || v === '1') return true;
   if (v === 'false' || v === '0') return false;
   return typeof window !== 'undefined' && window.location.protocol === 'https:';
+}
+
+export function nakamaEndpointLabel(): string {
+  return `${host()}:${port()}${useSSL() ? ' (ssl)' : ''}`;
+}
+
+function formatNakamaError(err: unknown): string {
+  const where = nakamaEndpointLabel();
+  if (err && typeof err === 'object') {
+    const anyErr = err as {
+      message?: string;
+      status?: number;
+      statusText?: string;
+    };
+    const msg =
+      typeof anyErr.message === 'string' && anyErr.message
+        ? anyErr.message
+        : anyErr.statusText || 'Nakama request failed';
+    return `${msg} @ ${where}`;
+  }
+  if (err instanceof Error && err.message) return `${err.message} @ ${where}`;
+  return `Nakama unavailable @ ${where}`;
+}
+
+function readAccountKind(): AccountKind | null {
+  try {
+    const v = localStorage.getItem(ACCOUNT_KIND_KEY);
+    if (v === 'email' || v === 'guest') return v;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function writeAccountKind(kind: AccountKind | null) {
+  accountKind = kind;
+  try {
+    if (!kind) localStorage.removeItem(ACCOUNT_KIND_KEY);
+    else localStorage.setItem(ACCOUNT_KIND_KEY, kind);
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearPersistedSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+  session = null;
 }
 
 export function getNakamaClient(): Client {
@@ -56,8 +111,15 @@ export function getNakamaProfile(): NakamaProfile | null {
   return profile;
 }
 
+export function getAccountKind(): AccountKind | null {
+  return accountKind ?? readAccountKind();
+}
+
+export function isEmailAccount(): boolean {
+  return getAccountKind() === 'email';
+}
+
 export function isNakamaConfigured(): boolean {
-  // Always "configured" with defaults for local; Vercel should set host.
   return true;
 }
 
@@ -107,6 +169,45 @@ function persistSession(s: Session) {
   }
 }
 
+async function disconnectSocket() {
+  if (!socket) return;
+  try {
+    await socket.disconnect(false);
+  } catch {
+    /* ignore */
+  }
+  socket = null;
+}
+
+async function adoptSession(
+  s: Session,
+  kind: AccountKind,
+  opts?: { displayName?: string; publishLeaderboard?: boolean },
+): Promise<Session> {
+  session = s;
+  persistSession(s);
+  writeAccountKind(kind);
+
+  if (!socket) {
+    socket = getNakamaClient().createSocket(useSSL(), false);
+  }
+  try {
+    await socket.connect(s, true);
+  } catch {
+    try {
+      await socket.connect(s, true);
+    } catch (sockErr) {
+      throw new Error(`Socket failed: ${formatNakamaError(sockErr)}`);
+    }
+  }
+
+  await syncProfileFromServer({
+    displayName: opts?.displayName,
+    publishLeaderboard: opts?.publishLeaderboard ?? kind === 'email',
+  });
+  return s;
+}
+
 async function rpc<T>(id: string, payload: Record<string, unknown> = {}): Promise<T> {
   const c = getNakamaClient();
   const s = await ensureNakamaSession();
@@ -123,6 +224,10 @@ export async function rpcJson<T>(
   return rpc<T>(id, payload);
 }
 
+/**
+ * Ensure a Nakama session. Restores email/guest sessions; otherwise creates a
+ * guest device session (local play / soft online). Email accounts use signup/login.
+ */
 export async function ensureNakamaSession(): Promise<Session> {
   if (session && !session.isexpired((Date.now() / 1000) | 0)) {
     return session;
@@ -131,35 +236,41 @@ export async function ensureNakamaSession(): Promise<Session> {
 
   connecting = (async () => {
     const c = getNakamaClient();
+    const kind = readAccountKind() ?? 'guest';
     let s = restoreSession();
-    if (!s) {
-      s = await c.authenticateDevice(deviceId(), true);
-    } else {
+    try {
+      if (!s) {
+        if (kind === 'email') {
+          throw new Error('Please log in to your account');
+        }
+        s = await c.authenticateDevice(deviceId(), true);
+        return await adoptSession(s, 'guest', { publishLeaderboard: false });
+      }
       try {
         s = await c.sessionRefresh(s);
       } catch {
+        clearPersistedSession();
+        if (kind === 'email') {
+          throw new Error('Session expired — please log in again');
+        }
         s = await c.authenticateDevice(deviceId(), true);
+        return await adoptSession(s, 'guest', { publishLeaderboard: false });
       }
-    }
-    session = s;
-    persistSession(s);
-
-    if (!socket) {
-      socket = c.createSocket(useSSL(), false);
-    }
-    try {
-      await socket.connect(s, true);
-    } catch {
-      // Socket may already be connected after refresh
+      return await adoptSession(s, kind, {
+        publishLeaderboard: kind === 'email',
+      });
+    } catch (err) {
+      if (kind === 'email') {
+        throw err instanceof Error ? err : new Error(formatNakamaError(err));
+      }
+      clearPersistedSession();
       try {
-        await socket.connect(s, true);
-      } catch {
-        /* matchmaking needs socket; callers handle errors */
+        const guest = await c.authenticateDevice(deviceId(), true);
+        return await adoptSession(guest, 'guest', { publishLeaderboard: false });
+      } catch (retryErr) {
+        throw new Error(formatNakamaError(retryErr ?? err));
       }
     }
-
-    await syncProfileFromServer();
-    return s;
   })();
 
   try {
@@ -169,8 +280,92 @@ export async function ensureNakamaSession(): Promise<Session> {
   }
 }
 
-async function syncProfileFromServer() {
-  // Migrate local progress once if server is empty
+function sanitizeUsername(raw: string): string {
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 18);
+  if (cleaned.length >= 3) return cleaned;
+  return `player_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export async function signUpWithEmail(input: {
+  email: string;
+  password: string;
+  displayName: string;
+}): Promise<NakamaProfile> {
+  const email = input.email.trim().toLowerCase();
+  const password = input.password;
+  const displayName = input.displayName.trim().slice(0, 24);
+  if (!email.includes('@')) throw new Error('Enter a valid email');
+  if (password.length < 8) throw new Error('Password must be at least 8 characters');
+  if (!displayName) throw new Error('Enter a display name');
+
+  await disconnectSocket();
+  clearPersistedSession();
+  profile = null;
+
+  const username = sanitizeUsername(displayName);
+  const c = getNakamaClient();
+  let s: Session;
+  try {
+    s = await c.authenticateEmail(email, password, true, username);
+  } catch (err) {
+    throw new Error(formatNakamaError(err));
+  }
+  await adoptSession(s, 'email', {
+    displayName,
+    publishLeaderboard: true,
+  });
+  if (!profile) throw new Error('Could not load profile after sign up');
+  return profile;
+}
+
+export async function logInWithEmail(input: {
+  email: string;
+  password: string;
+}): Promise<NakamaProfile> {
+  const email = input.email.trim().toLowerCase();
+  const password = input.password;
+  if (!email.includes('@')) throw new Error('Enter a valid email');
+  if (!password) throw new Error('Enter your password');
+
+  await disconnectSocket();
+  clearPersistedSession();
+  profile = null;
+
+  const c = getNakamaClient();
+  let s: Session;
+  try {
+    s = await c.authenticateEmail(email, password, false);
+  } catch (err) {
+    throw new Error(formatNakamaError(err));
+  }
+  await adoptSession(s, 'email', { publishLeaderboard: true });
+  if (!profile) throw new Error('Could not load profile after login');
+  return profile;
+}
+
+export async function logOutAccount(): Promise<void> {
+  await disconnectSocket();
+  clearPersistedSession();
+  writeAccountKind(null);
+  profile = null;
+  // Fresh guest session for local play without publishing to the board.
+  try {
+    const s = await getNakamaClient().authenticateDevice(deviceId(), true);
+    await adoptSession(s, 'guest', { publishLeaderboard: false });
+  } catch {
+    /* offline */
+  }
+}
+
+async function syncProfileFromServer(opts?: {
+  displayName?: string;
+  publishLeaderboard?: boolean;
+}) {
   const local = loadRankProgress();
   try {
     await rpc<{ progress: RankProgress; migrated?: boolean }>('migrate_ranked', {
@@ -179,6 +374,26 @@ async function syncProfileFromServer() {
     });
   } catch {
     /* offline / server down */
+  }
+
+  if (opts?.displayName) {
+    try {
+      await rpc<{ displayName: string }>('set_display_name', {
+        displayName: opts.displayName,
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (opts?.publishLeaderboard) {
+    try {
+      await rpc('ensure_leaderboard', {
+        displayName: opts.displayName || undefined,
+      });
+    } catch {
+      /* ignore */
+    }
   }
 
   try {
@@ -191,8 +406,8 @@ async function syncProfileFromServer() {
 }
 
 export async function refreshNakamaProfile(): Promise<NakamaProfile | null> {
-  await ensureNakamaSession();
   try {
+    await ensureNakamaSession();
     const p = await rpc<NakamaProfile>('get_profile');
     profile = p;
     if (p.progress) saveRankProgress(p.progress);
@@ -208,6 +423,13 @@ export async function setNakamaDisplayName(displayName: string): Promise<string>
     displayName,
   });
   if (profile) profile = { ...profile, displayName: res.displayName };
+  if (isEmailAccount()) {
+    try {
+      await rpc('ensure_leaderboard', { displayName: res.displayName });
+    } catch {
+      /* ignore */
+    }
+  }
   return res.displayName;
 }
 
@@ -246,6 +468,7 @@ export type LeaderboardRow = {
   username: string;
   score: number;
   subscore: number;
+  rank?: number;
   metadata: { name?: string; avatar?: string; won?: boolean };
 };
 
@@ -269,4 +492,10 @@ export function displayNameForOnline(): string {
     profile?.username ||
     'Player'
   ).slice(0, 24);
+}
+
+export function scoreToRankLabel(score: number): string {
+  const rankIndex = Math.max(0, Math.min(4, Math.floor(score / 1000)));
+  const rp = score % 1000;
+  return `R${rankIndex + 1} · ${rp} RP`;
 }

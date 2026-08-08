@@ -19,6 +19,7 @@ import {
 import {
   rpcApplyRanked,
   rpcCreateCustomMatch,
+  rpcEnsureLeaderboard,
   rpcGetProfile,
   rpcGetRanked,
   rpcJoinCustomMatch,
@@ -79,6 +80,15 @@ export function list_leaderboard(
   payload: string,
 ) {
   return rpcListLeaderboard(ctx, logger, nk, payload);
+}
+
+export function ensure_leaderboard(
+  ctx: nkruntime.Context,
+  logger: nkruntime.Logger,
+  nk: nkruntime.Nakama,
+  payload: string,
+) {
+  return rpcEnsureLeaderboard(ctx, logger, nk, payload);
 }
 
 export function create_custom_match(
@@ -274,18 +284,49 @@ export function setupLeaderboard(
   logger: nkruntime.Logger,
 ) {
   try {
-    nk.leaderboardCreate(
-      LEADERBOARD_ID,
-      true,
-      nkruntime.SortOrder.DESCENDING,
-      nkruntime.Operator.SET,
-      '',
-      undefined,
-      true,
-    );
+    // JS runtime wants string enums ("desc"/"set"), not TypeScript nkruntime.* values.
+    nk.leaderboardCreate(LEADERBOARD_ID, true, 'desc', 'set', '', null, true);
     logger.info('Leaderboard %s ready', LEADERBOARD_ID);
   } catch (e) {
     logger.info('Leaderboard create (may already exist): %s', e);
+  }
+
+  // Drop nameless score-0 ghost rows (old anonymous device migrates).
+  try {
+    const listed = nk.leaderboardRecordsList(
+      LEADERBOARD_ID,
+      undefined,
+      100,
+      undefined,
+      0,
+    );
+    const bad: string[] = [];
+    for (const r of listed.records || []) {
+      const anyR = r as nkruntime.LeaderboardRecord & {
+        owner_id?: string;
+      };
+      const ownerId = String(anyR.ownerId || anyR.owner_id || '');
+      const meta = (anyR.metadata || {}) as { name?: string };
+      const name = String(meta.name || anyR.username || '').trim();
+      if (ownerId && !name && Number(anyR.score) === 0) {
+        bad.push(ownerId);
+      }
+    }
+    if (bad.length > 0) {
+      for (const ownerId of bad) {
+        try {
+          // Runtime API takes one owner id (string), not an array.
+          nk.leaderboardRecordDelete(LEADERBOARD_ID, ownerId);
+        } catch (delErr) {
+          logger.warn('Failed deleting leaderboard row %s: %s', ownerId, delErr);
+        }
+      }
+      logger.info('Purged %d empty leaderboard rows', bad.length);
+    } else {
+      logger.info('No empty leaderboard rows to purge');
+    }
+  } catch (e) {
+    logger.warn('Leaderboard purge skipped: %s', e);
   }
 }
 
