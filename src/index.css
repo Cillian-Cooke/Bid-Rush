@@ -6439,6 +6439,23 @@ button {
   border: 2px solid var(--ink);
 }
 
+.settings-block .account-name-field {
+  width: auto;
+  max-width: 14rem;
+  margin: 0;
+  align-self: flex-start;
+}
+
+.settings-block .account-name-row,
+.settings-block .account-name-input {
+  width: 100%;
+  max-width: 14rem;
+}
+
+.settings-block .btn.primary {
+  align-self: flex-start;
+}
+
 .settings-block-title {
   margin: 0;
   font-family: var(--font-display);
@@ -7161,10 +7178,8 @@ button {
   align-items: start;
   gap: 12px;
   padding: 12px;
-  min-height: 9.75rem;
   background: var(--panel);
   border-radius: 2px;
-  overflow: hidden;
 }
 
 .codex-row.golden-view {
@@ -7191,11 +7206,10 @@ button {
 }
 
 .codex-body {
-  display: grid;
-  grid-template-rows: 1.3rem 1.1rem 1.7rem minmax(2.7rem, auto) 1.15rem;
-  gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
-  align-content: start;
   overflow-wrap: anywhere;
 }
 
@@ -7204,18 +7218,15 @@ button {
   font-size: 1.05rem;
   line-height: 1.3;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .codex-sub {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   min-width: 0;
-  overflow: hidden;
 }
 
 .codex-kind {
@@ -7230,29 +7241,24 @@ button {
 .codex-toggle {
   display: inline-flex;
   align-self: start;
-  height: 1.7rem;
+  flex-wrap: nowrap;
   margin: 0;
   border: 1px solid var(--line);
   border-radius: 2px;
-  overflow: hidden;
-}
-
-.codex-toggle.is-spacer {
-  visibility: hidden;
-  pointer-events: none;
-  border-color: transparent;
-  width: 1px;
+  overflow: visible;
 }
 
 .codex-toggle button {
-  padding: 0 10px;
-  height: 100%;
+  padding: 5px 10px;
+  min-height: 1.7rem;
   font-size: 0.72rem;
   font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
   background: transparent;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .codex-toggle button.on {
@@ -7269,22 +7275,16 @@ button {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 400;
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  min-height: 2.7rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .codex-sell {
   font-size: 0.78rem;
   color: var(--muted);
   font-weight: 400;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .game-screen.mode-blitz .shop-tile-emoji,
@@ -7375,7 +7375,6 @@ button {
   .lobby-rail .codex-row {
     align-items: start;
     padding: 12px;
-    min-height: 9.75rem;
     background: color-mix(in srgb, var(--panel) 88%, #000);
     border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
   }
@@ -7923,10 +7922,6 @@ button {
   overflow: hidden;
   flex-shrink: 0;
   object-fit: contain;
-}
-
-.codex-row {
-  overflow: hidden;
 }
 
 .custom-item-cell {

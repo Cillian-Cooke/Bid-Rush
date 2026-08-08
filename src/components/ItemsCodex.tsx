@@ -218,7 +218,6 @@ export function ItemsCodex({ onClose, embedded = false }: Props) {
                       </span>
                     )}
                   </div>
-                  <div className="codex-toggle is-spacer" aria-hidden />
                   <p className="codex-blurb">{ev.blurb}</p>
                   <span className="codex-sell">
                     {special

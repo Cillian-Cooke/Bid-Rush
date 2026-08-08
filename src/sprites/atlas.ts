@@ -119,7 +119,13 @@ export function hasSprite(id: string): boolean {
 }
 
 export function spriteUrl(id: string): string | null {
-  const frame = ATLAS.frames[id];
+  const remapped =
+    id === 'bargain'
+      ? 'reset_hammer'
+      : id === 'time_freeze'
+        ? 'cold_market'
+        : id;
+  const frame = ATLAS.frames[remapped] ?? ATLAS.frames[id];
   if (!frame) return null;
   return `/sprites/${frame.file}`;
 }
@@ -142,19 +148,23 @@ export function avatarSpriteId(emoji: string): AvatarSpriteId | null {
 export function resolveSpriteId(
   idOrEmoji: string,
 ): { kind: 'sprite'; id: string } | { kind: 'emoji'; emoji: string } {
-  if (hasSprite(idOrEmoji)) return { kind: 'sprite', id: idOrEmoji };
-  // Item ids that remapped sprites (bargain → hammer art, freeze → ice art)
+  // Remaps must win even when the original frame still exists in the atlas
+  // (Freeze still has time_freeze.png; we show Cold Market's ice cube instead).
   if (idOrEmoji === 'bargain' && hasSprite('reset_hammer')) {
     return { kind: 'sprite', id: 'reset_hammer' };
   }
   if (idOrEmoji === 'time_freeze' && hasSprite('cold_market')) {
     return { kind: 'sprite', id: 'cold_market' };
   }
+  if (hasSprite(idOrEmoji)) return { kind: 'sprite', id: idOrEmoji };
   const avatar = avatarSpriteId(idOrEmoji);
   if (avatar) return { kind: 'sprite', id: avatar };
   const glyph = EMOJI_TO_UI_GLYPH[idOrEmoji];
   if (glyph && hasSprite(glyph)) return { kind: 'sprite', id: glyph };
   const itemId = emojiToItemId.get(idOrEmoji);
-  if (itemId && hasSprite(itemId)) return { kind: 'sprite', id: itemId };
+  if (itemId) {
+    const spriteId = itemSpriteId(itemId);
+    if (hasSprite(spriteId)) return { kind: 'sprite', id: spriteId };
+  }
   return { kind: 'emoji', emoji: idOrEmoji };
 }
