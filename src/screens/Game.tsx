@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
+import { X } from 'lucide-react';
 import { ExplosionFx } from '../components/ExplosionFx';
 import { FxLayer } from '../components/FxLayer';
 import { GameChrome } from '../components/GameChrome';
@@ -188,6 +189,7 @@ export function Game() {
         targetingPlayers ? 'targeting-players' : '',
         targetingTiles ? 'targeting-tiles' : '',
         targetingHand ? 'targeting-hand' : '',
+        targeting?.selectedTile !== undefined ? 'targeting-has-pick' : '',
         inUseMode ? 'use-mode' : '',
         sd.active ? 'sudden-death-live' : '',
         humanAtRisk ? 'sd-human-risk' : '',
@@ -228,7 +230,11 @@ export function Game() {
         />
 
         {targeting && (
-          <TargetingOverlay targeting={targeting} onCancel={cancelTargeting} />
+          <TargetingOverlay
+            targeting={targeting}
+            tiles={game.tiles}
+            onCancel={cancelTargeting}
+          />
         )}
         {!targeting && handFocus && focusedItem && human.isAlive && !spectating && (
           <div className="use-mode-banner">
@@ -238,8 +244,8 @@ export function Game() {
                 ? 'Use or Sell above. Tap again to cancel'
                 : 'Sell above. Tap again to cancel'}
             </span>
-            <button type="button" className="use-mode-cancel" onClick={cancelTargeting}>
-              Cancel
+            <button type="button" className="use-mode-cancel" onClick={cancelTargeting} aria-label="Cancel">
+              <X size={16} />
             </button>
           </div>
         )}
@@ -260,6 +266,7 @@ export function Game() {
                   ? (colorById.get(tile.highBidderId) ?? null)
                   : null;
                 const fx = fxForTile(activeFx, tile.index);
+                const isSelected = targeting?.selectedTile === tile.index;
                 return (
                   <ShopTile
                     key={tile.index}
@@ -267,7 +274,10 @@ export function Game() {
                     bidderColor={bidderColor}
                     isYou={tile.highBidderId === human.id}
                     targeting={!!targetingTiles && human.isAlive && !spectating}
-                    selected={targeting?.selectedTile === tile.index}
+                    selected={isSelected}
+                    pickOrder={
+                      targeting?.target === 'two-items' && isSelected ? 1 : null
+                    }
                     fxKind={fx?.kind ?? null}
                     fxLabel={fx?.label}
                     onTap={() => {

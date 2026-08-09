@@ -9,14 +9,11 @@ const RP_PER_RANK = 100;
 /** Stable unlock order: first 16 = rank 1 pool, then +4 per rank. */
 export const RANKED_ITEM_ORDER: ItemId[] = (() => {
   const spawnable = ITEM_LIST.filter((i) => i.spawnWeight > 0).map((i) => i.id);
-  // Prefer a readable fixed order: money engines first, then utility, then chaos
+  // Starter pool stays mild; big passive earners unlock later, staggered.
   const preferred: ItemId[] = [
     'coin_mine',
-    'money_printer',
-    'golden_goose',
     'bank_note',
     'piggy_bank',
-    'stock_market',
     'interest',
     'tip_jar',
     'broker',
@@ -27,18 +24,21 @@ export const RANKED_ITEM_ORDER: ItemId[] = (() => {
     'gilder',
     'mirror',
     'haste_gear',
-    // +4 rank 2
+    'time_freeze',
     'shop_refresh',
     'fast_forward',
-    'time_freeze',
+    // +4 rank 2 — first big earner
     'bargain',
-    // +4 rank 3
+    'money_printer',
     'inflation',
     'magnet',
+    // +4 rank 3
+    'golden_goose',
     'kickback',
     'quick_swap',
-    // +4 rank 4
     'swap_portal',
+    // +4 rank 4
+    'stock_market',
     'handcuffs',
     'mute',
     'bid_lock',

@@ -270,10 +270,19 @@ function sendAction<K extends keyof ClientMessages>(
   payload: ClientMessages[K],
 ) {
   const socket = getNakamaSocket();
-  if (!socket || !activeMatchId) return;
+  if (!socket || !activeMatchId) {
+    useGameStore.setState({
+      onlineError: 'Not connected to the match. Try returning to lobby.',
+    });
+    return;
+  }
   void socket.sendMatchState(
     activeMatchId,
     Op.Action,
     JSON.stringify({ type, ...payload }),
-  );
+  ).catch(() => {
+    useGameStore.setState({
+      onlineError: 'Could not reach the match server. Reconnecting…',
+    });
+  });
 }

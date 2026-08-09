@@ -1242,6 +1242,14 @@ button {
   z-index: 8;
 }
 
+.game-screen.targeting-tiles .game-stage {
+  transform: translateY(10px);
+}
+
+.game-screen.mode-blitz.targeting-tiles .game-stage {
+  transform: translateY(14px);
+}
+
 .game-screen.targeting-hand .hand-bar {
   position: relative;
   z-index: 8;
@@ -2578,12 +2586,51 @@ button {
   outline-color: #fff;
 }
 
+.shop-tile.targetable.awaiting-pick {
+  opacity: 0.92;
+}
+
+.game-screen.targeting-has-pick .shop-tile.targetable.awaiting-pick {
+  opacity: 0.72;
+  filter: saturate(0.85);
+}
+
 .shop-tile.selected-target {
   background: #fff0a0 !important;
   outline: 3px solid #fff;
   outline-offset: -3px;
-  box-shadow: inset 0 0 0 2px var(--ink);
+  box-shadow:
+    inset 0 0 0 2px var(--ink),
+    0 0 0 3px var(--yell);
   animation: none;
+  opacity: 1;
+  z-index: 11;
+}
+
+.shop-tile-pick {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 3;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-nums);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1;
+  color: #1a1408;
+  background: var(--yell);
+  border: 2px solid var(--ink);
+  border-radius: 0;
+}
+
+.game-screen.mode-blitz .shop-tile-pick {
+  min-width: 1rem;
+  height: 1rem;
+  font-size: 0.65rem;
 }
 
 @keyframes tile-pop {
@@ -3960,65 +4007,147 @@ button {
 
 .use-mode-banner {
   position: absolute;
-  top: calc(8px + var(--safe-top) + 40px);
+  top: calc(4px + var(--safe-top) + 36px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  max-width: min(var(--board-width, 92vw), 92vw);
   background: var(--ink);
   border-radius: 2px;
-  padding: 10px 14px;
+  padding: 4px 6px 4px 8px;
   white-space: nowrap;
-  font-weight: 700;
-  font-size: 0.9rem;
+  font-weight: 400;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.use-mode-banner .sprite-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.use-mode-banner span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .use-mode-cancel {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
   background: var(--panel-2);
   color: var(--text);
-  font-weight: 800;
-  padding: 8px 12px;
+  font-weight: 400;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
   border-radius: 2px;
-  min-height: 44px;
 }
 
 /* Targeting banner */
 .targeting-banner {
   position: absolute;
-  top: calc(8px + var(--safe-top) + 40px);
+  top: calc(4px + var(--safe-top) + 36px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  max-width: min(var(--board-width, 92vw), 92vw);
   background: var(--ink);
   border-radius: 2px;
-  padding: 10px 14px;
+  padding: 4px 6px 4px 8px;
   white-space: nowrap;
 }
 
 .targeting-emoji {
-  font-size: 1.4rem;
+  width: 1.15rem !important;
+  height: 1.15rem !important;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.targeting-step {
+  flex-shrink: 0;
+  font-family: var(--font-nums);
+  font-size: 0.68rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--yell);
+  line-height: 1;
+}
+
+.targeting-picked {
+  position: relative;
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: grid;
+  place-items: center;
+  background: #fff0a0;
+  border: 1px solid var(--ink);
+}
+
+.targeting-picked-icon.sprite-icon,
+.targeting-picked .sprite-icon {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.targeting-picked-mark {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  min-width: 0.85rem;
+  height: 0.85rem;
+  padding: 0 2px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-nums);
+  font-size: 0.58rem;
+  color: #1a1408;
+  background: var(--yell);
+  border: 1px solid var(--ink);
+  line-height: 1;
 }
 
 .targeting-hint {
-  font-weight: 800;
-  font-size: 0.9rem;
+  font-weight: 400;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .targeting-cancel {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
   background: var(--danger);
   color: #fff;
-  font-weight: 800;
-  padding: 8px 12px;
+  font-weight: 400;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
   border-radius: 2px;
-  min-height: 44px;
+}
+
+.game-screen.mode-blitz .targeting-banner,
+.game-screen.mode-blitz .use-mode-banner {
+  top: calc(2px + var(--safe-top) + 32px);
+  padding: 3px 5px 3px 7px;
+  gap: 5px;
+}
+
+.game-screen.mode-blitz .targeting-hint,
+.game-screen.mode-blitz .use-mode-banner span {
+  font-size: 0.68rem;
 }
 
 /* Results - post-match scoreboard (same wood language as in-game) */
@@ -5621,8 +5750,11 @@ button {
 
 .queue-load-fill {
   height: 100%;
+  width: 0%;
   background: var(--yell);
-  transition: width 0.08s linear;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+  transition: width 0.1s linear;
+  will-change: width;
 }
 
 .account-name-field {

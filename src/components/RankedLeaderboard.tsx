@@ -19,10 +19,22 @@ import { SpriteIcon } from './SpriteIcon';
 type Props = { onClose: () => void };
 type Tab = 'ladder' | 'items' | 'scores';
 
+/** Leaderboard packs score as rankIndex * 1000 + within-rank RP. */
+function rankIndexFromScore(score: number): number {
+  return Math.max(
+    0,
+    Math.min(RANKED_RANKS.length - 1, Math.floor(score / 1000)),
+  );
+}
+
+function totalRpFromScore(score: number): number {
+  const rankIndex = Math.floor(Math.max(0, score) / 1000);
+  const rp = Math.max(0, score) % 1000;
+  return rankIndex * 100 + rp;
+}
+
 function boardRankLabel(score: number): string {
-  const rankIndex = Math.max(0, Math.min(RANKED_RANKS.length - 1, Math.floor(score / 1000)));
-  const rp = score % 1000;
-  return `${getRankDef(rankIndex).name} · ${rp} RP`;
+  return getRankDef(rankIndexFromScore(score)).name;
 }
 
 export function RankedLeaderboard({ onClose }: Props) {
@@ -155,13 +167,13 @@ export function RankedLeaderboard({ onClose }: Props) {
                             {boardRankLabel(row.score)}
                           </span>
                         </div>
-                        <span className="leaderboard-coins" title="Best purse">
+                        <span className="leaderboard-coins" title="Total RP">
                           <SpriteIcon
-                            id="coin"
+                            id="trophy"
                             className="leaderboard-coin-icon"
                             aria-hidden
                           />
-                          {row.subscore || 0}
+                          {totalRpFromScore(row.score || 0)}
                         </span>
                       </li>
                     );

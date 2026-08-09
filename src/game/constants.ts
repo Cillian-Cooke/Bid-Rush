@@ -127,22 +127,23 @@ export const AVATAR_EMOJIS = [
   '🤖',
 ] as const;
 
-/** Quirky handles for the pre-match Tag Sale */
+/** Quirky handles for the pre-match Tag Sale (avatars must match AVATAR_EMOJIS sprites). */
 export const HANDLE_POOL: { name: string; avatar: string }[] = [
-  { name: 'Coin Goblin', avatar: '👺' },
-  { name: 'Bid Witch', avatar: '🧙' },
-  { name: 'Purse Wolf', avatar: '🐺' },
-  { name: 'Tap Typhoon', avatar: '🌪️' },
+  { name: 'Cool Customer', avatar: '😎' },
+  { name: 'Bid Cowboy', avatar: '🤠' },
   { name: 'Ledger Fox', avatar: '🦊' },
-  { name: 'Vault Moth', avatar: '🦋' },
   { name: 'Snatch Cat', avatar: '🐱' },
-  { name: 'Penny Drake', avatar: '🐉' },
-  { name: 'Hammer Head', avatar: '🦈' },
-  { name: 'Ice Broker', avatar: '🐧' },
-  { name: 'Lucky Gator', avatar: '🐊' },
-  { name: 'Boom Badger', avatar: '🦡' },
-  { name: 'Mint Raven', avatar: '🐦‍⬛' },
-  { name: 'Greed Owl', avatar: '🦉' },
-  { name: 'Cash Cobra', avatar: '🐍' },
-  { name: 'Blink Bat', avatar: '🦇' },
+  { name: 'Hop Frog', avatar: '🐸' },
+  { name: 'King Lion', avatar: '🦁' },
+  { name: 'Vault Panda', avatar: '🐼' },
+  { name: 'Tap Tiger', avatar: '🐯' },
+  { name: 'Lucky Unicorn', avatar: '🦄' },
+  { name: 'Penny Drake', avatar: '🐲' },
+  { name: 'Chaos Alien', avatar: '👾' },
+  { name: 'Robo Broker', avatar: '🤖' },
+  // Extras for 4-player Tag Sale grid (same sprites, matching names)
+  { name: 'Fox Broker', avatar: '🦊' },
+  { name: 'Cat Burglar', avatar: '🐱' },
+  { name: 'Drake Bid', avatar: '🐲' },
+  { name: 'Panda Punch', avatar: '🐼' },
 ];

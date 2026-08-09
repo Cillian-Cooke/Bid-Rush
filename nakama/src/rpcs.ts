@@ -76,8 +76,9 @@ export function writeLeaderboardPresence(
       score,
       coins,
       {
-        name: displayName,
         ...extraMeta,
+        // Nickname always wins over in-match Tag Sale handles
+        name: displayName,
       },
       undefined,
     );
@@ -207,11 +208,7 @@ export function rpcApplyRanked(
   const prev = readProgress(nk, ctx.userId);
   const result = applyRankedResult(prev, !!req.won);
   writeProgress(nk, ctx.userId, result.progress);
-  const label = accountLabel(nk, ctx.userId);
-  const name =
-    String(req.name || '').trim().slice(0, 24) || label.displayName;
   writeLeaderboardPresence(nk, logger, ctx.userId, result.progress, Number(req.coins) || 0, {
-    name,
     avatar: String(req.avatar || '').slice(0, 8),
     won: !!req.won,
   });

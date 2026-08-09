@@ -10,6 +10,8 @@ type Props = {
   isYou: boolean;
   targeting: boolean;
   selected: boolean;
+  /** Multi-pick order badge (1, 2, …) while targeting */
+  pickOrder?: number | null;
   fxKind: FxKind | null;
   fxLabel?: string;
   onTap: () => void;
@@ -45,6 +47,7 @@ export function ShopTile({
   isYou,
   targeting,
   selected,
+  pickOrder = null,
   fxKind,
   fxLabel,
   onTap,
@@ -66,6 +69,7 @@ export function ShopTile({
         tile.flash === 'resolve' ? 'resolve-flash' : '',
         targeting ? 'targetable' : '',
         selected ? 'selected-target' : '',
+        targeting && !selected ? 'awaiting-pick' : '',
         bidderColor ? 'has-bidder' : '',
         isYou ? 'yours' : '',
         tile.golden ? 'golden' : '',
@@ -82,8 +86,13 @@ export function ShopTile({
           : undefined
       }
       onClick={onTap}
-      aria-label={`${tile.golden ? 'Golden ' : ''}${def.name}, price ${tile.price}${tile.bidLocked ? ', locked' : ''}`}
+      aria-label={`${tile.golden ? 'Golden ' : ''}${def.name}, price ${tile.price}${tile.bidLocked ? ', locked' : ''}${selected && pickOrder ? `, pick ${pickOrder}` : ''}`}
     >
+      {pickOrder != null && (
+        <span className="shop-tile-pick" aria-hidden>
+          {pickOrder}
+        </span>
+      )}
       <SpriteIcon
         id={tile.itemId}
         className="shop-tile-emoji"

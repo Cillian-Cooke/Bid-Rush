@@ -357,7 +357,6 @@ function maybeRecordRanked(get: () => Store, game: GameState) {
       const server = await applyRankedOnServer({
         won,
         coins: human.coins,
-        name: human.name,
         avatar: human.avatar,
       });
       if (server) {
@@ -995,7 +994,13 @@ export const useGameStore = create<Store>((set, get) => ({
         set({ targeting: { ...targeting, selectedTile: tileIndex } });
         return;
       }
-      if (targeting.selectedTile === tileIndex) return;
+      // Re-tap first pick to clear it
+      if (targeting.selectedTile === tileIndex) {
+        set({
+          targeting: { ...targeting, selectedTile: undefined },
+        });
+        return;
+      }
       commitUse(set, get, targeting.instanceId, {
         tileIndex: targeting.selectedTile,
         tileIndexB: tileIndex,

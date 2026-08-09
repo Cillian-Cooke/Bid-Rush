@@ -15,12 +15,20 @@ export type NakamaProfile = {
 
 export type AccountKind = 'email' | 'guest';
 
+export type NakamaConnectionEvent =
+  | { kind: 'lost'; reason: string }
+  | { kind: 'restored' };
+
 let client: Client | null = null;
 let session: Session | null = null;
 let socket: Socket | null = null;
 let profile: NakamaProfile | null = null;
 let connecting: Promise<Session> | null = null;
 let accountKind: AccountKind | null = null;
+let socketOpen = false;
+let connectionListener: ((ev: NakamaConnectionEvent) => void) | null = null;
+let watchersInstalled = false;
+let reconnectTimer = 0;
 
 function host(): string {
   return import.meta.env.VITE_NAKAMA_HOST ?? '127.0.0.1';
@@ -123,6 +131,34 @@ export function isNakamaConfigured(): boolean {
   return true;
 }
 
+export function isNakamaSocketOpen(): boolean {
+  return isSocketLive();
+}
+
+export function setNakamaConnectionListener(
+  fn: ((ev: NakamaConnectionEvent) => void) | null,
+) {
+  connectionListener = fn;
+}
+
+function nowSec(): number {
+  return (Date.now() / 1000) | 0;
+}
+
+function isSocketLive(): boolean {
+  if (!socket || !socketOpen) return false;
+  try {
+    const adapter = (socket as Socket & { adapter?: { isOpen?: () => boolean } })
+      .adapter;
+    if (adapter && typeof adapter.isOpen === 'function') {
+      return adapter.isOpen();
+    }
+  } catch {
+    /* ignore */
+  }
+  return socketOpen;
+}
+
 function deviceId(): string {
   try {
     const existing = localStorage.getItem(DEVICE_KEY);
@@ -138,6 +174,7 @@ function deviceId(): string {
   }
 }
 
+/** Restore persisted session if the refresh token is still valid. */
 function restoreSession(): Session | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
@@ -148,7 +185,7 @@ function restoreSession(): Session | null {
     };
     if (!parsed.token || !parsed.refresh_token) return null;
     const s = Session.restore(parsed.token, parsed.refresh_token);
-    if (s.isexpired((Date.now() / 1000) | 0)) return null;
+    if (s.isrefreshexpired(nowSec())) return null;
     return s;
   } catch {
     return null;
@@ -170,13 +207,73 @@ function persistSession(s: Session) {
 }
 
 async function disconnectSocket() {
-  if (!socket) return;
+  if (!socket) {
+    socketOpen = false;
+    return;
+  }
+  const s = socket;
+  socket = null;
+  socketOpen = false;
   try {
-    await socket.disconnect(false);
+    s.ondisconnect = () => {};
+    s.onheartbeattimeout = () => {};
+    s.onerror = () => {};
+    await s.disconnect(false);
   } catch {
     /* ignore */
   }
-  socket = null;
+}
+
+function scheduleReconnect(reason: string) {
+  if (reconnectTimer) return;
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = 0;
+    void ensureNakamaRealtime()
+      .then(() => {
+        connectionListener?.({ kind: 'restored' });
+      })
+      .catch(() => {
+        /* listener already got lost; UI can offer refresh */
+      });
+  }, 400);
+  connectionListener?.({ kind: 'lost', reason });
+}
+
+function wireSocketLifecycle(s: Socket) {
+  s.ondisconnect = () => {
+    if (socket !== s) return;
+    socketOpen = false;
+    scheduleReconnect('Connection lost');
+  };
+  s.onheartbeattimeout = () => {
+    if (socket !== s) return;
+    socketOpen = false;
+    scheduleReconnect('Connection timed out');
+  };
+  s.onerror = () => {
+    /* close/heartbeat handlers drive recovery */
+  };
+}
+
+async function connectSocket(s: Session): Promise<void> {
+  if (isSocketLive()) return;
+  await disconnectSocket();
+  const next = getNakamaClient().createSocket(useSSL(), false);
+  socket = next;
+  wireSocketLifecycle(next);
+  try {
+    await next.connect(s, true);
+    socketOpen = true;
+  } catch {
+    try {
+      await next.connect(s, true);
+      socketOpen = true;
+    } catch (sockErr) {
+      socketOpen = false;
+      await disconnectSocket();
+      throw new Error(`Socket failed: ${formatNakamaError(sockErr)}`);
+    }
+  }
 }
 
 async function adoptSession(
@@ -187,20 +284,7 @@ async function adoptSession(
   session = s;
   persistSession(s);
   writeAccountKind(kind);
-
-  if (!socket) {
-    socket = getNakamaClient().createSocket(useSSL(), false);
-  }
-  try {
-    await socket.connect(s, true);
-  } catch {
-    try {
-      await socket.connect(s, true);
-    } catch (sockErr) {
-      throw new Error(`Socket failed: ${formatNakamaError(sockErr)}`);
-    }
-  }
-
+  await connectSocket(s);
   await syncProfileFromServer({
     displayName: opts?.displayName,
     publishLeaderboard: opts?.publishLeaderboard ?? kind === 'email',
@@ -210,7 +294,7 @@ async function adoptSession(
 
 async function rpc<T>(id: string, payload: Record<string, unknown> = {}): Promise<T> {
   const c = getNakamaClient();
-  const s = await ensureNakamaSession();
+  const s = await ensureNakamaRealtime();
   const res = await c.rpc(s, id, payload);
   if (res.payload == null) return {} as T;
   return res.payload as T;
@@ -229,7 +313,21 @@ export async function rpcJson<T>(
  * guest device session (local play / soft online). Email accounts use signup/login.
  */
 export async function ensureNakamaSession(): Promise<Session> {
-  if (session && !session.isexpired((Date.now() / 1000) | 0)) {
+  return ensureNakamaRealtime();
+}
+
+/** Force a fresh realtime socket (e.g. after a stuck matchmaker ticket). */
+export async function reconnectNakamaSocket(): Promise<Session> {
+  await disconnectSocket();
+  return ensureNakamaRealtime();
+}
+
+/**
+ * Ensure auth + an open realtime socket (reconnects after tab/network blips).
+ */
+export async function ensureNakamaRealtime(): Promise<Session> {
+  const now = nowSec();
+  if (session && !session.isexpired(now) && isSocketLive()) {
     return session;
   }
   if (connecting) return connecting;
@@ -237,6 +335,22 @@ export async function ensureNakamaSession(): Promise<Session> {
   connecting = (async () => {
     const c = getNakamaClient();
     const kind = readAccountKind() ?? 'guest';
+
+    // Refresh access token if we still have a refreshable session in memory
+    if (session && !session.isrefreshexpired(now) && session.isexpired(now)) {
+      try {
+        session = await c.sessionRefresh(session);
+        persistSession(session);
+      } catch {
+        clearPersistedSession();
+      }
+    }
+
+    if (session && !session.isexpired(nowSec())) {
+      await connectSocket(session);
+      return session;
+    }
+
     let s = restoreSession();
     try {
       if (!s) {
@@ -247,7 +361,9 @@ export async function ensureNakamaSession(): Promise<Session> {
         return await adoptSession(s, 'guest', { publishLeaderboard: false });
       }
       try {
-        s = await c.sessionRefresh(s);
+        if (s.isexpired(nowSec())) {
+          s = await c.sessionRefresh(s);
+        }
       } catch {
         clearPersistedSession();
         if (kind === 'email') {
@@ -278,6 +394,39 @@ export async function ensureNakamaSession(): Promise<Session> {
   } finally {
     connecting = null;
   }
+}
+
+/** Keep the socket alive across tab sleep and network blips. */
+export function installNakamaConnectionWatchers(): () => void {
+  if (typeof window === 'undefined' || watchersInstalled) {
+    return () => {};
+  }
+  watchersInstalled = true;
+
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!session && !restoreSession()) return;
+    void ensureNakamaRealtime().catch(() => {});
+  };
+  const onOnline = () => {
+    if (!session && !restoreSession()) return;
+    void ensureNakamaRealtime().catch(() => {});
+  };
+
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', onOnline);
+  window.addEventListener('focus', onVisible);
+
+  return () => {
+    watchersInstalled = false;
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', onOnline);
+    window.removeEventListener('focus', onVisible);
+    if (reconnectTimer) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = 0;
+    }
+  };
 }
 
 function sanitizeUsername(raw: string): string {
@@ -363,7 +512,7 @@ export async function restoreEmailSessionIfAny(): Promise<NakamaProfile | null> 
     return null;
   }
   try {
-    await ensureNakamaSession();
+    await ensureNakamaRealtime();
     if (!isEmailAccount() || !profile) return null;
     return profile;
   } catch {
@@ -426,7 +575,7 @@ async function syncProfileFromServer(opts?: {
 
 export async function refreshNakamaProfile(): Promise<NakamaProfile | null> {
   try {
-    await ensureNakamaSession();
+    await ensureNakamaRealtime();
     const p = await rpc<NakamaProfile>('get_profile');
     profile = p;
     if (p.progress) saveRankProgress(p.progress);
@@ -437,7 +586,7 @@ export async function refreshNakamaProfile(): Promise<NakamaProfile | null> {
 }
 
 export async function setNakamaDisplayName(displayName: string): Promise<string> {
-  await ensureNakamaSession();
+  await ensureNakamaRealtime();
   const res = await rpc<{ displayName: string }>('set_display_name', {
     displayName,
   });
@@ -463,15 +612,13 @@ export type ApplyRankedServerResult = {
 export async function applyRankedOnServer(input: {
   won: boolean;
   coins?: number;
-  name?: string;
   avatar?: string;
 }): Promise<ApplyRankedServerResult | null> {
   try {
-    await ensureNakamaSession();
+    await ensureNakamaRealtime();
     const res = await rpc<ApplyRankedServerResult>('apply_ranked', {
       won: input.won,
       coins: input.coins,
-      name: input.name,
       avatar: input.avatar,
     });
     if (res.progress) saveRankProgress(res.progress);
@@ -495,7 +642,17 @@ export async function fetchNakamaLeaderboard(
   limit = 20,
 ): Promise<LeaderboardRow[]> {
   try {
-    await ensureNakamaSession();
+    await ensureNakamaRealtime();
+    // Refresh this account's board row so nickname stays current
+    if (isEmailAccount()) {
+      try {
+        await rpc('ensure_leaderboard', {
+          displayName: profile?.displayName || undefined,
+        });
+      } catch {
+        /* ignore */
+      }
+    }
     const res = await rpc<{ records: LeaderboardRow[] }>('list_leaderboard', {
       limit,
     });

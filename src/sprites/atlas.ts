@@ -47,15 +47,13 @@ for (let i = 0; i < AVATAR_EMOJIS.length; i++) {
   if (emoji && id) avatarByEmoji.set(emoji, id);
 }
 
-/** Loose map for Tag Sale / handle-pool animals → closest avatar sprite. */
+/** Legacy Tag Sale emojis → closest sprite (old matches / history). */
 const HANDLE_AVATAR_FALLBACK: Record<string, AvatarSpriteId> = {
   '👺': 'alien',
   '🧙': 'cool',
   '🐺': 'fox',
   '🌪️': 'dragon',
-  '🦊': 'fox',
   '🦋': 'unicorn',
-  '🐱': 'cat',
   '🐉': 'dragon',
   '🦈': 'tiger',
   '🐧': 'robot',

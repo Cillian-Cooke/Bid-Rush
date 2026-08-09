@@ -10,11 +10,15 @@ import { Results } from './screens/Results';
 import { MatchPoolReveal } from './components/MatchPoolReveal';
 import {
   getNakamaProfile,
+  installNakamaConnectionWatchers,
   isEmailAccount,
   restoreEmailSessionIfAny,
+  setNakamaConnectionListener,
   type AuthResult,
   type NakamaProfile,
 } from './net/nakama';
+import { leaveOnlineRoom } from './net/onlineSession';
+import { cancelMatchmaking } from './net/matchmaking';
 import { hasCompletedOnboarding } from './net/onboarding';
 
 type Sheet = 'match' | 'results';
@@ -113,6 +117,45 @@ export default function App() {
     })();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const stopWatchers = installNakamaConnectionWatchers();
+    setNakamaConnectionListener((ev) => {
+      const st = useGameStore.getState();
+      if (ev.kind === 'lost') {
+        void cancelMatchmaking();
+        if (!st.online) return;
+        useGameStore.setState({
+          onlineError: `${ev.reason}. Reconnecting…`,
+        });
+        return;
+      }
+      // restored
+      const phase = useGameStore.getState().phase;
+      const online = useGameStore.getState().online;
+      if (
+        online &&
+        (phase === 'playing' ||
+          phase === 'countdown' ||
+          phase === 'naming' ||
+          phase === 'results')
+      ) {
+        void leaveOnlineRoom(true).finally(() => {
+          useGameStore.getState().returnToLobby();
+          useGameStore.setState({
+            onlineError:
+              'Connection dropped during the match. Queue again when ready.',
+          });
+        });
+        return;
+      }
+      useGameStore.setState({ onlineError: null });
+    });
+    return () => {
+      stopWatchers();
+      setNakamaConnectionListener(null);
     };
   }, []);
 

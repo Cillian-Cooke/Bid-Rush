@@ -313,14 +313,22 @@ function applyRankedForHumans(
           permissionWrite: 0,
         },
       ]);
+      let nickname = player.name.slice(0, 24);
+      try {
+        const account = nk.accountGetId(seat.userId);
+        const dn = String(account.user.displayName || '').trim();
+        if (dn) nickname = dn.slice(0, 24);
+      } catch {
+        /* keep Tag Sale name only as last resort */
+      }
       nk.leaderboardRecordWrite(
         LEADERBOARD_ID,
         seat.userId,
-        player.name.slice(0, 24),
+        nickname,
         result.score,
         player.coins,
         {
-          name: player.name.slice(0, 24),
+          name: nickname,
           avatar: String(player.avatar || '').slice(0, 8),
           won,
         },

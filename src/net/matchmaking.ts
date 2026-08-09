@@ -1,10 +1,12 @@
 import type { GameMode } from '../game/types';
+import type { MatchmakerMatched, Socket } from '@heroiclabs/nakama-js';
 import { loadRankProgress } from '../game/ranked';
 import { joinMatchedGame, leaveOnlineRoom } from './onlineSession';
 import {
   displayNameForOnline,
-  ensureNakamaSession,
+  ensureNakamaRealtime,
   getNakamaSocket,
+  reconnectNakamaSocket,
 } from './nakama';
 import { useGameStore } from '../store';
 
@@ -18,6 +20,9 @@ export type MatchmakingStatus =
   | 'joining'
   | 'error';
 
+/** Search window before offline bot fallback (and loading-bar duration). */
+export const MATCHMAKING_FALLBACK_MS = 25_000;
+
 let ticket: string | null = null;
 let status: MatchmakingStatus = 'idle';
 let lastError: string | null = null;
@@ -25,6 +30,8 @@ let onStatus: ((s: MatchmakingStatus, err?: string | null) => void) | null =
   null;
 let fallbackTimer = 0;
 let searchStartedAt = 0;
+let searchDurationMs = MATCHMAKING_FALLBACK_MS;
+let searchGen = 0;
 
 export function getMatchmakingStatus(): MatchmakingStatus {
   return status;
@@ -39,6 +46,15 @@ export function getMatchmakingStartedAt(): number {
   return searchStartedAt;
 }
 
+/** 0–1 progress for the queue loading bar (hits 1 when a match/bot is ready). */
+export function getMatchmakingProgress(): number {
+  if (status === 'found' || status === 'joining') return 1;
+  if (status === 'connecting') return 0.05;
+  if (status !== 'searching' || !searchStartedAt) return 0;
+  const dur = Math.max(1, searchDurationMs);
+  return Math.min(1, (Date.now() - searchStartedAt) / dur);
+}
+
 export function setMatchmakingListener(
   fn: ((s: MatchmakingStatus, err?: string | null) => void) | null,
 ) {
@@ -48,7 +64,9 @@ export function setMatchmakingListener(
 function setStatus(s: MatchmakingStatus, err: string | null = null) {
   status = s;
   lastError = err;
-  if (s !== 'searching') searchStartedAt = 0;
+  if (s === 'idle' || s === 'error' || s === 'connecting') {
+    searchStartedAt = 0;
+  }
   onStatus?.(s, err);
 }
 
@@ -59,18 +77,27 @@ function clearFallback() {
   }
 }
 
+async function dropTicket(activeTicket: string | null) {
+  const socket = getNakamaSocket();
+  if (socket) {
+    socket.onmatchmakermatched = () => {};
+    if (activeTicket) {
+      try {
+        await socket.removeMatchmaker(activeTicket);
+      } catch {
+        /* ignore — ticket may already be gone */
+      }
+    }
+  }
+}
+
 export async function cancelMatchmaking() {
   clearFallback();
   searchStartedAt = 0;
-  const socket = getNakamaSocket();
-  if (socket && ticket) {
-    try {
-      await socket.removeMatchmaker(ticket);
-    } catch {
-      /* ignore */
-    }
-  }
+  searchGen += 1;
+  const pending = ticket;
   ticket = null;
+  await dropTicket(pending);
   setStatus('idle');
 }
 
@@ -81,55 +108,65 @@ export async function cancelMatchmaking() {
 export async function startMatchmaking(opts: {
   kind: QueueKind;
   mode: GameMode;
-  /** Search window before offline fallback. Default 10s. */
+  /** Search window before offline fallback. Default MATCHMAKING_FALLBACK_MS. */
   fallbackMs?: number;
   onFallback?: () => void;
 }): Promise<void> {
   await cancelMatchmaking();
+  const gen = searchGen;
   setStatus('connecting');
 
   const mode = opts.mode === 'blitz' ? 'blitz' : 'duel';
   const kind = opts.kind;
   const maxPlayers = mode === 'blitz' ? 4 : 2;
   const minPlayers = 2;
+  const fallbackMs = opts.fallbackMs ?? MATCHMAKING_FALLBACK_MS;
+
+  const onMatched = (sock: Socket) => (matched: MatchmakerMatched) => {
+    if (gen !== searchGen) return;
+    clearFallback();
+    ticket = null;
+    setStatus('found');
+    const matchId = matched.match_id;
+    if (!matchId && !matched.token) {
+      setStatus('error', 'No match id from matchmaker');
+      return;
+    }
+    void (async () => {
+      try {
+        if (gen !== searchGen) return;
+        setStatus('joining');
+        useGameStore.setState({
+          matchKind: kind === 'ranked' ? 'ranked' : 'casual',
+          onlineError: null,
+        });
+        if (matched.token && !matchId) {
+          await sock.joinMatch(undefined, matched.token);
+        }
+        await joinMatchedGame(matchId, {
+          displayName: displayNameForOnline(),
+        });
+        if (gen !== searchGen) return;
+        setStatus('idle');
+      } catch (err) {
+        if (gen !== searchGen) return;
+        try {
+          await leaveOnlineRoom(true);
+        } catch {
+          /* ignore */
+        }
+        useGameStore.getState().returnToLobby();
+        setStatus(
+          'error',
+          err instanceof Error ? err.message : 'Could not join match',
+        );
+      }
+    })();
+  };
 
   try {
-    await ensureNakamaSession();
-    const socket = getNakamaSocket();
-    if (!socket) throw new Error('Nakama socket unavailable');
-
-    socket.onmatchmakermatched = (matched) => {
-      clearFallback();
-      ticket = null;
-      setStatus('found');
-      const matchId = matched.match_id;
-      if (!matchId && !matched.token) {
-        setStatus('error', 'No match id from matchmaker');
-        return;
-      }
-      void (async () => {
-        try {
-          setStatus('joining');
-          useGameStore.setState({
-            matchKind: kind === 'ranked' ? 'ranked' : 'casual',
-            onlineError: null,
-          });
-          if (matched.token && !matchId) {
-            // Relayed match - should not happen with our authoritative hook
-            await socket.joinMatch(undefined, matched.token);
-          }
-          await joinMatchedGame(matchId, {
-            displayName: displayNameForOnline(),
-          });
-          setStatus('idle');
-        } catch (err) {
-          setStatus(
-            'error',
-            err instanceof Error ? err.message : 'Could not join match',
-          );
-        }
-      })();
-    };
+    await ensureNakamaRealtime();
+    if (gen !== searchGen) return;
 
     const progress = loadRankProgress();
     const query = `+properties.queue:${kind} +properties.mode:${mode}`;
@@ -141,27 +178,77 @@ export async function startMatchmaking(opts: {
       rank: progress.rankIndex,
     };
 
+    // Start the bar and bot-fallback clock together (before addMatchmaker).
+    searchDurationMs = Math.max(1, fallbackMs);
     searchStartedAt = Date.now();
     setStatus('searching');
-    const result = await socket.addMatchmaker(
-      query,
-      minPlayers,
-      maxPlayers,
-      stringProps,
-      numericProps,
-    );
-    ticket = result.ticket;
 
-    const fallbackMs = opts.fallbackMs ?? 10_000;
     if (fallbackMs > 0 && opts.onFallback) {
       fallbackTimer = window.setTimeout(() => {
         void (async () => {
-          await cancelMatchmaking();
+          if (gen !== searchGen) return;
+          if (status === 'found' || status === 'joining') return;
+
+          // Fill the bar, then invalidate this search so a late addMatchmaker
+          // result cannot leave a stale ticket or flip status back to error.
+          setStatus('found');
+          await new Promise((r) => window.setTimeout(r, 320));
+          if (gen !== searchGen) return;
+
+          clearFallback();
+          searchGen += 1;
+          const pending = ticket;
+          ticket = null;
+          await dropTicket(pending);
+
+          useGameStore.setState({
+            onlineError: 'No online players found. Playing offline vs bots.',
+          });
           opts.onFallback?.();
+          setStatus('idle');
         })();
       }, fallbackMs);
     }
+
+    const queueOnSocket = async (sock: Socket) => {
+      sock.onmatchmakermatched = onMatched(sock);
+      const result = await sock.addMatchmaker(
+        query,
+        minPlayers,
+        maxPlayers,
+        stringProps,
+        numericProps,
+      );
+      return result.ticket;
+    };
+
+    let sock = getNakamaSocket();
+    if (!sock) throw new Error('Nakama socket unavailable');
+
+    let newTicket: string;
+    try {
+      newTicket = await queueOnSocket(sock);
+    } catch {
+      // Stale socket / leftover ticket from a prior queue — reconnect and retry.
+      if (gen !== searchGen) return;
+      await reconnectNakamaSocket();
+      if (gen !== searchGen) return;
+      sock = getNakamaSocket();
+      if (!sock) throw new Error('Nakama socket unavailable');
+      newTicket = await queueOnSocket(sock);
+    }
+
+    if (gen !== searchGen) {
+      // Bot fallback or cancel already won — drop the late ticket.
+      await dropTicket(newTicket);
+      return;
+    }
+    ticket = newTicket;
   } catch (err) {
+    // Don't clobber an in-progress match if this search was already abandoned
+    // (bot fallback bumps searchGen; cancel does too).
+    if (gen !== searchGen) return;
+    clearFallback();
     setStatus(
       'error',
       err instanceof Error
@@ -170,6 +257,7 @@ export async function startMatchmaking(opts: {
     );
   }
 }
+
 export async function abandonOnlineMatch() {
   await cancelMatchmaking();
   await leaveOnlineRoom();

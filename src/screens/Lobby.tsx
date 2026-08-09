@@ -17,8 +17,9 @@ import {
 } from '../net/onlineSession';
 import {
   cancelMatchmaking,
-  getMatchmakingStartedAt,
+  getMatchmakingProgress,
   getMatchmakingStatus,
+  MATCHMAKING_FALLBACK_MS,
   setMatchmakingListener,
   startMatchmaking,
   type MatchmakingStatus,
@@ -97,8 +98,6 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
   const [queueProgress, setQueueProgress] = useState(0);
   const [displayName, setDisplayName] = useState('');
 
-  const QUEUE_MS = 10_000;
-
   useEffect(() => {
     setMatchmakingListener((s, err) => {
       setQueueStatus(s);
@@ -116,15 +115,18 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (queueStatus !== 'searching') {
-      setQueueProgress(queueStatus === 'connecting' ? 0.05 : 0);
+    if (
+      queueStatus !== 'searching' &&
+      queueStatus !== 'connecting' &&
+      queueStatus !== 'found' &&
+      queueStatus !== 'joining'
+    ) {
+      setQueueProgress(0);
       return;
     }
     let raf = 0;
     const tick = () => {
-      const started = getMatchmakingStartedAt() || Date.now();
-      const p = Math.min(1, (Date.now() - started) / QUEUE_MS);
-      setQueueProgress(p);
+      setQueueProgress(getMatchmakingProgress());
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
@@ -148,7 +150,7 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
     void startMatchmaking({
       kind,
       mode,
-      fallbackMs: QUEUE_MS,
+      fallbackMs: MATCHMAKING_FALLBACK_MS,
       onFallback: () => playLocal(mode, kind),
     });
   };
@@ -213,7 +215,10 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
             <h1 className="brand">Bid Rush</h1>
             <p className="friends-subtitle">{queueLabel(queueStatus)}</p>
           </div>
-          {queueStatus === 'searching' && (
+          {(queueStatus === 'searching' ||
+            queueStatus === 'connecting' ||
+            queueStatus === 'found' ||
+            queueStatus === 'joining') && (
             <div
               className="queue-load"
               role="progressbar"
@@ -225,7 +230,7 @@ export function Lobby({ onLoggedOut }: { onLoggedOut?: () => void }) {
               <div className="queue-load-track">
                 <div
                   className="queue-load-fill"
-                  style={{ width: `${Math.max(4, queueProgress * 100)}%` }}
+                  style={{ width: `${Math.max(2, queueProgress * 100)}%` }}
                 />
               </div>
             </div>
