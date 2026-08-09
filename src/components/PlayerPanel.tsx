@@ -9,8 +9,9 @@ type Props = {
   targeting?: boolean;
   floatText?: string | null;
   fxKind?: FxKind | null;
-  /** Emoji shown when this player just cast an active item */
+  /** Emoji / sprite id shown when this player just cast an active item */
   fxLabel?: string | null;
+  fxSpriteId?: string | null;
   /** Sudden-death: under the current bracket */
   atRisk?: boolean;
   onTap?: () => void;
@@ -29,9 +30,9 @@ const PANEL_FX_SPRITE: Partial<Record<FxKind, string>> = {
   heist: 'heist_kit',
   quick_swap: 'quick_swap',
   bomb_fuse: 'bomb',
-  event_money: 'money_bag',
-  event_tax: 'receipt',
-  event_shower: 'coin',
+  event_money: 'money_money_money',
+  event_tax: 'tax_collector',
+  event_shower: 'coin_shower',
 };
 
 export function PlayerPanel({
@@ -42,15 +43,17 @@ export function PlayerPanel({
   floatText,
   fxKind,
   fxLabel,
+  fxSpriteId = null,
   atRisk,
   onTap,
 }: Props) {
   const bomb = player.hand.find((h) => h.itemId === 'bomb');
   const fuseSec =
     bomb?.bombFuseMs != null ? Math.ceil(bomb.bombFuseMs / 1000) : null;
-
   const casting = fxKind === 'active_cast' && !!fxLabel;
   const displayAvatar = casting ? fxLabel! : player.avatar;
+  const panelFxSprite =
+    fxSpriteId || (fxKind ? PANEL_FX_SPRITE[fxKind] : null) || 'star';
 
   const className = [
     'player-panel',
@@ -106,7 +109,7 @@ export function PlayerPanel({
       )}
       {fxKind && fxKind !== 'active_cast' && (
         <span className="panel-fx-burst" aria-hidden>
-          <SpriteIcon id={PANEL_FX_SPRITE[fxKind] ?? 'star'} aria-hidden />
+          <SpriteIcon id={panelFxSprite} aria-hidden />
         </span>
       )}
     </>

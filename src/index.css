@@ -59,12 +59,12 @@ body,
   letter-spacing: 0;
 }
 
-/* Portrait-only gate for phones held sideways */
+/* Portrait-only gate for phones held sideways (not desktop / wide web) */
 .landscape-blocker {
   display: none;
 }
 
-@media (orientation: landscape) and (max-height: 560px) {
+@media (orientation: landscape) and (max-height: 560px) and (max-width: 959px) {
   .landscape-blocker {
     position: fixed;
     inset: 0;
@@ -1380,6 +1380,232 @@ button {
 
 .game-chrome .round-clock-time {
   font-size: clamp(2.1rem, 9vw, 2.85rem);
+}
+
+/* ── Ranked match chrome: borders escalate Bronze → Diamond ── */
+.game-screen.ranked-match {
+  --rank-edge: var(--line);
+  --rank-edge-hi: color-mix(in srgb, var(--line) 70%, #fff);
+  --rank-panel: var(--panel);
+  --rank-glow: none;
+  --rank-inset: none;
+  --rank-border-w: 1px;
+}
+
+.game-screen.ranked-match .round-clock-panel,
+.game-screen.ranked-match .quit-btn,
+.game-screen.ranked-match .purse,
+.game-screen.ranked-match .score-chip,
+.game-screen.ranked-match .hand-bar,
+.game-screen.ranked-match .dock-action,
+.game-screen.ranked-match .hand-slot.filled,
+.game-screen.ranked-match .hand-slot.empty,
+.game-screen.ranked-match .event-banner,
+.game-screen.ranked-match .targeting-banner,
+.game-screen.ranked-match .use-mode-banner,
+.game-screen.ranked-match .rail-pool-cell {
+  border-style: solid;
+  border-width: var(--rank-border-w);
+  border-color: var(--rank-edge);
+  box-shadow: var(--rank-inset), var(--rank-glow);
+}
+
+.game-screen.ranked-match .score-chip {
+  border-left-width: 3px;
+  border-left-color: var(--player-color, var(--rank-edge));
+}
+
+.game-screen.ranked-match .hand-slot.empty {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.game-screen.ranked-match .round-clock-panel,
+.game-screen.ranked-match .purse,
+.game-screen.ranked-match .hand-bar,
+.game-screen.ranked-match .quit-btn {
+  background: var(--rank-panel);
+}
+
+/* Bronze — flat, muddy, intentionally dull */
+.game-screen.rank-bronze {
+  --rank-edge: #5a4638;
+  --rank-edge-hi: #6e5848;
+  --rank-panel: #221a14;
+  --rank-glow: none;
+  --rank-inset: none;
+  --rank-border-w: 1px;
+}
+
+.game-screen.rank-bronze .round-clock-time,
+.game-screen.rank-bronze .purse-value {
+  color: #a89878;
+}
+
+.game-screen.rank-bronze .purse-kicker,
+.game-screen.rank-bronze .round-clock-kicker {
+  color: #7a6a58;
+}
+
+.game-screen.rank-bronze .round-clock-bar-fill {
+  background: #6e5848;
+}
+
+/* Silver — clean metal, faint top highlight */
+.game-screen.rank-silver {
+  --rank-edge: #8e97a3;
+  --rank-edge-hi: #c5ccd6;
+  --rank-panel: #262830;
+  --rank-glow: none;
+  --rank-inset: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --rank-border-w: 1px;
+}
+
+.game-screen.rank-silver .round-clock-bar-fill {
+  background: #b0b8c4;
+}
+
+/* Gold — warm double-edge feel */
+.game-screen.rank-gold {
+  --rank-edge: #c4922a;
+  --rank-edge-hi: #f0c040;
+  --rank-panel: #2c2414;
+  --rank-glow: 0 0 0 1px color-mix(in srgb, #f0c040 35%, transparent);
+  --rank-inset: inset 0 1px 0 rgba(255, 220, 120, 0.28);
+  --rank-border-w: 1px;
+}
+
+.game-screen.rank-gold .round-clock-bar-fill {
+  background: linear-gradient(90deg, #c48820, #f0c040);
+}
+
+.game-screen.rank-gold .purse-kicker,
+.game-screen.rank-gold .round-clock-time {
+  color: #f0c040;
+  text-shadow: 0 0 10px color-mix(in srgb, #f0c040 35%, transparent);
+}
+
+/* Platinum — icy metal, soft cool bloom */
+.game-screen.rank-platinum {
+  --rank-edge: #9ec4d4;
+  --rank-edge-hi: #e8f4fa;
+  --rank-panel: #1e2830;
+  --rank-glow: 0 0 14px color-mix(in srgb, #7dd3fc 22%, transparent);
+  --rank-inset:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(90, 140, 170, 0.25);
+  --rank-border-w: 1px;
+}
+
+.game-screen.rank-platinum .round-clock-panel,
+.game-screen.rank-platinum .purse,
+.game-screen.rank-platinum .hand-bar {
+  outline: 1px solid color-mix(in srgb, #9ec4d4 40%, transparent);
+  outline-offset: 1px;
+}
+
+.game-screen.rank-platinum .round-clock-bar-fill {
+  background: linear-gradient(90deg, #5b8fa3, #c5e8f5);
+}
+
+.game-screen.rank-platinum .round-clock-time {
+  color: #e8f4fa;
+  text-shadow: 0 0 12px color-mix(in srgb, #7dd3fc 40%, transparent);
+}
+
+/* Diamond — prismatic edge, most ornate */
+.game-screen.rank-diamond {
+  --rank-edge: #7dd3fc;
+  --rank-edge-hi: #e0f2fe;
+  --rank-panel: #141c28;
+  --rank-glow: 0 0 18px color-mix(in srgb, #38bdf8 28%, transparent);
+  --rank-inset: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  --rank-border-w: 1px;
+}
+
+.game-screen.rank-diamond .round-clock-panel,
+.game-screen.rank-diamond .purse,
+.game-screen.rank-diamond .hand-bar,
+.game-screen.rank-diamond .quit-btn {
+  border-color: transparent;
+  isolation: isolate;
+}
+
+.game-screen.rank-diamond .round-clock-panel::before,
+.game-screen.rank-diamond .purse::before,
+.game-screen.rank-diamond .hand-bar::before,
+.game-screen.rank-diamond .quit-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--rank-prism, 0deg),
+    #38bdf8,
+    #e0f2fe,
+    #a5f3fc,
+    #7dd3fc,
+    #bae6fd,
+    #38bdf8
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: rank-prism-spin 5s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.game-screen.rank-diamond .round-clock-panel > *,
+.game-screen.rank-diamond .purse > *,
+.game-screen.rank-diamond .hand-bar > *,
+.game-screen.rank-diamond .quit-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.game-screen.rank-diamond .quit-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.game-screen.rank-diamond .round-clock-bar-fill {
+  background: linear-gradient(90deg, #0ea5e9, #e0f2fe, #38bdf8);
+}
+
+.game-screen.rank-diamond .round-clock-time,
+.game-screen.rank-diamond .purse-value {
+  color: #e0f2fe;
+  text-shadow:
+    0 0 8px color-mix(in srgb, #38bdf8 55%, transparent),
+    0 0 18px color-mix(in srgb, #7dd3fc 35%, transparent);
+}
+
+.game-screen.rank-diamond .score-chip,
+.game-screen.rank-diamond .dock-action,
+.game-screen.rank-diamond .hand-slot.filled {
+  border-color: color-mix(in srgb, #7dd3fc 70%, #fff);
+  box-shadow:
+    0 0 10px color-mix(in srgb, #38bdf8 20%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+@keyframes rank-prism-spin {
+  to {
+    --rank-prism: 360deg;
+  }
+}
+
+@property --rank-prism {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
 }
 
 .event-chip-grid {
@@ -2714,7 +2940,8 @@ button {
 }
 
 .explosion-burst {
-  font-size: 5rem;
+  width: 5rem;
+  height: 5rem;
   animation: explosion-pop 0.9s ease forwards;
 }
 
@@ -6921,9 +7148,24 @@ button {
 }
 
 @media (min-width: 720px) {
+  .login-screen,
+  .onboarding-screen {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: calc(28px + var(--safe-top)) 36px calc(32px + var(--safe-bottom));
+    justify-content: center;
+    align-items: center;
+  }
+
   .login-shell,
   .onboarding-shell {
-    width: min(460px, 100%);
+    width: min(480px, 100%);
+  }
+
+  .login-screen .lobby-auction-bg,
+  .onboarding-screen .lobby-auction-bg {
+    inset: 0;
   }
 
   .login-card,
@@ -7432,8 +7674,33 @@ button {
   }
 
   .stack-base .screen,
-  .stack-sheet .screen {
+  .stack-sheet .screen,
+  .app-stack > .screen {
     max-width: none;
+    width: 100%;
+  }
+
+  /* Login / onboarding: full-bleed floor + auction bg (not a 480px phone strip) */
+  .login-shell,
+  .onboarding-shell {
+    width: min(520px, 100%);
+  }
+
+  .login-brand {
+    font-size: clamp(5rem, 7vw, 7rem);
+    letter-spacing: 0.05em;
+  }
+
+  .login-tagline {
+    font-size: 1.05rem;
+    max-width: 34ch;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .login-screen .lobby-auction-bg,
+  .onboarding-screen .lobby-auction-bg {
+    --lobby-cols: 8;
   }
 
   .lobby-screen {
@@ -7444,7 +7711,7 @@ button {
     overflow: hidden;
   }
 
-  .lobby-auction-bg {
+  .lobby-screen .lobby-auction-bg {
     left: 420px;
     right: 0;
     width: auto;

@@ -14,6 +14,8 @@ type Props = {
   pickOrder?: number | null;
   fxKind: FxKind | null;
   fxLabel?: string;
+  /** Atlas override (e.g. world-event art) */
+  fxSpriteId?: string | null;
   onTap: () => void;
 };
 
@@ -25,7 +27,7 @@ function timerColor(ratio: number): string {
 
 const TILE_FX_SPRITE: Partial<Record<FxKind, string>> = {
   double: 'price_doubler',
-  discount: 'fire',
+  discount: 'bargain',
   hammer: 'reset_hammer',
   inflate: 'stock_market',
   freeze: 'cold_market',
@@ -36,9 +38,9 @@ const TILE_FX_SPRITE: Partial<Record<FxKind, string>> = {
   shuffle: 'chaos_die',
   bomb_fuse: 'bomb',
   mystery_sell: 'mystery_box',
-  event_money: 'money_bag',
-  event_tax: 'receipt',
-  event_shower: 'coin',
+  event_money: 'money_money_money',
+  event_tax: 'tax_collector',
+  event_shower: 'coin_shower',
 };
 
 export function ShopTile({
@@ -50,12 +52,15 @@ export function ShopTile({
   pickOrder = null,
   fxKind,
   fxLabel,
+  fxSpriteId = null,
   onTap,
 }: Props) {
   const def = getItem(tile.itemId);
   const ratio = Math.max(0, Math.min(1, tile.timerMs / CONFIG.TILE_TIMER_MS));
   const nearlyExpired = tile.timerMs <= 2000 && tile.freezeMs <= 0;
   const frozen = tile.freezeMs > 0;
+  const fxSprite =
+    fxSpriteId || (fxKind ? TILE_FX_SPRITE[fxKind] : null) || 'star';
 
   return (
     <button
@@ -120,7 +125,7 @@ export function ShopTile({
       )}
       {fxKind && (
         <span className="tile-fx-burst" aria-hidden>
-          <SpriteIcon id={TILE_FX_SPRITE[fxKind] ?? 'star'} aria-hidden />
+          <SpriteIcon id={fxSprite} aria-hidden />
           {fxLabel && <span className="tile-fx-label">{fxLabel}</span>}
         </span>
       )}

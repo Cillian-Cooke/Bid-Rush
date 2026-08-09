@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
+import { SpriteIcon } from './SpriteIcon';
 
 /** Shows a brief explosion burst when a bomb detonates. */
 export function ExplosionFx() {
@@ -18,7 +19,7 @@ export function ExplosionFx() {
 
   return (
     <div className="explosion-fx" aria-hidden>
-      <span className="explosion-burst">💥</span>
+      <SpriteIcon id="dynamite" className="explosion-burst" />
     </div>
   );
 }

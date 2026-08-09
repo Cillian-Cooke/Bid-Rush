@@ -60,7 +60,7 @@ export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
     emoji: '🧾',
     blurb: 'Everyone loses 10 coins every 5 seconds',
     warnLine: 'The collector is coming',
-    activeLine: 'Pay up: 10🪙 / 5s',
+    activeLine: 'Pay up: 10 coins / 5s',
     accent: '#ef4444',
     fxKind: 'event_tax',
   },
@@ -70,7 +70,7 @@ export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
     emoji: '🔥',
     blurb: 'Every tag slams down to 1 coin',
     warnLine: 'Prices about to crash',
-    activeLine: 'Everything is 1🪙!',
+    activeLine: 'Everything is 1 coin!',
     accent: '#f97316',
     fxKind: 'discount',
   },
@@ -222,9 +222,29 @@ function emitFx(
     playerId?: string;
     tileIndex?: number;
     label?: string;
+    spriteId?: string;
   } = {},
 ): void {
   state.events.push({ type: 'fx', kind, ...opts });
+}
+
+function emitEventFx(
+  state: GameState,
+  id: WorldEventId,
+  opts: {
+    playerId?: string;
+    tileIndex?: number;
+    label?: string;
+    kind?: FxKind;
+  } = {},
+): void {
+  const def = getWorldEvent(id);
+  emitFx(state, opts.kind ?? def.fxKind, {
+    playerId: opts.playerId,
+    tileIndex: opts.tileIndex,
+    label: opts.label,
+    spriteId: id,
+  });
 }
 
 function pickEvent(state: GameState, rng: () => number): WorldEventId {
@@ -238,16 +258,29 @@ function living(state: GameState) {
   return state.players.filter((p) => p.isAlive);
 }
 
-function forceShopItems(state: GameState, itemId: ItemId | ItemId[], rng: () => number, fx: FxKind): void {
+function forceShopItems(
+  state: GameState,
+  itemId: ItemId | ItemId[],
+  rng: () => number,
+  eventId: WorldEventId,
+): void {
+  const def = getWorldEvent(eventId);
   for (const tile of state.tiles) {
     tile.itemId = pickFromPool(state, itemId, rng);
     tile.flash = 'bid';
     tile.flashMs = 400;
-    emitFx(state, fx, { tileIndex: tile.index });
+    emitEventFx(state, eventId, {
+      tileIndex: tile.index,
+      kind: def.fxKind,
+    });
   }
 }
 
-function shuffleBoard(state: GameState, rng: () => number): void {
+function shuffleBoard(
+  state: GameState,
+  rng: () => number,
+  eventId: WorldEventId = 'shuffle_storm',
+): void {
   const payloads = state.tiles.map((t) => ({
     itemId: t.itemId,
     price: t.price,
@@ -273,54 +306,62 @@ function shuffleBoard(state: GameState, rng: () => number): void {
     t.golden = p.golden;
     t.flash = 'bid';
     t.flashMs = 300;
-    emitFx(state, 'shuffle', { tileIndex: i });
+    emitEventFx(state, eventId, { tileIndex: i, kind: 'shuffle' });
   }
 }
-function startEvent(state: GameState, rng: () => number, id: WorldEventId): void {
-  const def = getWorldEvent(id);
 
+function startEvent(state: GameState, rng: () => number, id: WorldEventId): void {
   switch (id) {
     case 'money_money_money':
-      forceShopItems(state, MONEY_IDS, rng, 'event_money');
+      forceShopItems(state, MONEY_IDS, rng, 'money_money_money');
       break;
     case 'fire_sale':
       for (const tile of state.tiles) {
         tile.price = CONFIG.START_PRICE;
         tile.flash = 'steal';
         tile.flashMs = 400;
-        emitFx(state, 'discount', { tileIndex: tile.index, label: '1🪙' });
+        emitEventFx(state, 'fire_sale', {
+          tileIndex: tile.index,
+          label: '1',
+        });
       }
       break;
     case 'deep_freeze':
       for (const tile of state.tiles) {
         tile.freezeMs = Math.max(tile.freezeMs, CONFIG.EVENT_DURATION_MS);
-        emitFx(state, 'freeze', { tileIndex: tile.index });
+        emitEventFx(state, 'deep_freeze', { tileIndex: tile.index });
       }
       break;
     case 'turbo_market':
       for (const tile of state.tiles) {
-        emitFx(state, 'fastforward', { tileIndex: tile.index, label: '2×' });
+        emitEventFx(state, 'turbo_market', {
+          tileIndex: tile.index,
+          label: '2×',
+        });
       }
       break;
     case 'bomb_bazaar':
-      forceShopItems(state, 'bomb', rng, 'bomb_fuse');
+      forceShopItems(state, 'bomb', rng, 'bomb_bazaar');
       break;
     case 'mystery_mall':
-      forceShopItems(state, 'mystery_box', rng, 'mystery_sell');
+      forceShopItems(state, 'mystery_box', rng, 'mystery_mall');
       break;
     case 'tax_collector':
     case 'coin_shower':
       for (const p of living(state)) {
-        emitFx(state, def.fxKind, { playerId: p.id });
+        emitEventFx(state, id, { playerId: p.id });
       }
       break;
     case 'shuffle_storm':
-      shuffleBoard(state, rng);
+      shuffleBoard(state, rng, 'shuffle_storm');
       break;
     case 'inflation_wave':
       for (const tile of state.tiles) {
         tile.price += 2;
-        emitFx(state, 'inflate', { tileIndex: tile.index, label: '+2' });
+        emitEventFx(state, 'inflation_wave', {
+          tileIndex: tile.index,
+          label: '+2',
+        });
       }
       break;
     case 'golden_chaos':
@@ -332,12 +373,19 @@ function startEvent(state: GameState, rng: () => number, id: WorldEventId): void
           amount: 12,
           emoji: '🌟',
         });
-        emitFx(state, 'event_money', { playerId: p.id, label: '+12' });
+        emitEventFx(state, 'golden_chaos', {
+          playerId: p.id,
+          label: '+12',
+        });
       }
-      forceShopItems(state, MONEY_IDS, rng, 'event_money');
+      forceShopItems(state, MONEY_IDS, rng, 'golden_chaos');
       for (const tile of state.tiles) {
         tile.price = Math.max(1, tile.price + 3);
-        emitFx(state, 'inflate', { tileIndex: tile.index, label: '+3' });
+        emitEventFx(state, 'golden_chaos', {
+          tileIndex: tile.index,
+          label: '+3',
+          kind: 'inflate',
+        });
       }
       break;
   }
@@ -349,8 +397,6 @@ function pulseEvent(
   id: WorldEventId,
   remainMs: number,
 ): void {
-  const def = getWorldEvent(id);
-
   switch (id) {
     case 'tax_collector': {
       for (const p of living(state)) {
@@ -368,7 +414,10 @@ function pulseEvent(
           emoji: '🧾',
           label: 'Tax Collector',
         });
-        emitFx(state, 'event_tax', { playerId: p.id, label: `-${lost}` });
+        emitEventFx(state, 'tax_collector', {
+          playerId: p.id,
+          label: `-${lost}`,
+        });
       }
       break;
     }
@@ -381,32 +430,40 @@ function pulseEvent(
           amount: 5,
           emoji: '🪙',
         });
-        emitFx(state, 'event_shower', { playerId: p.id, label: '+5' });
+        emitEventFx(state, 'coin_shower', {
+          playerId: p.id,
+          label: '+5',
+        });
       }
       break;
     }
     case 'shuffle_storm':
-      shuffleBoard(state, rng);
+      shuffleBoard(state, rng, 'shuffle_storm');
       break;
     case 'inflation_wave':
       for (const tile of state.tiles) {
         tile.price += 2;
         tile.flash = 'bid';
         tile.flashMs = 300;
-        emitFx(state, 'inflate', { tileIndex: tile.index, label: '+2' });
+        emitEventFx(state, 'inflation_wave', {
+          tileIndex: tile.index,
+          label: '+2',
+        });
       }
       break;
     case 'deep_freeze':
       for (const tile of state.tiles) {
         tile.freezeMs = Math.max(tile.freezeMs, remainMs);
-        emitFx(state, 'freeze', { tileIndex: tile.index });
+        emitEventFx(state, 'deep_freeze', { tileIndex: tile.index });
       }
       break;
     case 'money_money_money':
       for (const tile of state.tiles) {
         if (!MONEY_IDS.includes(tile.itemId) || !inPool(state, tile.itemId)) {
           tile.itemId = pickFromPool(state, MONEY_IDS, rng);
-          emitFx(state, 'event_money', { tileIndex: tile.index });
+          emitEventFx(state, 'money_money_money', {
+            tileIndex: tile.index,
+          });
         }
       }
       break;
@@ -415,7 +472,7 @@ function pulseEvent(
         const next = pickFromPool(state, 'bomb', rng);
         if (tile.itemId !== next) {
           tile.itemId = next;
-          emitFx(state, 'bomb_fuse', { tileIndex: tile.index });
+          emitEventFx(state, 'bomb_bazaar', { tileIndex: tile.index });
         }
       }
       break;
@@ -424,7 +481,7 @@ function pulseEvent(
         const next = pickFromPool(state, 'mystery_box', rng);
         if (tile.itemId !== next) {
           tile.itemId = next;
-          emitFx(state, 'mystery_sell', { tileIndex: tile.index });
+          emitEventFx(state, 'mystery_mall', { tileIndex: tile.index });
         }
       }
       break;
@@ -432,13 +489,16 @@ function pulseEvent(
       for (const tile of state.tiles) {
         if (tile.price > CONFIG.START_PRICE) {
           tile.price = CONFIG.START_PRICE;
-          emitFx(state, 'discount', { tileIndex: tile.index, label: '1🪙' });
+          emitEventFx(state, 'fire_sale', {
+            tileIndex: tile.index,
+            label: '1',
+          });
         }
       }
       break;
     case 'turbo_market':
       for (const tile of state.tiles) {
-        emitFx(state, def.fxKind, { tileIndex: tile.index });
+        emitEventFx(state, 'turbo_market', { tileIndex: tile.index });
       }
       break;
     case 'golden_chaos': {
@@ -450,12 +510,19 @@ function pulseEvent(
           amount: 4,
           emoji: '🌟',
         });
-        emitFx(state, 'event_money', { playerId: p.id, label: '+4' });
+        emitEventFx(state, 'golden_chaos', {
+          playerId: p.id,
+          label: '+4',
+        });
       }
-      shuffleBoard(state, rng);
+      shuffleBoard(state, rng, 'golden_chaos');
       for (const tile of state.tiles) {
         tile.price += 1;
-        emitFx(state, 'inflate', { tileIndex: tile.index, label: '+1' });
+        emitEventFx(state, 'golden_chaos', {
+          tileIndex: tile.index,
+          label: '+1',
+          kind: 'inflate',
+        });
       }
       break;
     }
@@ -463,16 +530,15 @@ function pulseEvent(
 }
 
 function ambientFx(state: GameState, rng: () => number, id: WorldEventId): void {
-  const def = getWorldEvent(id);
   const tiles = state.tiles;
   if (tiles.length === 0) return;
   const tile = tiles[Math.floor(rng() * tiles.length)]!;
-  emitFx(state, def.fxKind, { tileIndex: tile.index });
+  emitEventFx(state, id, { tileIndex: tile.index });
 
   const alive = living(state);
   if (alive.length > 0 && (id === 'tax_collector' || id === 'coin_shower')) {
     const p = alive[Math.floor(rng() * alive.length)]!;
-    emitFx(state, def.fxKind, { playerId: p.id });
+    emitEventFx(state, id, { playerId: p.id });
   }
 }
 
@@ -487,9 +553,8 @@ function endEvent(state: GameState, id: WorldEventId, endingKey?: string): void 
       }
     }
   }
-  const def = getWorldEvent(id);
   for (const tile of state.tiles) {
-    emitFx(state, def.fxKind, { tileIndex: tile.index, label: 'END' });
+    emitEventFx(state, id, { tileIndex: tile.index, label: 'END' });
   }
 }
 
@@ -505,9 +570,8 @@ function pushLiveEvent(
   }
   const entry = makeLiveEvent(id);
   we.live.push(entry);
-  const def = getWorldEvent(id);
   for (const tile of state.tiles) {
-    emitFx(state, def.fxKind, { tileIndex: tile.index });
+    emitEventFx(state, id, { tileIndex: tile.index });
   }
   startEvent(state, rng, id);
   syncPrimaryFromLive(we);
@@ -583,9 +647,8 @@ export function tickWorldEvent(
   if (we.phase === 'pending' && state.roundMs <= CONFIG.EVENT_WARN_AT_MS) {
     we.phase = 'warning';
     we.id = pickEvent(state, rng);
-    const def = getWorldEvent(we.id);
     for (const tile of state.tiles) {
-      emitFx(state, def.fxKind, { tileIndex: tile.index });
+      emitEventFx(state, we.id, { tileIndex: tile.index });
     }
   }
 

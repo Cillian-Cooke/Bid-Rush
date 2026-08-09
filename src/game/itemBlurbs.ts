@@ -15,7 +15,7 @@ export function regularBlurb(id: string): string {
     chaos_die: 'Use to fire a random mid-match world event right now.',
     chrysalis:
       'After 20 seconds it becomes a random golden item from this match pool.',
-    ipo: 'Pick a hand item. You gain coins equal to that item’s sell value.',
+    ipo: 'Tap IPO, then tap a hand item to cash its sell value.',
     broker: 'Whenever you sell an item, you also gain 3 coins.',
     piggy_bank:
       'Stores coins into itself over time. Sell it to cash out the stash.',
@@ -23,7 +23,8 @@ export function regularBlurb(id: string): string {
     price_doubler: 'Instantly doubles one shop tile’s price.',
     bargain:
       'All shop purchases cost half (rounded down, min 1). Hold it and every win is cheaper.',
-    inflation: 'Adds 3 to the price of every shop tile.',
+    inflation:
+      'Tap any shop tile to add 3 to every shop price.',
     interest:
       'Every 5 seconds adds sell value to every item in your hand. Pays no coins.',
     time_freeze: 'Freezes one shop tile’s timer for a few seconds.',
@@ -33,7 +34,7 @@ export function regularBlurb(id: string): string {
     shop_refresh: 'Restocks the whole shop board with new items.',
     handcuffs: 'Stops one player from bidding for a short time.',
     pickpocket: 'Steals coins from a chosen rival.',
-    heist_kit: 'Steals a random hand item from a rival (not bombs).',
+    heist_kit: 'Steals a random hand item from a rival (bombs included).',
     quick_swap:
       'Pick a rival. After 10 seconds, swap your leftmost hand item with their rightmost. Works one-way if either hand is empty.',
     mute: 'Silences a rival’s passives for 8 seconds.',

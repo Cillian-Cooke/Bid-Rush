@@ -231,15 +231,80 @@ def paint_coin_mine() -> Image.Image:
 
 
 def paint_money_printer() -> Image.Image:
-    """Prints Bank Notes on a timer."""
+    """Prints Bank Notes on a timer — solid chassis, paper feed, bill out."""
     c = Canvas()
-    c.outline_rect(6, 8, 25, 22, MUTE, INK)
-    c.rect(8, 10, 23, 14, TEAL_D)
-    c.rect(10, 16, 21, 20, GREEN)
-    # note coming out
-    c.outline_rect(9, 20, 22, 27, GREEN, INK)
-    c.hline(11, 20, 23, GREEN_D)
-    c.p(15, 24, PAPER)
+    # Body (fully filled — no holes in the top plate)
+    c.outline_rect(5, 10, 26, 24, GREEN, INK)
+    c.rect(7, 12, 24, 14, GREEN_D)  # top plate
+    c.rect(7, 15, 24, 22, GREEN)
+    # Left highlight strip
+    c.vline(7, 12, 22, TEAL)
+    # Paper stack sitting in the tray (opaque paper, ink rim)
+    c.outline_rect(9, 4, 22, 11, PAPER, INK)
+    c.rect(11, 6, 20, 9, WHITE)
+    c.hline(11, 20, 7, PAPER)
+    c.hline(11, 20, 9, MUTE)
+    # Slot lip
+    c.hline(8, 23, 15, INK)
+    c.hline(9, 22, 16, SHADOW)
+    # Bill emerging
+    c.outline_rect(10, 17, 21, 28, GREEN, INK)
+    c.rect(12, 19, 19, 26, GREEN_D)
+    c.disc(15, 22, 2, GOLD, INK)
+    c.p(15, 22, GOLD_D)
+    return c.im
+
+
+def paint_chaos_die() -> Image.Image:
+    """Triggers a random world event."""
+    c = Canvas()
+    c.outline_rect(8, 8, 23, 23, PAPER, INK)
+    c.p(12, 12, DANGER)
+    c.p(16, 16, PURPLE)
+    c.p(20, 12, TEAL)
+    c.p(12, 20, GOLD)
+    c.p(20, 20, EMBER)
+    # event spark
+    c.p(25, 6, PURPLE)
+    c.p(26, 7, GOLD)
+    c.p(27, 6, PURPLE)
+    return c.im
+
+
+def paint_mystery_box() -> Image.Image:
+    """Random 1–20 payout on sell — purple gift, gold bow + front/side ribbons (no ?)."""
+    c = Canvas()
+    c.outline_rect(7, 9, 24, 26, PURPLE, INK)
+    c.rect(9, 11, 22, 24, PURPLE_D)
+    # lid wrap
+    c.hline(7, 24, 14, GOLD)
+    # front vertical ribbon (centered)
+    c.vline(11, 14, 26, GOLD)
+    c.vline(12, 14, 26, GOLD_D)
+    # side vertical ribbon
+    c.vline(20, 15, 26, GOLD)
+    # bow
+    c.p(12, 8, GOLD)
+    c.p(13, 7, GOLD)
+    c.p(17, 8, GOLD)
+    c.p(18, 7, GOLD)
+    return c.im
+
+
+def paint_price_doubler() -> Image.Image:
+    """Doubles one shop tile price - price tag ×2."""
+    c = Canvas()
+    c.outline_rect(6, 8, 20, 22, EMBER, INK)
+    c.rect(8, 10, 18, 20, GOLD)
+    c.coin(12, 15)
+    # ×2
+    c.rect(21, 10, 27, 14, DANGER)
+    c.hline(21, 27, 10, INK)
+    c.hline(21, 27, 14, INK)
+    c.vline(21, 10, 14, INK)
+    c.vline(27, 10, 14, INK)
+    c.p(23, 12, PAPER)
+    c.p(25, 12, PAPER)
     return c.im
 
 
@@ -275,22 +340,6 @@ def paint_stock_market() -> Image.Image:
     c.p(23, 8, GOLD)
     c.p(24, 9, GOLD)
     c.p(25, 8, GOLD)
-    return c.im
-
-
-def paint_chaos_die() -> Image.Image:
-    """Triggers a random world event."""
-    c = Canvas()
-    c.outline_rect(8, 8, 23, 23, PAPER, INK)
-    c.p(12, 12, DANGER)
-    c.p(16, 16, PURPLE)
-    c.p(20, 12, TEAL)
-    c.p(12, 20, GOLD)
-    c.p(20, 20, EMBER)
-    # event spark
-    c.p(25, 6, PURPLE)
-    c.p(26, 7, GOLD)
-    c.p(27, 6, PURPLE)
     return c.im
 
 
@@ -335,19 +384,6 @@ def paint_piggy_bank() -> Image.Image:
     c.hline(12, 18, 12, INK)  # slot
     c.coin(16, 8)
     c.p(10, 14, INK)  # eye
-    return c.im
-
-
-def paint_mystery_box() -> Image.Image:
-    """Random 1–20 payout on sell."""
-    c = Canvas()
-    c.outline_rect(7, 9, 24, 26, PURPLE, INK)
-    c.rect(9, 11, 22, 24, PURPLE_D)
-    c.hline(7, 24, 14, GOLD)
-    c.vline(15, 9, 14, GOLD)
-    # ?
-    c.rect(14, 17, 17, 19, GOLD)
-    c.p(15, 21, GOLD)
     return c.im
 
 
@@ -472,13 +508,26 @@ def paint_shop_refresh() -> Image.Image:
 
 
 def paint_handcuffs() -> Image.Image:
-    """Stop a rival from bidding - keep inset so the wide cuffs don’t clip in UI."""
+    """Stop a rival from bidding — two full rings + chain, inset from edges."""
     c = Canvas()
-    # Slightly smaller / inset vs edge-to-edge so codex & detail rows stay even
-    c.disc(11, 16, 4, MUTE, INK)
-    c.disc(21, 16, 4, MUTE, INK)
-    c.hline(14, 18, 15, MUTE)
-    c.hline(14, 18, 16, INK)
+    # Rings stay ≥2px from left/right so UI scale never clips the outer arc
+    for cx in (10, 21):
+        c.disc(cx, 16, 5, MUTE, INK)
+        # hollow center
+        for y in range(14, 19):
+            for x in range(cx - 2, cx + 3):
+                if (x - cx) ** 2 + (y - 16) ** 2 <= 4:
+                    c.p(x, y, CLEAR)
+        # re-ink inner rim
+        for y in range(14, 19):
+            for x in range(cx - 2, cx + 3):
+                d2 = (x - cx) ** 2 + (y - 16) ** 2
+                if 3 <= d2 <= 5:
+                    c.p(x, y, INK)
+    c.hline(14, 17, 14, MUTE)
+    c.hline(14, 17, 15, INK)
+    c.p(8, 12, PAPER)
+    c.p(19, 12, PAPER)
     return c.im
 
 

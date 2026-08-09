@@ -47,6 +47,7 @@ function emitFx(
     tileIndex?: number;
     tileIndexB?: number;
     label?: string;
+    spriteId?: string;
     instanceId?: string;
   } = {},
 ): void {
@@ -67,12 +68,13 @@ function emitMirrorCopy(
   state: GameState,
   player: Player,
   mirror: HandItem,
-  label = '🪞',
+  label = 'mirror',
 ): void {
   emitFx(state, 'mirror_echo', {
     playerId: player.id,
     instanceId: mirror.instanceId,
     label,
+    spriteId: 'mirror',
   });
 }
 
@@ -1056,7 +1058,7 @@ export function applyUseItem(
   // Apply effect then consume (remove first so golden-swap hand indices stay valid)
   emitFx(next, 'active_cast', {
     playerId: player.id,
-    label: item.golden ? `🌟${def.emoji}` : def.emoji,
+    label: def.id,
   });
   player.hand.splice(idx, 1);
   applyActiveEffect(next, player, item, targets, rng);
@@ -1261,17 +1263,12 @@ function applyActiveEffect(
     case 'heist_kit': {
       const target = getPlayer(state, targets.playerId ?? '');
       if (!target || !target.isAlive || target.id === player.id) return;
-      const lootPool = target.hand.filter(
-        (h) => h.itemId !== 'bomb' && h.itemId !== 'dynamite',
-      );
-      if (lootPool.length === 0) return;
+      if (target.hand.length === 0) return;
       const times = item.golden ? 2 : 1;
       for (let n = 0; n < times; n++) {
-        const pool = target.hand.filter(
-          (h) => h.itemId !== 'bomb' && h.itemId !== 'dynamite',
-        );
-        if (pool.length === 0) break;
-        const stolen = pool[Math.floor(rng() * pool.length)]!;
+        if (target.hand.length === 0) break;
+        const stolen =
+          target.hand[Math.floor(rng() * target.hand.length)]!;
         target.hand = target.hand.filter((h) => h.instanceId !== stolen.instanceId);
         player.hand.push(stolen);
         tryAutoMerge(state, player);
@@ -1415,13 +1412,14 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
               emitFx(state, 'dynamite', {
                 playerId: player.id,
                 instanceId: v.instanceId,
-                label: '💥',
+                spriteId: 'dynamite',
               });
             }
             emitFx(state, 'dynamite', {
               playerId: player.id,
               instanceId: item.instanceId,
               label: 'BOOM',
+              spriteId: 'dynamite',
             });
           } else {
             const dynIdx = player.hand.findIndex(
@@ -1435,12 +1433,12 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
               emitFx(state, 'dynamite', {
                 playerId: player.id,
                 instanceId: victim.instanceId,
-                label: '💥',
+                spriteId: 'dynamite',
               });
               emitFx(state, 'dynamite', {
                 playerId: player.id,
                 instanceId: item.instanceId,
-                label: '💥',
+                spriteId: 'dynamite',
               });
             }
           }
@@ -1815,7 +1813,7 @@ function checkWinConditions(state: GameState): void {
       phaseMs: CONFIG.SUDDEN_DEATH_PHASE_MS,
       bracketMult: 2,
     };
-    emitFx(state, 'bomb_fuse', { label: '💀 SD' });
+    emitFx(state, 'bomb_fuse', { label: 'SD', spriteId: 'skull' });
   }
 }
 

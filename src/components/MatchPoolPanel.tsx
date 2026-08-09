@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { goldenBlurb, regularBlurb } from '../game/itemBlurbs';
 import { getItem } from '../game/items';
 import type { ItemId } from '../game/types';
+import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
   itemPool: ItemId[];
@@ -32,9 +33,7 @@ export function MatchPoolPanel({ itemPool }: Props) {
             }
             title={item.name}
           >
-            <span className="rail-pool-emoji" aria-hidden>
-              {item.emoji}
-            </span>
+            <SpriteIcon id={item.id} className="rail-pool-emoji" aria-hidden />
             <span className="rail-pool-name">{item.name}</span>
           </button>
         ))}
@@ -43,7 +42,7 @@ export function MatchPoolPanel({ itemPool }: Props) {
         {selected ? (
           <>
             <div className="rail-pool-detail-head">
-              <span aria-hidden>{selected.emoji}</span>
+              <SpriteIcon id={selected.id} aria-hidden />
               <strong>{selected.name}</strong>
             </div>
             <p>{regularBlurb(selected.id)}</p>

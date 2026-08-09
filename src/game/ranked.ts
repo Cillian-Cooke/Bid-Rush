@@ -177,6 +177,11 @@ export function getRankDef(rankIndex: number): RankDef {
   return RANKED_RANKS[Math.max(0, Math.min(RANKED_RANKS.length - 1, rankIndex))]!;
 }
 
+/** CSS slug for ranked match chrome (`rank-bronze` … `rank-diamond`). */
+export function rankThemeClass(rankIndex: number): string {
+  return `rank-${getRankDef(rankIndex).name.toLowerCase()}`;
+}
+
 export function loadRankProgress(): RankProgress {
   try {
     const raw = localStorage.getItem(PROGRESS_KEY);

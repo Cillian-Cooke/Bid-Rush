@@ -64,7 +64,7 @@ export function Results() {
             {deathReport.swings.map((s, i) => (
               <li key={`${s.label}-${i}`} className="death-trail-row">
                 <span className="death-trail-emoji" aria-hidden>
-                  {s.emoji}
+                  <SpriteIcon id={s.emoji} aria-hidden />
                 </span>
                 <span className="death-trail-label">{s.label}</span>
                 {s.delta !== 0 && (
@@ -103,7 +103,9 @@ export function Results() {
             >
               <div className="rank-header">
                 <span className="rank-place">#{place}</span>
-                <span className="rank-avatar">{player.avatar}</span>
+                <span className="rank-avatar">
+                  <SpriteIcon id={player.avatar} aria-hidden />
+                </span>
                 <div className="rank-info">
                   <span className="rank-name">
                     {player.name}
@@ -135,7 +137,7 @@ export function Results() {
                         className={`rank-item${h.golden ? ' golden' : ''}`}
                         title={`${def.name}${h.golden ? ' (Golden)' : ''}`}
                       >
-                        {def.emoji}
+                        <SpriteIcon id={def.id} golden={h.golden} aria-hidden />
                       </span>
                     );
                   })

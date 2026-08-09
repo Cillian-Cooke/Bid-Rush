@@ -425,7 +425,8 @@ export function canInstantUse(item: {
   if (item.itemId === 'time_freeze' && item.golden) return true;
   if (item.itemId === 'bid_lock' && item.golden) return true;
   if (item.itemId === 'ipo' && item.golden) return true;
-  return def.target === 'none' || def.target === 'all-items';
+  // all-items (e.g. Inflation) confirm via a shop-tile tap, same as IPO→hand
+  return def.target === 'none';
 }
 
 /** Active that needs the player to tap a tile, rival, or hand item. */

@@ -314,6 +314,8 @@ export type GameEvent =
       tileIndexB?: number;
       /** Optional short label e.g. "+6s" */
       label?: string;
+      /** Prefer this atlas id over the kind→sprite table (world events) */
+      spriteId?: string;
       /** Hand item instance for hand-slot pulses */
       instanceId?: string;
     };

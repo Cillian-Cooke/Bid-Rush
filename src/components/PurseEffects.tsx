@@ -174,7 +174,7 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
   } else if (player.roiMs > 0) {
     flash = {
       key: 'roi',
-      spriteId: 'roi',
+      spriteId: 'roi_status',
       progress: Math.max(0, Math.min(1, player.roiMs / roiPeak.current)),
     };
   } else if (brief) {

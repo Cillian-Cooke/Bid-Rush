@@ -97,6 +97,7 @@ export const EMOJI_TO_UI_GLYPH: Record<string, UiGlyphId> = {
   '⚡': 'bolt',
   '🌪️': 'tornado',
   '🌟': 'star',
+  '❄️': 'ice_status',
   '🔒': 'lock_status',
   '🧊': 'ice_status',
   '🔇': 'mute_status',
@@ -105,6 +106,41 @@ export const EMOJI_TO_UI_GLYPH: Record<string, UiGlyphId> = {
   '📖': 'book',
   '🏆': 'trophy',
   '⚙️': 'settings',
+};
+
+/** World-event Unicode → event sprite frame (banner / FX fallbacks). */
+const EMOJI_TO_EVENT_SPRITE: Record<string, WorldEventId> = {
+  '💰': 'money_money_money',
+  '🧾': 'tax_collector',
+  '🔥': 'fire_sale',
+  '❄️': 'deep_freeze',
+  '⚡': 'turbo_market',
+  '💣': 'bomb_bazaar',
+  '🪙': 'coin_shower',
+  '🌪️': 'shuffle_storm',
+  '📈': 'inflation_wave',
+  '🎁': 'mystery_mall',
+  '🌟': 'golden_chaos',
+};
+
+/** Misc effect Unicode → item / UI frame when not covered above. */
+const EMOJI_TO_EFFECT_SPRITE: Record<string, string> = {
+  '💥': 'dynamite',
+  '🧨': 'dynamite',
+  '💸': 'bank_note',
+  '🧛': 'coin_leech',
+  '👑': 'trophy',
+  '💵': 'bank_note',
+  '🤝': 'kickback',
+  '🧲': 'magnet',
+  '📢': 'ipo',
+  '🧤': 'pickpocket',
+  '🦋': 'chrysalis',
+  '🧿': 'curse_idol',
+  '🎲': 'chaos_die',
+  '🪞': 'mirror',
+  '✨': 'gilder',
+  '🏷️': 'bargain',
 };
 
 const emojiToItemId = new Map<string, ItemId>();
@@ -148,12 +184,27 @@ export function resolveSpriteId(
   if (hasSprite(idOrEmoji)) return { kind: 'sprite', id: idOrEmoji };
   const avatar = avatarSpriteId(idOrEmoji);
   if (avatar) return { kind: 'sprite', id: avatar };
+  const eventId = EMOJI_TO_EVENT_SPRITE[idOrEmoji];
+  if (eventId && hasSprite(eventId)) return { kind: 'sprite', id: eventId };
   const glyph = EMOJI_TO_UI_GLYPH[idOrEmoji];
   if (glyph && hasSprite(glyph)) return { kind: 'sprite', id: glyph };
+  const effect = EMOJI_TO_EFFECT_SPRITE[idOrEmoji];
+  if (effect && hasSprite(effect)) return { kind: 'sprite', id: effect };
   const itemId = emojiToItemId.get(idOrEmoji);
   if (itemId) {
     const spriteId = itemSpriteId(itemId);
     if (hasSprite(spriteId)) return { kind: 'sprite', id: spriteId };
+  }
+  // Compound labels like "🌟⛏️" — prefer the item half
+  if ([...idOrEmoji].length > 1) {
+    const withoutStar = idOrEmoji.replaceAll('🌟', '');
+    if (withoutStar && withoutStar !== idOrEmoji) {
+      return resolveSpriteId(withoutStar);
+    }
+    for (const part of idOrEmoji) {
+      const nested = resolveSpriteId(part);
+      if (nested.kind === 'sprite') return nested;
+    }
   }
   return { kind: 'emoji', emoji: idOrEmoji };
 }

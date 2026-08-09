@@ -19,6 +19,7 @@ export function TargetingOverlay({ targeting, tiles = [], onCancel }: Props) {
   let hint = 'Tap a target';
   let step: string | null = null;
   if (targeting.target === 'item') hint = 'Tap a shop tile';
+  if (targeting.target === 'all-items') hint = 'Tap any shop tile';
   if (targeting.target === 'hand') hint = 'Tap a hand item';
   if (targeting.target === 'two-items') {
     if (targeting.selectedTile === undefined) {

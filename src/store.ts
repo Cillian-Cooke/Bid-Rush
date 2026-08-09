@@ -10,7 +10,12 @@ import {
   applyUseItem,
   reorderHand,
 } from './game/engine';
-import { getItem, canInstantUse, pickMatchPool } from './game/items';
+import {
+  getItem,
+  canInstantUse,
+  needsTargetPick,
+  pickMatchPool,
+} from './game/items';
 import {
   bidOnNameTag,
   createNameAuction,
@@ -58,6 +63,7 @@ export type FxInstance = {
   tileIndex?: number;
   tileIndexB?: number;
   label?: string;
+  spriteId?: string;
   instanceId?: string;
   createdAt: number;
 };
@@ -193,23 +199,14 @@ function pushFloats(events: GameEvent[], floats: FloatText[]): FloatText[] {
       next.push({
         id: ++floatSeq,
         playerId: e.playerId,
-        text: `${e.emoji} SOLD +${e.amount}`,
+        text: `SOLD +${e.amount}`,
         createdAt: now,
       });
     } else if (e.type === 'eliminate') {
       next.push({
         id: ++floatSeq,
         playerId: e.playerId,
-        text:
-          e.reason === 'bomb'
-            ? '💥 OUT'
-            : e.reason === 'bracket'
-              ? '💀 OUT'
-              : e.reason === 'roi'
-                ? '📉 OUT'
-                : e.reason === 'leech'
-                  ? '🧛 OUT'
-                  : '💸 OUT',
+        text: 'OUT',
         createdAt: now,
       });
     } else if (e.type === 'loss') {
@@ -237,6 +234,7 @@ function pushFx(events: GameEvent[], activeFx: FxInstance[]): FxInstance[] {
       tileIndex: e.tileIndex,
       tileIndexB: e.tileIndexB,
       label: e.label,
+      spriteId: e.spriteId,
       instanceId: e.instanceId,
       createdAt: now,
     });
@@ -908,8 +906,15 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   selectHandItem: (instanceId) => {
-    const { game, phase, handFocus, targeting, spectating, knockoutOffer } =
-      get();
+    const {
+      game,
+      phase,
+      handFocus,
+      targeting,
+      spectating,
+      knockoutOffer,
+      online,
+    } = get();
     if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
@@ -928,6 +933,7 @@ export const useGameStore = create<Store>((set, get) => ({
       return;
     }
 
+    // IPO etc.: already armed — tap another hand item to fire
     if (
       targeting?.target === 'hand' &&
       instanceId !== targeting.instanceId
@@ -939,34 +945,47 @@ export const useGameStore = create<Store>((set, get) => ({
       return;
     }
 
+    // Re-tap the armed item to cancel; re-tap an instant active to fire (no Use btn)
     if (handFocus === instanceId || targeting?.instanceId === instanceId) {
+      if (!targeting && handFocus === instanceId && canInstantUse(item)) {
+        if (online) {
+          sendOnline('use', { instanceId, targets: {} });
+          set({ targeting: null, handFocus: null });
+          return;
+        }
+        commitGame(
+          set,
+          get,
+          applyUseItem(game, game.humanId, instanceId, {}, rng),
+          { targeting: null, handFocus: null },
+        );
+        return;
+      }
       set({ handFocus: null, targeting: null });
       return;
     }
 
-    const def = getItem(item.itemId);
-
-    // Passives / bombs / instant actives: select first (Use only if instant)
-    if (def.kind !== 'active' || canInstantUse(item) || def.target === 'special') {
-      set({ handFocus: instanceId, targeting: null });
+    // Targeted actives (IPO, freeze, heist, inflation…): arm on first tap
+    if (needsTargetPick(item)) {
+      const target =
+        item.itemId === 'swap_portal' && item.golden
+          ? ('hand-then-item' as const)
+          : getItem(item.itemId).target;
+      set({
+        handFocus: instanceId,
+        targeting: {
+          playerId: game.humanId,
+          instanceId,
+          itemId: item.itemId,
+          target,
+          golden: item.golden,
+        },
+      });
       return;
     }
 
-    const target =
-      item.itemId === 'swap_portal' && item.golden
-        ? ('hand-then-item' as const)
-        : def.target;
-
-    set({
-      handFocus: instanceId,
-      targeting: {
-        playerId: game.humanId,
-        instanceId,
-        itemId: item.itemId,
-        target,
-        golden: item.golden,
-      },
-    });
+    // Passives / sellables / instant actives: focus only (tap again to use if instant)
+    set({ handFocus: instanceId, targeting: null });
   },
 
   cancelTargeting: () => set({ targeting: null, handFocus: null }),
@@ -986,6 +1005,12 @@ export const useGameStore = create<Store>((set, get) => ({
 
     if (targeting.target === 'item') {
       commitUse(set, get, targeting.instanceId, { tileIndex });
+      return;
+    }
+
+    // Inflation etc.: any tile tap confirms (effect hits the whole shop)
+    if (targeting.target === 'all-items') {
+      commitUse(set, get, targeting.instanceId, {});
       return;
     }
 

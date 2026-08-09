@@ -14,6 +14,7 @@ import { SpriteIcon } from '../components/SpriteIcon';
 import { TargetingOverlay } from '../components/TargetingOverlay';
 import { CONFIG } from '../game/constants';
 import { canInstantUse, quickSwapMarkedIds } from '../game/items';
+import { rankThemeClass } from '../game/ranked';
 import { getWorldEvent } from '../game/worldEvents';
 import type { FxKind } from '../game/types';
 import {
@@ -48,6 +49,8 @@ export function Game() {
   const enterSpectate = useGameStore((s) => s.enterSpectate);
   const replayMatch = useGameStore((s) => s.replayMatch);
   const returnToLobby = useGameStore((s) => s.returnToLobby);
+  const matchKind = useGameStore((s) => s.matchKind);
+  const rankedRankIndex = useGameStore((s) => s.rankedRankIndex);
   const [quitConfirm, setQuitConfirm] = useState(false);
 
   const colorById = useMemo(() => {
@@ -58,7 +61,10 @@ export function Game() {
   }, [game]);
 
   const fxByPlayer = useMemo(() => {
-    const map = new Map<string, { kind: FxKind; label?: string | null }>();
+    const map = new Map<
+      string,
+      { kind: FxKind; label?: string | null; spriteId?: string | null }
+    >();
     if (!game) return map;
     for (const p of game.players) {
       const fx = fxForPlayer(activeFx, p.id);
@@ -70,6 +76,7 @@ export function Game() {
         map.set(p.id, {
           kind: show.kind,
           label: castFx?.label ?? null,
+          spriteId: show.spriteId ?? null,
         });
       }
     }
@@ -120,6 +127,7 @@ export function Game() {
   const targetingTiles =
     targeting?.target === 'item' ||
     targeting?.target === 'two-items' ||
+    targeting?.target === 'all-items' ||
     (targeting?.target === 'hand-then-item' &&
       !!targeting.selectedHandInstanceId);
 
@@ -154,6 +162,10 @@ export function Game() {
   const cols = game.gridCols;
   const zoomedOut = knockoutOffer || spectating;
   const live = phase === 'playing' && !knockoutOffer;
+  const rankedChrome =
+    matchKind === 'ranked' && rankedRankIndex != null
+      ? `ranked-match ${rankThemeClass(rankedRankIndex)}`
+      : '';
   const dockMotion = [
     'status-dock',
     phase === 'countdown' ? 'dock-pre' : '',
@@ -198,6 +210,7 @@ export function Game() {
         live ? 'widgets-in' : '',
         poolRevealOpen ? 'pool-peek-open' : '',
         eventLive ? 'event-live' : '',
+        rankedChrome,
       ]
         .filter(Boolean)
         .join(' ')}
@@ -241,7 +254,7 @@ export function Game() {
             <SpriteIcon id={focusedItem.itemId} aria-hidden />
             <span>
               {canUse
-                ? 'Use or Sell above. Tap again to cancel'
+                ? 'Tap again to use, or Sell above'
                 : 'Sell above. Tap again to cancel'}
             </span>
             <button type="button" className="use-mode-cancel" onClick={cancelTargeting} aria-label="Cancel">
@@ -280,6 +293,7 @@ export function Game() {
                     }
                     fxKind={fx?.kind ?? null}
                     fxLabel={fx?.label}
+                    fxSpriteId={fx?.spriteId ?? null}
                     onTap={() => {
                       if (spectating || knockoutOffer || !human.isAlive) return;
                       if (targetingTiles) selectTargetTile(tile.index);
