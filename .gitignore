@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 output/
+recordings/
+
 nakama/build/
 **/__pycache__/
 *.pyc

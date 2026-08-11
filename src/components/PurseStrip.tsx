@@ -25,6 +25,8 @@ type Props = {
   sections?: 'all' | 'purse' | 'board';
   /** Vertical named standings for the desktop rail. */
   rail?: boolean;
+  /** Blackout without x-ray: hide rival hand peeks (swap marks, bomb fuse) */
+  hideRivalHands?: boolean;
 };
 
 function AnimatedPurse({
@@ -181,6 +183,7 @@ function ScoreChip({
   showName,
   swapMarks,
   swapSec,
+  hideHandIntel,
   onTap,
 }: {
   player: Player;
@@ -193,11 +196,16 @@ function ScoreChip({
   showName?: boolean;
   swapMarks?: { itemId: string; golden: boolean }[];
   swapSec?: number | null;
+  hideHandIntel?: boolean;
   onTap?: () => void;
 }) {
-  const bomb = player.hand.find((h) => h.itemId === 'bomb');
+  const bomb = hideHandIntel
+    ? undefined
+    : player.hand.find((h) => h.itemId === 'bomb');
   const fuseSec =
     bomb?.bombFuseMs != null ? Math.ceil(bomb.bombFuseMs / 1000) : null;
+  const marks = hideHandIntel ? [] : swapMarks;
+  const markSec = hideHandIntel ? null : swapSec;
   const className = [
     'score-chip',
     'anon',
@@ -207,7 +215,7 @@ function ScoreChip({
     targeting ? 'targetable' : '',
     player.handcuffMs > 0 ? 'cuffed' : '',
     fuseSec != null ? 'has-bomb' : '',
-    swapMarks && swapMarks.length > 0 ? 'has-quick-swap' : '',
+    marks && marks.length > 0 ? 'has-quick-swap' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -235,9 +243,9 @@ function ScoreChip({
           {fuseSec}
         </span>
       )}
-      {swapMarks && swapMarks.length > 0 && (
+      {marks && marks.length > 0 && (
         <span className="score-swap-marks" aria-label="Quick Swap pending">
-          {swapMarks.slice(0, 3).map((m, i) => (
+          {marks.slice(0, 3).map((m, i) => (
             <span
               key={`${m.itemId}-${i}`}
               className={`score-swap-mark${m.golden ? ' golden' : ''}`}
@@ -245,11 +253,11 @@ function ScoreChip({
               <SpriteIcon id={m.itemId} golden={m.golden} aria-hidden />
             </span>
           ))}
-          {swapMarks.length > 3 && (
-            <span className="score-swap-mark more">+{swapMarks.length - 3}</span>
+          {marks.length > 3 && (
+            <span className="score-swap-mark more">+{marks.length - 3}</span>
           )}
-          {swapSec != null && (
-            <span className="score-swap-sec">{swapSec}s</span>
+          {markSec != null && (
+            <span className="score-swap-sec">{markSec}s</span>
           )}
         </span>
       )}
@@ -310,6 +318,7 @@ export function PurseStrip({
   onSelectPlayer,
   sections = 'all',
   rail = false,
+  hideRivalHands = false,
 }: Props) {
   const ranked = [...others, human].sort((a, b) => {
     if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
@@ -362,6 +371,8 @@ export function PurseStrip({
             const fx = fxByPlayer.get(p.id);
             const preview =
               p.id === human.id ? { marks: [], sec: null } : swapPreview(p);
+            const hideIntel =
+              hideRivalHands && p.id !== human.id && p.isAlive;
             return (
               <ScoreChip
                 key={p.id}
@@ -374,6 +385,7 @@ export function PurseStrip({
                 fxLabel={fx?.kind === 'active_cast' ? fx.label : null}
                 swapMarks={preview.marks}
                 swapSec={preview.sec}
+                hideHandIntel={hideIntel}
                 onTap={canTarget ? () => onSelectPlayer(p.id) : undefined}
               />
             );
@@ -402,6 +414,9 @@ export function PurseStrip({
             }
             swapMarks={swapPreview(others[0]).marks}
             swapSec={swapPreview(others[0]).sec}
+            hideHandIntel={
+              hideRivalHands && others[0].isAlive
+            }
             onTap={
               targetingPlayers
                 ? () => onSelectPlayer(others[0]!.id)

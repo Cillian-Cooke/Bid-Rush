@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { goldenBlurb, regularBlurb } from '../game/itemBlurbs';
-import { getItem } from '../game/items';
+import { getItem, itemKindLabel } from '../game/items';
 import {
   getRankDef,
   rankedNewItemsAtRank,
@@ -106,6 +106,7 @@ export function MatchPoolReveal({
                   aria-hidden
                 />
                 <span className="pool-reveal-detail-name">{selected.name}</span>
+                <span className="pool-reveal-detail-rank">{itemKindLabel(selected)}</span>
                 {ranked && rankedUnlockRank(selected.id) != null && (
                   <span className="pool-reveal-detail-rank">
                     Unlocks at{' '}

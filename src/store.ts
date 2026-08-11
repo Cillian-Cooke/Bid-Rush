@@ -48,6 +48,8 @@ import {
   rollRankedBotDifficulty,
 } from './game/ranked';
 import { RANDOM_WORLD_EVENT_IDS } from './game/worldEvents';
+import { reactGameSfx } from './audio/reactGameSfx';
+import { playSfx } from './audio/sfx';
 export type FloatText = {
   id: number;
   playerId: string;
@@ -111,12 +113,19 @@ type Store = {
   matchKind: 'ranked' | 'casual' | null;
   /** Rank index (0–4) locked in when a ranked match starts */
   rankedRankIndex: number | null;
+  /**
+   * Offline content mode: bot pilots the human seat and the match is filmed
+   * for short-form export.
+   */
+  contentRecording: boolean;
 
   setMode: (mode: GameMode) => void;
   setDifficulty: (d: DifficultyMode) => void;
   setCodexOpen: (open: boolean) => void;
 
   startNaming: (mode: GameMode, seed?: number) => void;
+  /** Skip Tag Sale, bot-drives You, shorter Blitz — for filming shorts. */
+  startContentShort: (mode?: GameMode) => void;
   bidNameTag: (tagId: string) => void;
   finishNaming: () => void;
   openPoolReveal: () => void;
@@ -250,11 +259,15 @@ function ingest(game: GameState, floats: FloatText[], activeFx: FxInstance[]) {
   return { game: cleaned, floats: nextFloats, activeFx: nextFx, lastEvents: game.events };
 }
 
-function applyBotIntents(game: GameState): GameState {
+function applyBotIntents(
+  game: GameState,
+  pilotHumanId: string | null = null,
+): GameState {
   let state = game;
   for (const player of state.players) {
     if (!player.isAlive) continue;
-    if (player.isHuman) continue;
+    const piloting = !!pilotHumanId && player.id === pilotHumanId;
+    if (player.isHuman && !piloting) continue;
     if (player.botCooldownMs > 0) continue;
     if (player.handcuffMs > 0) {
       const arch = player.archetype ?? 'balanced';
@@ -269,7 +282,9 @@ function applyBotIntents(game: GameState): GameState {
       continue;
     }
 
-    const intent = decideBotAction(state, player.id, rng);
+    const intent = decideBotAction(state, player.id, rng, {
+      pilotHuman: piloting,
+    });
     const arch = player.archetype ?? 'balanced';
     const cooldown = nextBotCooldown(arch, rng);
 
@@ -308,14 +323,31 @@ const defaultLobby = (): LobbyConfig => ({
   difficulty: 'mixed',
 });
 
+function humanInputBlocked(s: {
+  game: GameState | null;
+  spectating: boolean;
+  knockoutOffer: boolean;
+  contentRecording: boolean;
+}): boolean {
+  if (s.spectating || s.knockoutOffer || s.contentRecording) return true;
+  const human = s.game?.players.find((p) => p.id === s.game!.humanId);
+  return !!human && human.xrayMs > 0;
+}
+
 function commitGame(
   set: (partial: Partial<Store>) => void,
   get: () => Store,
   game: GameState,
   extra: Partial<Store> = {},
 ) {
-  const { floats, activeFx } = get();
-  const ingested = ingest(game, floats, activeFx);
+  const prev = get();
+  const ingested = ingest(game, prev.floats, prev.activeFx);
+  reactGameSfx({
+    prev: prev.game,
+    next: ingested.game,
+    events: ingested.lastEvents,
+    humanId: ingested.game.humanId,
+  });
   set({
     game: ingested.game,
     floats: ingested.floats,
@@ -472,6 +504,7 @@ export const useGameStore = create<Store>((set, get) => ({
   onlineError: null,
   matchKind: null,
   rankedRankIndex: null,
+  contentRecording: false,
 
   setMode: (mode) => set((s) => ({ lobby: { ...s.lobby, mode } })),
   setDifficulty: (d) => set((s) => ({ lobby: { ...s.lobby, difficulty: d } })),
@@ -490,6 +523,7 @@ export const useGameStore = create<Store>((set, get) => ({
       onlineHost: false,
       onlineSeats: [],
       onlineError: null,
+      contentRecording: false,
       phase: 'lobby',
       game: null,
       naming: null,
@@ -553,6 +587,12 @@ export const useGameStore = create<Store>((set, get) => ({
       prev.game?.players.find((p) => p.id === humanId)?.isAlive ?? true;
 
     const ingested = ingest(game, prev.floats, prev.activeFx);
+    reactGameSfx({
+      prev: prev.game,
+      next: ingested.game,
+      events: ingested.lastEvents,
+      humanId: ingested.game.humanId,
+    });
     let focus = prev.handFocus;
     if (focus) {
       const human = ingested.game.players.find(
@@ -566,7 +606,12 @@ export const useGameStore = create<Store>((set, get) => ({
     const humanNow = ingested.game.players.find(
       (p) => p.id === ingested.game.humanId,
     );
+    const humanPrev = prev.game?.players.find(
+      (p) => p.id === ingested.game.humanId,
+    );
     const justDied = wasAlive && humanNow && !humanNow.isAlive;
+    const xrayStarted =
+      (humanPrev?.xrayMs ?? 0) <= 0 && (humanNow?.xrayMs ?? 0) > 0;
 
     let offer = prev.knockoutOffer;
     let reason = prev.knockoutReason;
@@ -590,13 +635,13 @@ export const useGameStore = create<Store>((set, get) => ({
       floats: ingested.floats,
       activeFx: ingested.activeFx,
       lastEvents: ingested.lastEvents,
-      handFocus: focus,
+      handFocus: justDied || xrayStarted ? null : focus,
       naming: null,
       matchPool: ingested.game.itemPool,
       knockoutOffer: ingested.game.ended ? false : offer,
       knockoutReason: reason,
       knockoutReport: report,
-      ...(justDied ? { targeting: null } : {}),
+      ...(justDied || xrayStarted ? { targeting: null } : {}),
     };
 
     if (ingested.game.ended) {
@@ -674,6 +719,70 @@ export const useGameStore = create<Store>((set, get) => ({
       }
       set({ naming: next });
     }, CONFIG.TICK_MS);
+  },
+
+  startContentShort: (mode = 'blitz') => {
+    stopLoop();
+    stopCountdown();
+    stopNamingLoop();
+    void leaveOnlineRoom(false);
+
+    const seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
+    const difficulty = get().lobby.difficulty;
+    // Skip Tag Sale — jump straight into a punchy offline match.
+    let game = createInitialState(
+      {
+        mode,
+        difficulty,
+        rules: {
+          gameLengthMs: 90_000,
+          speedMult: 1,
+        },
+      },
+      seed,
+    );
+    game = {
+      ...game,
+      players: game.players.map((p) =>
+        p.id === game.humanId
+          ? {
+              ...p,
+              archetype: 'ruthless',
+              botCooldownMs: 350 + Math.floor(Math.random() * 400),
+            }
+          : p,
+      ),
+    };
+
+    set({
+      contentRecording: true,
+      matchKind: 'casual',
+      rankedRankIndex: null,
+      online: false,
+      roomCode: null,
+      sessionId: null,
+      myPlayerId: null,
+      myBidderId: null,
+      onlineHost: false,
+      onlineSeats: [],
+      onlineError: null,
+      lobby: { ...get().lobby, mode, difficulty },
+      naming: null,
+      codexOpen: false,
+      floats: [],
+      activeFx: [],
+      lastEvents: [],
+      targeting: null,
+      handFocus: null,
+      knockoutOffer: false,
+      knockoutReason: null,
+      knockoutReport: null,
+      spectating: false,
+      poolRevealPeeked: false,
+      // Short pool tease so recording gets moving fast
+      poolRevealEndsAt: Date.now() + 2_500,
+    });
+    startCountdownFromGame(get, set, game);
   },
 
   bidNameTag: (tagId) => {
@@ -787,6 +896,7 @@ export const useGameStore = create<Store>((set, get) => ({
       onlineError: null,
       matchKind: null,
       rankedRankIndex: null,
+      contentRecording: false,
     });
   },
 
@@ -837,8 +947,9 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   bidTile: (tileIndex) => {
-    const { game, phase, targeting, spectating, knockoutOffer, online } = get();
-    if (!game || phase !== 'playing' || targeting || spectating || knockoutOffer)
+    const state = get();
+    const { game, phase, targeting, online } = state;
+    if (!game || phase !== 'playing' || targeting || humanInputBlocked(state))
       return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
@@ -850,16 +961,9 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   sellFocused: () => {
-    const {
-      game,
-      phase,
-      targeting,
-      handFocus,
-      spectating,
-      knockoutOffer,
-      online,
-    } = get();
-    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
+    const state = get();
+    const { game, phase, targeting, handFocus, online } = state;
+    if (!game || phase !== 'playing' || humanInputBlocked(state)) return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
     const instanceId = targeting?.instanceId ?? handFocus;
@@ -876,16 +980,9 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   useFocused: () => {
-    const {
-      game,
-      phase,
-      targeting,
-      handFocus,
-      spectating,
-      knockoutOffer,
-      online,
-    } = get();
-    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
+    const state = get();
+    const { game, phase, targeting, handFocus, online } = state;
+    if (!game || phase !== 'playing' || humanInputBlocked(state)) return;
     if (targeting) return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive || !handFocus) return;
@@ -906,16 +1003,9 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   selectHandItem: (instanceId) => {
-    const {
-      game,
-      phase,
-      handFocus,
-      targeting,
-      spectating,
-      knockoutOffer,
-      online,
-    } = get();
-    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
+    const state = get();
+    const { game, phase, handFocus, targeting, online } = state;
+    if (!game || phase !== 'playing' || humanInputBlocked(state)) return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
     const item = human.hand.find((h) => h.instanceId === instanceId);
@@ -991,8 +1081,9 @@ export const useGameStore = create<Store>((set, get) => ({
   cancelTargeting: () => set({ targeting: null, handFocus: null }),
 
   selectTargetTile: (tileIndex) => {
-    const { game, targeting } = get();
-    if (!game || !targeting) return;
+    const state = get();
+    const { game, targeting } = state;
+    if (!game || !targeting || humanInputBlocked(state)) return;
 
     if (targeting.target === 'hand-then-item') {
       if (!targeting.selectedHandInstanceId) return;
@@ -1034,17 +1125,21 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   selectTargetPlayer: (playerId) => {
-    const { game, targeting } = get();
+    const state = get();
+    const { game, targeting } = state;
     if (!game || !targeting || targeting.target !== 'player') return;
+    if (humanInputBlocked(state)) return;
     if (playerId === game.humanId) return;
     commitUse(set, get, targeting.instanceId, { playerId });
   },
 
   reorderHandSlots: (fromIndex, toIndex) => {
-    const { game, phase, spectating, knockoutOffer, online } = get();
-    if (!game || phase !== 'playing' || spectating || knockoutOffer) return;
+    const state = get();
+    const { game, phase, online } = state;
+    if (!game || phase !== 'playing' || humanInputBlocked(state)) return;
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
+    if (fromIndex !== toIndex) playSfx('hand_drop');
     if (online) {
       sendOnline('reorder_hand', { fromIndex, toIndex });
       return;
@@ -1054,7 +1149,8 @@ export const useGameStore = create<Store>((set, get) => ({
 
   masterTick: (dtMs = CONFIG.TICK_MS) => {
     if (get().online) return;
-    const { game, phase, handFocus, knockoutOffer, spectating } = get();
+    const { game, phase, handFocus, knockoutOffer, spectating, contentRecording } =
+      get();
     if (!game || phase !== 'playing') return;
 
     const wasAlive =
@@ -1062,10 +1158,20 @@ export const useGameStore = create<Store>((set, get) => ({
 
     let next = tick(game, dtMs, rng);
     if (!next.ended) {
-      next = applyBotIntents(next);
+      next = applyBotIntents(
+        next,
+        contentRecording ? next.humanId : null,
+      );
     }
 
+    const prevGame = game;
     const ingested = ingest(next, get().floats, get().activeFx);
+    reactGameSfx({
+      prev: prevGame,
+      next: ingested.game,
+      events: ingested.lastEvents,
+      humanId: ingested.game.humanId,
+    });
 
     let focus = handFocus;
     if (focus) {
@@ -1080,7 +1186,12 @@ export const useGameStore = create<Store>((set, get) => ({
     const humanNow = ingested.game.players.find(
       (p) => p.id === ingested.game.humanId,
     );
+    const humanPrev = prevGame.players.find(
+      (p) => p.id === ingested.game.humanId,
+    );
     const justDied = wasAlive && humanNow && !humanNow.isAlive;
+    const xrayStarted =
+      (humanPrev?.xrayMs ?? 0) <= 0 && (humanNow?.xrayMs ?? 0) > 0;
 
     let offer = knockoutOffer;
     let reason = get().knockoutReason;
@@ -1097,7 +1208,13 @@ export const useGameStore = create<Store>((set, get) => ({
         elim && elim.type === 'eliminate' && elim.report
           ? elim.report
           : humanNow?.deathReport ?? report;
-      offer = true;
+      if (contentRecording) {
+        // Keep rolling for the short — no knockout modal.
+        offer = false;
+        spectate = true;
+      } else {
+        offer = true;
+      }
     }
 
     if (ingested.game.ended) {
@@ -1123,13 +1240,12 @@ export const useGameStore = create<Store>((set, get) => ({
       floats: ingested.floats,
       activeFx: ingested.activeFx,
       lastEvents: ingested.lastEvents,
-      handFocus: focus,
+      handFocus: justDied || xrayStarted ? null : focus,
       knockoutOffer: offer,
       knockoutReason: reason,
       knockoutReport: report,
-      ...(justDied
-        ? { targeting: null, ...(spectate ? { spectating: true } : {}) }
-        : {}),
+      ...(justDied || xrayStarted ? { targeting: null } : {}),
+      ...(justDied && spectate ? { spectating: true } : {}),
     });
   },
 }));

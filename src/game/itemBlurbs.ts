@@ -5,7 +5,7 @@ export function regularBlurb(id: string): string {
     coin_mine:
       'Slow alone, fast in packs. One mine ticks slowly. Each extra mine in your hand speeds every mine up. Golden doubles coins per tick.',
     money_printer:
-      'Every 20 seconds prints a Bank Note into your hand. Golden prints two notes each time.',
+      'Every 20 seconds instantly cashes a Bank Note’s sell value (items sold this match). Golden cashes two notes each time.',
     golden_goose:
       'Fast steady income. Pays 1 coin about every 2 seconds. Golden doubles coins per tick.',
     bank_note:
@@ -55,6 +55,14 @@ export function regularBlurb(id: string): string {
     gilder: 'After 30 seconds, turns the item on its right golden.',
     tip_jar: 'Adds 1 extra coin to every passive payout you earn.',
     haste_gear: 'Speeds up all your ticking passives by 1.5×.',
+    siphon:
+      'Tap a rival. For 5 seconds, their coin gains and losses redirect to you.',
+    tariff:
+      'While you hold it, every shop purchase costs its sell value more for everyone.',
+    plunder:
+      'Tap a rival. After 10 seconds, cash the sell value of their most expensive hand item (bombs/dynamite fail).',
+    xray_goggles:
+      'Peek at rival hands for 5 seconds. Your own bidding and selling are locked while you look.',
   };
   return map[id] ?? '';
 }
@@ -62,7 +70,7 @@ export function regularBlurb(id: string): string {
 export function goldenBlurb(id: string): string {
   const map: Record<string, string> = {
     coin_mine: 'Golden: double coins each tick. Merge three to go golden.',
-    money_printer: 'Golden: prints two Bank Notes every 20 seconds.',
+    money_printer: 'Golden: instantly cashes two Bank Note values every 20 seconds.',
     golden_goose: 'Golden: double coins each tick.',
     bank_note: 'Golden: worth 2× items you have sold this match.',
     stock_market: 'Golden: sell value triples every 30 seconds.',
@@ -99,6 +107,10 @@ export function goldenBlurb(id: string): string {
     gilder: 'Golden: turns both neighbors golden.',
     tip_jar: 'Golden: +2 coin on every passive payout.',
     haste_gear: 'Golden: 2× passive speed.',
+    siphon: 'Golden: lasts twice as long.',
+    tariff: 'Golden: same surcharge — merge raises its sell value, so the tax climbs.',
+    plunder: 'Golden: same channel; merge raises sell value of the item itself.',
+    xray_goggles: 'Golden: lasts twice as long (10 seconds).',
   };
   return map[id] ?? '';
 }

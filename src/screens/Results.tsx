@@ -4,7 +4,16 @@ import { coinTint } from '../game/coinHeat';
 import { MODE_SETUP } from '../game/constants';
 import { buildRanking } from '../game/engine';
 import { getItem } from '../game/items';
+import type { DeathReport } from '../game/types';
 import { useGameStore } from '../store';
+
+const DEATH_REASON_LABEL: Record<DeathReport['reason'], string> = {
+  unpaid: 'Unpaid',
+  bomb: 'Bomb',
+  bracket: 'Bracket',
+  roi: 'ROI',
+  leech: 'Leech',
+};
 
 export function Results() {
   const game = useGameStore((s) => s.game);
@@ -37,6 +46,39 @@ export function Results() {
         </h1>
       </header>
 
+      {showDeath && deathReport && (
+        <div className="results-death" role="status">
+          <div className="results-death-head">
+            <span
+              className={`results-death-badge reason-${deathReport.reason}`}
+            >
+              {DEATH_REASON_LABEL[deathReport.reason]}
+            </span>
+            <span className="results-death-kicker">How you went out</span>
+          </div>
+          <p className="results-death-line">{deathReport.headline}</p>
+          {deathReport.swings.length > 0 && (
+            <ul className="death-trail">
+              {deathReport.swings.map((s, i) => (
+                <li key={`${s.label}-${i}`} className="death-trail-row">
+                  <span className="death-trail-emoji" aria-hidden>
+                    <SpriteIcon id={s.emoji} aria-hidden />
+                  </span>
+                  <span className="death-trail-label">{s.label}</span>
+                  {s.delta !== 0 && (
+                    <span
+                      className={`death-trail-delta${s.delta < 0 ? ' neg' : ' pos'}`}
+                    >
+                      {s.delta > 0 ? `+${s.delta}` : s.delta}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {champ && (
         <div
           className={`results-winner${youWon ? ' is-you' : ''}`}
@@ -53,30 +95,6 @@ export function Results() {
             </span>
             <ChampCoins coins={champ.player.coins} />
           </div>
-        </div>
-      )}
-
-      {showDeath && deathReport && (
-        <div className="results-death" role="status">
-          <span className="results-death-kicker">How you went out</span>
-          <p className="results-death-line">{deathReport.headline}</p>
-          <ul className="death-trail">
-            {deathReport.swings.map((s, i) => (
-              <li key={`${s.label}-${i}`} className="death-trail-row">
-                <span className="death-trail-emoji" aria-hidden>
-                  <SpriteIcon id={s.emoji} aria-hidden />
-                </span>
-                <span className="death-trail-label">{s.label}</span>
-                {s.delta !== 0 && (
-                  <span
-                    className={`death-trail-delta${s.delta < 0 ? ' neg' : ' pos'}`}
-                  >
-                    {s.delta > 0 ? `+${s.delta}` : s.delta}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
@@ -131,13 +149,19 @@ export function Results() {
                 ) : (
                   player.hand.map((h) => {
                     const def = getItem(h.itemId);
+                    const sellHint =
+                      h.itemId === 'bank_note'
+                        ? 'special'
+                        : String(h.currentSellValue);
+                    const label = `${h.golden ? 'Golden ' : ''}${def.name} · sell ${sellHint}`;
                     return (
                       <span
                         key={h.instanceId}
                         className={`rank-item${h.golden ? ' golden' : ''}`}
-                        title={`${def.name}${h.golden ? ' (Golden)' : ''}`}
+                        title={label}
                       >
                         <SpriteIcon id={def.id} golden={h.golden} aria-hidden />
+                        <span className="rank-item-name">{def.name}</span>
                       </span>
                     );
                   })

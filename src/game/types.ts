@@ -88,7 +88,11 @@ export type ItemId =
   | 'gilder'
   | 'tip_jar'
   | 'haste_gear'
-  | 'quick_swap';
+  | 'quick_swap'
+  | 'siphon'
+  | 'tariff'
+  | 'plunder'
+  | 'xray_goggles';
 
 export type ItemDef = {
   id: ItemId;
@@ -156,6 +160,12 @@ export type Player = {
   handcuffMs: number;
   /** Passives paused (Mute) */
   muteMs: number;
+  /** Siphon: ms left redirecting this player's coin deltas to siphonToId */
+  siphonMs: number;
+  /** Who receives this player's redirected gains/losses */
+  siphonToId: string | null;
+  /** X-ray Goggles: ms left viewing rivals (also locks caster input) */
+  xrayMs: number;
   /** ROI challenge: ms left to hit roiTargetCoins */
   roiMs: number;
   /** Must reach this coin total before roiMs hits 0 */
@@ -225,7 +235,10 @@ export type FxKind =
   | 'event_money'
   | 'event_tax'
   | 'event_shower'
-  | 'mirror_echo';
+  | 'mirror_echo'
+  | 'siphon'
+  | 'plunder'
+  | 'xray';
 
 export type WorldEventId =
   | 'money_money_money'
@@ -239,7 +252,11 @@ export type WorldEventId =
   | 'inflation_wave'
   | 'mystery_mall'
   /** Only triggered by golden Chaos Die - not in the random pool */
-  | 'golden_chaos';
+  | 'golden_chaos'
+  | 'liquidation'
+  | 'blackout'
+  | 'payday'
+  | 'forced_bids';
 
 export type WorldEventPhase = 'pending' | 'warning' | 'active' | 'done';
 
@@ -342,6 +359,16 @@ export type PendingQuickSwap = {
   golden: boolean;
 };
 
+/** Armed Plunder - sells locked hand item after msLeft; profits go to caster. */
+export type PendingPlunder = {
+  casterId: string;
+  targetId: string;
+  msLeft: number;
+  instanceId: string;
+  itemId: ItemId;
+  golden: boolean;
+};
+
 export type MatchRules = {
   gameLengthMs: number;
   speedMult: number;
@@ -379,6 +406,8 @@ export type GameState = {
   eventPool: WorldEventId[];
   /** Delayed Quick Swap countdowns */
   pendingQuickSwaps: PendingQuickSwap[];
+  /** Delayed Plunder channels */
+  pendingPlunders: PendingPlunder[];
   /** Per-match knobs (custom / defaults) */
   rules: MatchRules;
 };

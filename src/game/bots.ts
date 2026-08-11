@@ -67,6 +67,7 @@ const PASSIVE_BID: Partial<Record<ItemId, number>> = {
   kickback: 26,
   broker: 24,
   bargain: 40,
+  tariff: 30,
   chrysalis: 22,
   bank_note: 18,
   // Self-sabotage unless desperate - scored separately
@@ -80,6 +81,9 @@ const ACTIVE_BID: Partial<Record<ItemId, number>> = {
   pickpocket: 24,
   heist_kit: 22,
   quick_swap: 22,
+  plunder: 30,
+  siphon: 28,
+  xray_goggles: 18,
   time_freeze: 22,
   bid_lock: 24,
   swap_portal: 20,
@@ -105,7 +109,7 @@ function committedSpend(state: GameState, playerId: string): number {
   if (!player) return 0;
   return state.tiles
     .filter((t) => t.highBidderId === playerId)
-    .reduce((s, t) => s + purchasePriceFor(player, t.price), 0);
+    .reduce((s, t) => s + purchasePriceFor(player, t.price, state), 0);
 }
 
 function canAffordNewBid(
@@ -114,7 +118,7 @@ function canAffordNewBid(
   nextPrice: number,
 ): boolean {
   return (
-    committedSpend(state, player.id) + purchasePriceFor(player, nextPrice) <=
+    committedSpend(state, player.id) + purchasePriceFor(player, nextPrice, state) <=
     player.coins
   );
 }
@@ -122,10 +126,10 @@ function canAffordNewBid(
 function wouldDieOnTile(state: GameState, tile: Tile): boolean {
   const bidder = getPlayer(state, tile.highBidderId);
   if (!bidder || !bidder.isAlive) return false;
-  const due = purchasePriceFor(bidder, tile.price);
+  const due = purchasePriceFor(bidder, tile.price, state);
   const other = state.tiles
     .filter((t) => t.highBidderId === bidder.id && t.index !== tile.index)
-    .reduce((s, t) => s + purchasePriceFor(bidder, t.price), 0);
+    .reduce((s, t) => s + purchasePriceFor(bidder, t.price, state), 0);
   return due > bidder.coins || due + other > bidder.coins;
 }
 
@@ -135,7 +139,7 @@ function isDoomedLead(state: GameState, tile: Tile): boolean {
   const bidder = getPlayer(state, tile.highBidderId);
   return (
     tile.timerMs < 6000 ||
-    purchasePriceFor(bidder!, tile.price) > (bidder?.coins ?? 0)
+    purchasePriceFor(bidder!, tile.price, state) > (bidder?.coins ?? 0)
   );
 }
 
@@ -486,6 +490,36 @@ function decideUse(
     };
   }
 
+  // Siphon threat economy
+  const siphon = findHeld(player, 'siphon');
+  if (
+    siphon &&
+    threat &&
+    threat.siphonMs <= 0 &&
+    rng() < profile.sabotage * 0.9
+  ) {
+    return {
+      kind: 'use',
+      instanceId: siphon.instanceId,
+      targets: { playerId: threat.id },
+    };
+  }
+
+  // Plunder richest hand
+  const plunder = findHeld(player, 'plunder');
+  if (
+    plunder &&
+    threat &&
+    threat.hand.length > 0 &&
+    rng() < 0.35 + profile.sabotage * 0.25
+  ) {
+    return {
+      kind: 'use',
+      instanceId: plunder.instanceId,
+      targets: { playerId: threat.id },
+    };
+  }
+
   // Heist / pickpocket / quick swap threat
   const heist = findHeld(player, 'heist_kit');
   if (heist && threat && threat.hand.length > 0 && rng() < 0.4 + profile.sabotage * 0.2) {
@@ -528,7 +562,7 @@ function decideUse(
           (t) =>
             t.highBidderId === player.id &&
             !t.bidLocked &&
-            player.coins >= purchasePriceFor(player, t.price) &&
+            player.coins >= purchasePriceFor(player, t.price, state) &&
             (isMoneyEngine(t.itemId) || t.price >= 4),
         )
         .sort((a, b) => b.price - a.price)[0];
@@ -552,7 +586,7 @@ function decideUse(
       (t) =>
         t.highBidderId === player.id &&
         t.timerMs < 3500 &&
-        player.coins >= purchasePriceFor(player, t.price) &&
+        player.coins >= purchasePriceFor(player, t.price, state) &&
         t.freezeMs <= 0,
     );
     if (ownUrgent && rng() < 0.55) {
@@ -584,7 +618,7 @@ function decideUse(
     const mine = state.tiles.find(
       (t) =>
         t.highBidderId === player.id &&
-        player.coins >= purchasePriceFor(player, t.price),
+        player.coins >= purchasePriceFor(player, t.price, state),
     );
     if (mine && rng() < 0.5) {
       return {
@@ -633,6 +667,11 @@ function decideUse(
     return { kind: 'use', instanceId: die.instanceId, targets: {} };
   }
 
+  const xray = findHeld(player, 'xray_goggles');
+  if (xray && player.xrayMs <= 0 && rng() < 0.2) {
+    return { kind: 'use', instanceId: xray.instanceId, targets: {} };
+  }
+
   const ipo = findHeld(player, 'ipo');
   if (ipo && rng() < 0.35) {
     if (ipo.golden) {
@@ -669,9 +708,11 @@ export function decideBotAction(
   state: GameState,
   playerId: string,
   rng: () => number = Math.random,
+  opts?: { /** Content mode: drive the human seat with bot logic */ pilotHuman?: boolean },
 ): BotIntent | null {
   const player = state.players.find((p) => p.id === playerId);
-  if (!player || !player.isAlive || player.isHuman) return null;
+  if (!player || !player.isAlive) return null;
+  if (player.isHuman && !opts?.pilotHuman) return null;
   if (player.handcuffMs > 0) return null;
 
   const arch = player.archetype ?? 'balanced';
@@ -720,7 +761,7 @@ export function decideBotAction(
     (t) => t.highBidderId === player.id && t.timerMs < 4000,
   );
   const totalDue = looming.reduce(
-    (s, t) => s + purchasePriceFor(player, t.price),
+    (s, t) => s + purchasePriceFor(player, t.price, state),
     0,
   );
   if (totalDue > player.coins && player.hand.length > 0) {

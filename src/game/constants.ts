@@ -31,6 +31,12 @@ const LIVE_CONFIG = {
   HANDCUFF_MS: 6_000,
   /** Quick Swap: delay before leftmost ↔ rightmost (or full hands; one-way if empty) */
   QUICK_SWAP_MS: 10_000,
+  /** Plunder: channel before selling rival's most expensive item */
+  PLUNDER_MS: 10_000,
+  /** Siphon: redirect target coin deltas */
+  SIPHON_MS: 5_000,
+  /** X-ray Goggles: peek + input lock */
+  XRAY_MS: 5_000,
   TIME_FREEZE_MS: 6_000,
   MEGA_FREEZE_MS: 4_000,
   GILDER_MS: 30_000,

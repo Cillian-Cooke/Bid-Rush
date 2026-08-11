@@ -5,6 +5,7 @@ import {
   savePlayerSettings,
   type PlayerSettings,
 } from '../net/playerSettings';
+import { syncSfxFromSettings } from '../audio/sfx';
 import { logOutAccount, setNakamaDisplayName } from '../net/nakama';
 import { SpriteIcon } from '../components/SpriteIcon';
 
@@ -31,6 +32,7 @@ export function SettingsScreen({
     setNoise((prev) => {
       const next = { ...prev, ...partial };
       savePlayerSettings(next);
+      syncSfxFromSettings(next);
       return next;
     });
   };

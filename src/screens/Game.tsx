@@ -6,12 +6,15 @@ import { GameChrome } from '../components/GameChrome';
 import { HandSlot } from '../components/HandSlot';
 import { KnockoutOverlay } from '../components/KnockoutOverlay';
 import { MatchPoolPanel } from '../components/MatchPoolPanel';
+import { PlunderBanner } from '../components/PlunderBanner';
 import { PoolToggleButton } from '../components/PoolToggleButton';
 import { PurseStrip } from '../components/PurseStrip';
 import { ShopTile } from '../components/ShopTile';
 import { SpectateHands } from '../components/SpectateHands';
 import { SpriteIcon } from '../components/SpriteIcon';
 import { TargetingOverlay } from '../components/TargetingOverlay';
+import { XrayOverlay } from '../components/XrayOverlay';
+import { stopContentCapture } from '../content/recorder';
 import { CONFIG } from '../game/constants';
 import { canInstantUse, quickSwapMarkedIds } from '../game/items';
 import { rankThemeClass } from '../game/ranked';
@@ -34,6 +37,7 @@ export function Game() {
   const knockoutReason = useGameStore((s) => s.knockoutReason);
   const knockoutReport = useGameStore((s) => s.knockoutReport);
   const spectating = useGameStore((s) => s.spectating);
+  const contentRecording = useGameStore((s) => s.contentRecording);
   const phase = useGameStore((s) => s.phase);
   const poolRevealOpen = useGameStore((s) => s.poolRevealOpen);
   const openPoolReveal = useGameStore((s) => s.openPoolReveal);
@@ -97,6 +101,19 @@ export function Game() {
     humanSwapMark.msLeft != null
       ? Math.ceil(humanSwapMark.msLeft / 1000)
       : null;
+  const pendingPlunderOnYou = game.pendingPlunders.find(
+    (p) => p.targetId === human.id,
+  );
+  const plunderCaster = pendingPlunderOnYou
+    ? game.players.find((p) => p.id === pendingPlunderOnYou.casterId)
+    : undefined;
+  const plunderSec =
+    pendingPlunderOnYou != null
+      ? Math.ceil(pendingPlunderOnYou.msLeft / 1000)
+      : null;
+  const xrayActive = human.isAlive && human.xrayMs > 0;
+  const blackoutLive = game.worldEvent.live.some((e) => e.id === 'blackout');
+  const hideRivalHands = blackoutLive && human.xrayMs <= 0;
   const humanAtRisk =
     sd.active && human.isAlive && human.coins < sd.bracket;
   const eventLive = !sd.active && game.worldEvent.live.length > 0;
@@ -189,6 +206,7 @@ export function Game() {
     coldMarketMs: game.coldMarketMs,
     pendingQuickSwaps: game.pendingQuickSwaps,
     onSelectPlayer: selectTargetPlayer,
+    hideRivalHands,
   } as const;
 
   return (
@@ -207,6 +225,7 @@ export function Game() {
         humanAtRisk ? 'sd-human-risk' : '',
         zoomedOut ? 'knocked-out' : '',
         spectating ? 'spectating' : '',
+        contentRecording ? 'content-filming' : '',
         live ? 'widgets-in' : '',
         poolRevealOpen ? 'pool-peek-open' : '',
         eventLive ? 'event-live' : '',
@@ -238,7 +257,14 @@ export function Game() {
           suddenDeath={game.suddenDeath}
           worldEvent={game.worldEvent}
           players={game.players}
-          onQuit={() => setQuitConfirm(true)}
+          onQuit={() => {
+            if (contentRecording) {
+              void stopContentCapture({ download: true });
+              returnToLobby();
+              return;
+            }
+            setQuitConfirm(true);
+          }}
           matchLengthMs={game.rules?.gameLengthMs}
         />
 
@@ -249,7 +275,7 @@ export function Game() {
             onCancel={cancelTargeting}
           />
         )}
-        {!targeting && handFocus && focusedItem && human.isAlive && !spectating && (
+        {!targeting && handFocus && focusedItem && human.isAlive && !spectating && !xrayActive && (
           <div className="use-mode-banner">
             <SpriteIcon id={focusedItem.itemId} aria-hidden />
             <span>
@@ -261,6 +287,12 @@ export function Game() {
               <X size={16} />
             </button>
           </div>
+        )}
+        {pendingPlunderOnYou && human.isAlive && !spectating && (
+          <PlunderBanner
+            pending={pendingPlunderOnYou}
+            caster={plunderCaster}
+          />
         )}
         <ExplosionFx />
 
@@ -356,6 +388,9 @@ export function Game() {
                   const fx = item ? fxForHandItem(activeFx, item.instanceId) : null;
                   const threatened =
                     !!item && humanSwapMark.ids.has(item.instanceId);
+                  const plundered =
+                    !!item &&
+                    pendingPlunderOnYou?.instanceId === item.instanceId;
                   const handTargetable =
                     !!targetingHand &&
                     !!item &&
@@ -363,7 +398,8 @@ export function Game() {
                     item.itemId !== 'bomb' &&
                     item.itemId !== 'dynamite' &&
                     human.isAlive &&
-                    !spectating;
+                    !spectating &&
+                    !xrayActive;
                   const handPicked =
                     targeting?.selectedHandInstanceId === item?.instanceId;
                   return (
@@ -381,6 +417,8 @@ export function Game() {
                       hand={human.hand}
                       swapThreatened={threatened}
                       swapThreatSec={threatened ? humanSwapSec : null}
+                      plunderThreatened={plundered}
+                      plunderThreatSec={plundered ? plunderSec : null}
                       onSelect={() => item && selectHandItem(item.instanceId)}
                       onReorder={reorderHandSlots}
                     />
@@ -409,6 +447,16 @@ export function Game() {
                         ? humanSwapSec
                         : null
                     }
+                    plunderThreatened={
+                      pendingPlunderOnYou?.instanceId ===
+                      overflowBomb.instanceId
+                    }
+                    plunderThreatSec={
+                      pendingPlunderOnYou?.instanceId ===
+                      overflowBomb.instanceId
+                        ? plunderSec
+                        : null
+                    }
                     onSelect={() => selectHandItem(overflowBomb.instanceId)}
                     onReorder={reorderHandSlots}
                   />
@@ -422,9 +470,15 @@ export function Game() {
           <SpectateHands
             players={game.players}
             pendingQuickSwaps={game.pendingQuickSwaps}
+            hideRivalHands={hideRivalHands}
+            viewerId={human.id}
           />
         )}
       </div>
+
+      {xrayActive && (
+        <XrayOverlay msLeft={human.xrayMs} rivals={others} />
+      )}
 
       {quitConfirm && (
         <div className="quit-overlay" role="dialog" aria-label="Forfeit">

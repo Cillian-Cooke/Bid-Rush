@@ -14,6 +14,8 @@ type Props = {
   fxSpriteId?: string | null;
   /** Sudden-death: under the current bracket */
   atRisk?: boolean;
+  /** Blackout: hide bomb fuse / hand intel on rivals */
+  hideHandIntel?: boolean;
   onTap?: () => void;
 };
 
@@ -33,6 +35,9 @@ const PANEL_FX_SPRITE: Partial<Record<FxKind, string>> = {
   event_money: 'money_money_money',
   event_tax: 'tax_collector',
   event_shower: 'coin_shower',
+  siphon: 'siphon',
+  plunder: 'plunder',
+  xray: 'xray_goggles',
 };
 
 export function PlayerPanel({
@@ -45,9 +50,12 @@ export function PlayerPanel({
   fxLabel,
   fxSpriteId = null,
   atRisk,
+  hideHandIntel = false,
   onTap,
 }: Props) {
-  const bomb = player.hand.find((h) => h.itemId === 'bomb');
+  const bomb = hideHandIntel
+    ? undefined
+    : player.hand.find((h) => h.itemId === 'bomb');
   const fuseSec =
     bomb?.bombFuseMs != null ? Math.ceil(bomb.bombFuseMs / 1000) : null;
   const casting = fxKind === 'active_cast' && !!fxLabel;

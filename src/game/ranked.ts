@@ -9,7 +9,7 @@ const RP_PER_RANK = 100;
 /** Stable unlock order: first 16 = rank 1 pool, then +4 per rank. */
 export const RANKED_ITEM_ORDER: ItemId[] = (() => {
   const spawnable = ITEM_LIST.filter((i) => i.spawnWeight > 0).map((i) => i.id);
-  // Starter pool stays mild; big passive earners unlock later, staggered.
+  // Starter pool stays mild; bomb/dynamite unlock by Diamond; new items last.
   const preferred: ItemId[] = [
     'coin_mine',
     'bank_note',
@@ -42,16 +42,21 @@ export const RANKED_ITEM_ORDER: ItemId[] = (() => {
     'handcuffs',
     'mute',
     'bid_lock',
-    // +4 rank 5
+    // +4 rank 5 — bomb/dynamite in Diamond
     'pickpocket',
     'heist_kit',
-    'chaos_die',
-    'roi',
-    // remainder if any
-    'coin_leech',
-    'curse_idol',
     'bomb',
     'dynamite',
+    // +4 rank 6 Master — leftovers
+    'chaos_die',
+    'roi',
+    'coin_leech',
+    'curse_idol',
+    // +4 rank 7 Legend — new items
+    'siphon',
+    'tariff',
+    'plunder',
+    'xray_goggles',
   ];
   const seen = new Set<ItemId>();
   const ordered: ItemId[] = [];
@@ -82,9 +87,13 @@ export const RANKED_EVENT_ORDER: WorldEventId[] = [
   'inflation_wave',
   'bomb_bazaar',
   'mystery_mall',
+  'liquidation',
+  'blackout',
+  'payday',
+  'forced_bids',
 ];
 
-export type RankId = 1 | 2 | 3 | 4 | 5;
+export type RankId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export type RankDef = {
   id: RankId;
@@ -102,7 +111,7 @@ export type RankDef = {
   botWeights: Record<BotArchetype, number>;
 };
 
-/** Five ranks - higher tiers: smaller wins, harsher losses, tougher bots, bigger pools. */
+/** Seven ranks - higher tiers: smaller wins, harsher losses, tougher bots, bigger pools. */
 export const RANKED_RANKS: readonly RankDef[] = [
   {
     id: 1,
@@ -154,10 +163,30 @@ export const RANKED_RANKS: readonly RankDef[] = [
     lossRp: 28,
     botWeights: { chill: 0.05, balanced: 0.25, ruthless: 0.7 },
   },
+  {
+    id: 6,
+    name: 'Master',
+    blurb: '36 items · 12 events',
+    poolSize: 36,
+    eventPoolSize: 12,
+    winRp: 6,
+    lossRp: 32,
+    botWeights: { chill: 0.02, balanced: 0.18, ruthless: 0.8 },
+  },
+  {
+    id: 7,
+    name: 'Legend',
+    blurb: '40 items · 14 events',
+    poolSize: 40,
+    eventPoolSize: 14,
+    winRp: 4,
+    lossRp: 36,
+    botWeights: { chill: 0.01, balanced: 0.09, ruthless: 0.9 },
+  },
 ] as const;
 
 export type RankProgress = {
-  /** 0 = Bronze … 4 = Diamond */
+  /** 0 = Bronze … 6 = Legend */
   rankIndex: number;
   /** 0–100 within the current rank */
   rp: number;
@@ -177,7 +206,7 @@ export function getRankDef(rankIndex: number): RankDef {
   return RANKED_RANKS[Math.max(0, Math.min(RANKED_RANKS.length - 1, rankIndex))]!;
 }
 
-/** CSS slug for ranked match chrome (`rank-bronze` … `rank-diamond`). */
+/** CSS slug for ranked match chrome (`rank-bronze` … `rank-legend`). */
 export function rankThemeClass(rankIndex: number): string {
   return `rank-${getRankDef(rankIndex).name.toLowerCase()}`;
 }
@@ -251,7 +280,7 @@ export function rankedPoolForRank(rankIndex: number): ItemId[] {
   return RANKED_ITEM_ORDER.slice(0, Math.min(size, RANKED_ITEM_ORDER.length));
 }
 
-/** Rank id (1–5) that first unlocks this item, or null if not in ranked order. */
+/** Rank id (1–7) that first unlocks this item, or null if not in ranked order. */
 export function rankedUnlockRank(itemId: ItemId): RankId | null {
   const idx = RANKED_ITEM_ORDER.indexOf(itemId);
   if (idx < 0) return null;
@@ -277,7 +306,7 @@ export function rankedEventPoolForRank(rankIndex: number): WorldEventId[] {
 
 /** Rank id that first unlocks this event, or null if not ranked. */
 export function rankedEventUnlockRank(eventId: WorldEventId): RankId | null {
-  if (eventId === 'golden_chaos') return 5;
+  if (eventId === 'golden_chaos') return 7;
   const idx = RANKED_EVENT_ORDER.indexOf(eventId);
   if (idx < 0) return null;
   for (let r = 0; r < RANKED_RANKS.length; r++) {

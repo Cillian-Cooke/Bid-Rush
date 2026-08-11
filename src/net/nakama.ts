@@ -5,6 +5,8 @@ import { loadRankProgress, saveRankProgress, type RankProgress } from '../game/r
 const DEVICE_KEY = 'bid-rush-nakama-device-v1';
 const SESSION_KEY = 'bid-rush-nakama-session-v1';
 const ACCOUNT_KIND_KEY = 'bid-rush-nakama-account-kind-v1';
+const PROFILE_CACHE_KEY = 'bid-rush-nakama-profile-v1';
+const LAST_EMAIL_KEY = 'bid-rush-nakama-last-email-v1';
 
 export type NakamaProfile = {
   userId: string;
@@ -89,6 +91,63 @@ function writeAccountKind(kind: AccountKind | null) {
   } catch {
     /* ignore */
   }
+}
+
+function cacheProfile(p: NakamaProfile | null) {
+  try {
+    if (!p) localStorage.removeItem(PROFILE_CACHE_KEY);
+    else localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(p));
+  } catch {
+    /* ignore */
+  }
+}
+
+function readCachedProfile(): NakamaProfile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<NakamaProfile>;
+    if (!parsed.userId || !parsed.username) return null;
+    return {
+      userId: parsed.userId,
+      username: parsed.username,
+      displayName: parsed.displayName || parsed.username,
+      progress: parsed.progress ?? loadRankProgress(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function loadLastEmail(): string {
+  try {
+    return localStorage.getItem(LAST_EMAIL_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveLastEmail(email: string) {
+  try {
+    const v = email.trim().toLowerCase();
+    if (!v) localStorage.removeItem(LAST_EMAIL_KEY);
+    else localStorage.setItem(LAST_EMAIL_KEY, v);
+  } catch {
+    /* ignore */
+  }
+}
+
+function isAuthRejection(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const anyErr = err as { status?: number; message?: string };
+  if (anyErr.status === 401 || anyErr.status === 403) return true;
+  const msg = (anyErr.message ?? '').toLowerCase();
+  return (
+    msg.includes('unauthorized') ||
+    msg.includes('invalid token') ||
+    msg.includes('session expired') ||
+    msg.includes('refresh token')
+  );
 }
 
 function clearPersistedSession() {
@@ -341,8 +400,8 @@ export async function ensureNakamaRealtime(): Promise<Session> {
       try {
         session = await c.sessionRefresh(session);
         persistSession(session);
-      } catch {
-        clearPersistedSession();
+      } catch (err) {
+        if (isAuthRejection(err)) clearPersistedSession();
       }
     }
 
@@ -363,14 +422,26 @@ export async function ensureNakamaRealtime(): Promise<Session> {
       try {
         if (s.isexpired(nowSec())) {
           s = await c.sessionRefresh(s);
+          persistSession(s);
         }
-      } catch {
-        clearPersistedSession();
-        if (kind === 'email') {
-          throw new Error('Session expired. Please log in again');
+      } catch (err) {
+        if (isAuthRejection(err) || (s && s.isrefreshexpired(nowSec()))) {
+          clearPersistedSession();
+          if (kind === 'email') {
+            writeAccountKind(null);
+            throw new Error('Session expired. Please log in again');
+          }
+          s = await c.authenticateDevice(deviceId(), true);
+          return await adoptSession(s, 'guest', { publishLeaderboard: false });
         }
-        s = await c.authenticateDevice(deviceId(), true);
-        return await adoptSession(s, 'guest', { publishLeaderboard: false });
+        // Transient network failure — keep tokens; retry socket with existing session
+        session = s;
+        try {
+          await connectSocket(s);
+          return s;
+        } catch {
+          throw err instanceof Error ? err : new Error(formatNakamaError(err));
+        }
       }
       return await adoptSession(s, kind, {
         publishLeaderboard: kind === 'email',
@@ -379,7 +450,7 @@ export async function ensureNakamaRealtime(): Promise<Session> {
       if (kind === 'email') {
         throw err instanceof Error ? err : new Error(formatNakamaError(err));
       }
-      clearPersistedSession();
+      if (isAuthRejection(err)) clearPersistedSession();
       try {
         const guest = await c.authenticateDevice(deviceId(), true);
         return await adoptSession(guest, 'guest', { publishLeaderboard: false });
@@ -470,6 +541,7 @@ export async function signUpWithEmail(input: {
   } catch (err) {
     throw new Error(formatNakamaError(err));
   }
+  saveLastEmail(email);
   await adoptSession(s, 'email', {
     displayName,
     publishLeaderboard: true,
@@ -498,6 +570,7 @@ export async function logInWithEmail(input: {
   } catch (err) {
     throw new Error(formatNakamaError(err));
   }
+  saveLastEmail(email);
   await adoptSession(s, 'email', { publishLeaderboard: true });
   if (!profile) throw new Error('Could not load profile after login');
   return { profile, isNewAccount: false };
@@ -508,17 +581,39 @@ export async function restoreEmailSessionIfAny(): Promise<NakamaProfile | null> 
   if (readAccountKind() !== 'email') return null;
   const existing = restoreSession();
   if (!existing) {
+    // Refresh token gone — must re-auth. Keep last email for the form.
     writeAccountKind(null);
     return null;
   }
+  session = existing;
+  writeAccountKind('email');
   try {
     await ensureNakamaRealtime();
-    if (!isEmailAccount() || !profile) return null;
-    return profile;
-  } catch {
-    clearPersistedSession();
-    writeAccountKind(null);
-    profile = null;
+    if (profile) {
+      cacheProfile(profile);
+      return profile;
+    }
+    // Socket/RPC flaked but tokens are valid — use cached profile for lobby
+    const cached = readCachedProfile();
+    if (cached) {
+      profile = cached;
+      return cached;
+    }
+    return null;
+  } catch (err) {
+    if (isAuthRejection(err) || existing.isrefreshexpired(nowSec())) {
+      clearPersistedSession();
+      writeAccountKind(null);
+      profile = null;
+      cacheProfile(null);
+      return null;
+    }
+    // Transient outage: stay "logged in" with cached profile if we have one
+    const cached = readCachedProfile();
+    if (cached) {
+      profile = cached;
+      return cached;
+    }
     return null;
   }
 }
@@ -528,6 +623,7 @@ export async function logOutAccount(): Promise<void> {
   clearPersistedSession();
   writeAccountKind(null);
   profile = null;
+  cacheProfile(null);
 }
 
 async function syncProfileFromServer(opts?: {
@@ -567,9 +663,10 @@ async function syncProfileFromServer(opts?: {
   try {
     const p = await rpc<NakamaProfile>('get_profile');
     profile = p;
+    cacheProfile(p);
     if (p.progress) saveRankProgress(p.progress);
   } catch {
-    profile = null;
+    if (!profile) profile = readCachedProfile();
   }
 }
 
@@ -578,6 +675,7 @@ export async function refreshNakamaProfile(): Promise<NakamaProfile | null> {
     await ensureNakamaRealtime();
     const p = await rpc<NakamaProfile>('get_profile');
     profile = p;
+    cacheProfile(p);
     if (p.progress) saveRankProgress(p.progress);
     return p;
   } catch {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { goldenBlurb, regularBlurb } from '../game/itemBlurbs';
-import { ITEM_LIST } from '../game/items';
+import { ITEM_LIST, itemKindLabel } from '../game/items';
 import {
   RANKED_RANKS,
   getRankDef,
@@ -139,7 +139,7 @@ export function ItemsCodex({ onClose, embedded = false }: Props) {
                     {golden ? `Golden ${item.name}` : item.name}
                   </div>
                   <div className="codex-sub">
-                    <span className="codex-kind">{item.kind}</span>
+                    <span className="codex-kind">{itemKindLabel(item)}</span>
                     {unlock != null && (
                       <span
                         className={`codex-rank-badge${locked ? ' locked' : ''}`}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { loadLastEmail } from '../net/nakama';
 
 type Mode = 'login' | 'signup';
 
@@ -23,8 +24,11 @@ export function AccountAuthForm({
   onSignUp,
   onCancel,
 }: Props) {
-  const [mode, setMode] = useState<Mode>(initialMode);
-  const [email, setEmail] = useState('');
+  const savedEmail = loadLastEmail();
+  const [mode, setMode] = useState<Mode>(
+    savedEmail ? 'login' : initialMode,
+  );
+  const [email, setEmail] = useState(savedEmail);
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
 

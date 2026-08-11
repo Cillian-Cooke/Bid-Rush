@@ -11,7 +11,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "sprites:slice": "node scripts/sprites/slice.mjs",
-    "sprites:paint": "python3 scripts/sprites/paint.py"
+    "sprites:paint": "python3 scripts/sprites/paint.py",
+    "film": "node scripts/film-short.mjs",
+    "film:install": "playwright install chromium"
   },
   "dependencies": {
     "@heroiclabs/nakama-js": "^2.8.0",
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
+    "playwright": "^1.58.2",
     "pngjs": "^7.0.0",
     "tsx": "^4.20.3",
     "typescript": "~6.0.2",

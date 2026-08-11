@@ -5,9 +5,17 @@ import { SpriteIcon } from './SpriteIcon';
 type Props = {
   players: Player[];
   pendingQuickSwaps?: PendingQuickSwap[];
+  /** Blackout without x-ray: obscure non-viewer hand contents */
+  hideRivalHands?: boolean;
+  viewerId?: string;
 };
 
-export function SpectateHands({ players, pendingQuickSwaps = [] }: Props) {
+export function SpectateHands({
+  players,
+  pendingQuickSwaps = [],
+  hideRivalHands = false,
+  viewerId,
+}: Props) {
   const ordered = [...players].sort((a, b) => {
     if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
     return b.coins - a.coins;
@@ -19,10 +27,12 @@ export function SpectateHands({ players, pendingQuickSwaps = [] }: Props) {
       <div className="spectate-list">
         {ordered.map((p) => {
           const mark = quickSwapMarkedIds(pendingQuickSwaps, p.hand, p.id);
+          const obscured =
+            hideRivalHands && !!viewerId && p.id !== viewerId && p.isAlive;
           return (
             <div
               key={p.id}
-              className={`spectate-row${!p.isAlive ? ' out' : ''}`}
+              className={`spectate-row${!p.isAlive ? ' out' : ''}${obscured ? ' blackout' : ''}`}
               style={{ ['--player-color' as string]: p.color }}
             >
               <div className="spectate-who">
@@ -46,6 +56,18 @@ export function SpectateHands({ players, pendingQuickSwaps = [] }: Props) {
               <div className="spectate-hand">
                 {p.hand.length === 0 ? (
                   <span className="spectate-empty">Empty</span>
+                ) : obscured ? (
+                  p.hand.map((h) => (
+                    <span
+                      key={h.instanceId}
+                      className="spectate-item blackout-slot"
+                      title="Blackout"
+                    >
+                      <span className="spectate-blackout-mark" aria-hidden>
+                        ?
+                      </span>
+                    </span>
+                  ))
                 ) : (
                   p.hand.map((h) => {
                     const def = getItem(h.itemId);

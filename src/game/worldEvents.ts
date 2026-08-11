@@ -3,8 +3,10 @@ import { weightedRandomItem } from './items';
 import type {
   FxKind,
   GameState,
+  HandItem,
   ItemId,
   LiveWorldEvent,
+  Player,
   WorldEventDef,
   WorldEventId,
 } from './types';
@@ -154,6 +156,46 @@ export const WORLD_EVENTS: Record<WorldEventId, WorldEventDef> = {
     accent: '#fbbf24',
     fxKind: 'event_money',
   },
+  liquidation: {
+    id: 'liquidation',
+    name: 'Liquidation',
+    emoji: '🔨',
+    blurb: 'When it ends, every hand is wiped for 2× sell value in coins',
+    warnLine: 'Liquidation sale looming',
+    activeLine: 'Hands cash out at 2× when this ends!',
+    accent: '#f59e0b',
+    fxKind: 'event_money',
+  },
+  blackout: {
+    id: 'blackout',
+    name: 'Blackout',
+    emoji: '🌑',
+    blurb: 'Rival hands go dark for a short stretch',
+    warnLine: 'Lights flickering…',
+    activeLine: 'Rival hands are hidden!',
+    accent: '#1e1b2e',
+    fxKind: 'mute',
+  },
+  payday: {
+    id: 'payday',
+    name: 'Payday',
+    emoji: '💸',
+    blurb: 'Everyone gains coins equal to their hand’s sell value (no wipe)',
+    warnLine: 'Payroll processing…',
+    activeLine: 'Payday! Hands pay out once!',
+    accent: '#22c55e',
+    fxKind: 'event_money',
+  },
+  forced_bids: {
+    id: 'forced_bids',
+    name: 'Forced Bids',
+    emoji: '🫵',
+    blurb: 'Every 5 seconds, everyone auto-bids +1 on a random tile',
+    warnLine: 'Bids about to force themselves',
+    activeLine: 'Auto-bids every 5s!',
+    accent: '#f43f5e',
+    fxKind: 'shuffle',
+  },
 };
 
 export const WORLD_EVENT_IDS = Object.keys(WORLD_EVENTS) as WorldEventId[];
@@ -178,7 +220,21 @@ export function createWorldEventState() {
   };
 }
 
-function makeLiveEvent(id: WorldEventId, activeMs = CONFIG.EVENT_DURATION_MS): LiveWorldEvent {
+function eventDurationMs(id: WorldEventId): number {
+  switch (id) {
+    case 'blackout':
+      return 12_000;
+    case 'forced_bids':
+      return 15_000;
+    default:
+      return CONFIG.EVENT_DURATION_MS;
+  }
+}
+
+function makeLiveEvent(
+  id: WorldEventId,
+  activeMs = eventDurationMs(id),
+): LiveWorldEvent {
   liveKeySeq += 1;
   return {
     key: `we_${liveKeySeq}`,
@@ -187,6 +243,97 @@ function makeLiveEvent(id: WorldEventId, activeMs = CONFIG.EVENT_DURATION_MS): L
     pulseAccMs: 0,
     fxAccMs: 0,
   };
+}
+
+/** Sell-ish hand value for liquidation / payday (bombs & dynamite always 0). */
+function handSellishValue(item: HandItem, itemsSold: number): number {
+  if (item.itemId === 'bomb' || item.itemId === 'dynamite') return 0;
+  if (item.itemId === 'bank_note') return itemsSold * (item.golden ? 2 : 1);
+  if (item.itemId === 'piggy_bank') return 2 + item.stored;
+  return item.currentSellValue;
+}
+
+function sumHandSellish(player: Player): number {
+  let total = 0;
+  for (const h of player.hand) {
+    total += handSellishValue(h, player.itemsSold);
+  }
+  return total;
+}
+
+function runLiquidationPayout(state: GameState): void {
+  for (const p of living(state)) {
+    const sum = sumHandSellish(p);
+    const payout = sum * 2;
+    p.hand = [];
+    if (payout <= 0) {
+      emitEventFx(state, 'liquidation', { playerId: p.id, label: 'WIPED' });
+      continue;
+    }
+    p.coins += payout;
+    state.events.push({
+      type: 'income',
+      playerId: p.id,
+      amount: payout,
+      emoji: '🔨',
+      label: 'Liquidation',
+    });
+    emitEventFx(state, 'liquidation', {
+      playerId: p.id,
+      label: `+${payout}`,
+    });
+  }
+}
+
+function runPaydayPayout(state: GameState): void {
+  for (const p of living(state)) {
+    const payout = sumHandSellish(p);
+    if (payout <= 0) {
+      emitEventFx(state, 'payday', { playerId: p.id });
+      continue;
+    }
+    p.coins += payout;
+    state.events.push({
+      type: 'income',
+      playerId: p.id,
+      amount: payout,
+      emoji: '💸',
+      label: 'Payday',
+    });
+    emitEventFx(state, 'payday', {
+      playerId: p.id,
+      label: `+${payout}`,
+    });
+  }
+}
+
+function runForcedBidsPulse(state: GameState, rng: () => number): void {
+  const timerMs = state.rules?.tileTimerMs ?? CONFIG.TILE_TIMER_MS;
+  for (const p of living(state)) {
+    if (p.handcuffMs > 0) continue;
+    const activeBids = state.tiles.filter((t) => t.highBidderId === p.id).length;
+    if (activeBids >= CONFIG.MAX_ACTIVE_BIDS) continue;
+
+    const candidates = state.tiles.filter((t) => {
+      if (t.bidLocked) return false;
+      if (t.highBidderId === p.id) return false;
+      // Rough affordability: wallet covers the post-bid tag
+      return p.coins >= t.price + CONFIG.BID_INCREMENT;
+    });
+    if (candidates.length === 0) continue;
+
+    const tile = candidates[Math.floor(rng() * candidates.length)]!;
+    tile.price += CONFIG.BID_INCREMENT;
+    tile.highBidderId = p.id;
+    tile.timerMs = timerMs;
+    tile.flash = 'bid';
+    tile.flashMs = 200;
+    emitEventFx(state, 'forced_bids', {
+      playerId: p.id,
+      tileIndex: tile.index,
+      label: '+1',
+    });
+  }
 }
 
 /** All currently running floor events. */
@@ -388,6 +535,24 @@ function startEvent(state: GameState, rng: () => number, id: WorldEventId): void
         });
       }
       break;
+    case 'liquidation':
+      for (const p of living(state)) {
+        emitEventFx(state, 'liquidation', { playerId: p.id });
+      }
+      break;
+    case 'blackout':
+      for (const p of living(state)) {
+        emitEventFx(state, 'blackout', { playerId: p.id, kind: 'mute' });
+      }
+      break;
+    case 'payday':
+      runPaydayPayout(state);
+      break;
+    case 'forced_bids':
+      for (const p of living(state)) {
+        emitEventFx(state, 'forced_bids', { playerId: p.id });
+      }
+      break;
   }
 }
 
@@ -526,6 +691,9 @@ function pulseEvent(
       }
       break;
     }
+    case 'forced_bids':
+      runForcedBidsPulse(state, rng);
+      break;
   }
 }
 
@@ -552,6 +720,9 @@ function endEvent(state: GameState, id: WorldEventId, endingKey?: string): void 
         tile.freezeMs = 0;
       }
     }
+  }
+  if (id === 'liquidation') {
+    runLiquidationPayout(state);
   }
   for (const tile of state.tiles) {
     emitEventFx(state, id, { tileIndex: tile.index, label: 'END' });

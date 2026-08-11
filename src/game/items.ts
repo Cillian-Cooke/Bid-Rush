@@ -378,6 +378,46 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     startPrice: 3,
     spawnWeight: 3,
   },
+  siphon: {
+    id: 'siphon',
+    name: 'Siphon',
+    emoji: '💧',
+    kind: 'active',
+    target: 'player',
+    sellValue: 5,
+    startPrice: 4,
+    spawnWeight: 3,
+  },
+  tariff: {
+    id: 'tariff',
+    name: 'Tariff',
+    emoji: '🏷️',
+    kind: 'passive',
+    target: 'none',
+    sellValue: 4,
+    startPrice: 3,
+    spawnWeight: 3,
+  },
+  plunder: {
+    id: 'plunder',
+    name: 'Plunder',
+    emoji: '🏴‍☠️',
+    kind: 'active',
+    target: 'player',
+    sellValue: 6,
+    startPrice: 5,
+    spawnWeight: 2,
+  },
+  xray_goggles: {
+    id: 'xray_goggles',
+    name: 'X-ray Goggles',
+    emoji: '🥽',
+    kind: 'active',
+    target: 'none',
+    sellValue: 4,
+    startPrice: 3,
+    spawnWeight: 3,
+  },
 };
 
 export const ITEM_LIST: ItemDef[] = Object.values(ITEMS);
@@ -399,13 +439,83 @@ export function hasGoldenBargain(player: { hand: HandItem[] }): boolean {
   return player.hand.some((h) => h.itemId === 'bargain' && h.golden);
 }
 
-/** Shop price the player actually pays after Bargain (50% off, min 1). */
+/** Shop price the player actually pays after Tariff surcharge + Bargain. */
+export function tariffSurcharge(
+  state: { players: readonly { isAlive: boolean; hand: HandItem[] }[] },
+): number {
+  let n = 0;
+  for (const p of state.players) {
+    if (!p.isAlive) continue;
+    for (const h of p.hand) {
+      if (h.itemId === 'tariff') n += h.currentSellValue;
+    }
+  }
+  return n;
+}
+
 export function purchasePriceFor(
   player: { hand: HandItem[] },
   listedPrice: number,
+  state?: { players: readonly { isAlive: boolean; hand: HandItem[] }[] },
 ): number {
-  if (!hasBargain(player)) return listedPrice;
-  return Math.max(1, Math.floor(listedPrice * 0.5));
+  let price = listedPrice + (state ? tariffSurcharge(state) : 0);
+  if (!hasBargain(player)) return price;
+  return Math.max(1, Math.floor(price * 0.5));
+}
+
+/** Codex / pool label: Sabotage | Consume | Shop | passive (Ns) | passive */
+export function itemKindLabel(def: ItemDef): string {
+  if (def.kind === 'passive') {
+    if (def.passiveIntervalMs && def.passiveIntervalMs > 0) {
+      const sec = Math.round(def.passiveIntervalMs / 1000);
+      return `passive (${sec}s)`;
+    }
+    // Known timed passives without passiveIntervalMs on the def
+    if (
+      def.id === 'money_printer' ||
+      def.id === 'stock_market' ||
+      def.id === 'chrysalis' ||
+      def.id === 'interest' ||
+      def.id === 'coin_leech' ||
+      def.id === 'curse_idol' ||
+      def.id === 'dynamite' ||
+      def.id === 'gilder' ||
+      def.id === 'piggy_bank'
+    ) {
+      const ms =
+        def.id === 'money_printer'
+          ? 20_000
+          : def.id === 'stock_market'
+            ? 30_000
+            : def.id === 'chrysalis'
+              ? 20_000
+              : def.id === 'interest'
+                ? 5_000
+                : def.id === 'coin_leech'
+                  ? 3_400
+                  : def.id === 'curse_idol'
+                    ? 3_000
+                    : def.id === 'dynamite'
+                      ? 2_000
+                      : def.id === 'gilder'
+                        ? 30_000
+                        : 4_000;
+      return `passive (${Math.round(ms / 1000)}s)`;
+    }
+    return 'passive';
+  }
+  if (def.target === 'player') return 'Sabotage';
+  if (
+    def.target === 'item' ||
+    def.target === 'two-items' ||
+    def.target === 'all-items' ||
+    def.target === 'hand' ||
+    def.target === 'hand-then-item'
+  ) {
+    return 'Shop';
+  }
+  if (def.target === 'special') return 'Consume';
+  return 'Consume';
 }
 
 /** Active items that fire immediately - no tile/player/hand pick. */

@@ -43,6 +43,7 @@ const BUFF_IDS = new Set([
   'kickback',
   'broker',
   'curse_idol',
+  'tariff',
 ]);
 
 const BRIEF_MS = 3_000;
@@ -108,20 +109,35 @@ export function PurseEffects({ player, activeFx, coldMarketMs = 0 }: Props) {
     for (const f of activeFx) {
       if (seenFx.current.has(f.id)) continue;
       if (f.targetPlayerId !== player.id) continue;
-      if (f.kind !== 'pickpocket' && f.kind !== 'leech' && f.kind !== 'heist' && f.kind !== 'quick_swap') {
+      if (
+        f.kind !== 'pickpocket' &&
+        f.kind !== 'leech' &&
+        f.kind !== 'heist' &&
+        f.kind !== 'quick_swap' &&
+        f.kind !== 'siphon' &&
+        f.kind !== 'plunder' &&
+        f.kind !== 'xray'
+      ) {
         continue;
       }
       seenFx.current.add(f.id);
+      const spriteId =
+        f.kind === 'pickpocket'
+          ? 'pickpocket'
+          : f.kind === 'heist'
+            ? 'heist_kit'
+            : f.kind === 'quick_swap'
+              ? 'quick_swap'
+              : f.kind === 'siphon'
+                ? 'siphon'
+                : f.kind === 'plunder'
+                  ? 'plunder'
+                  : f.kind === 'xray'
+                    ? 'xray_goggles'
+                    : 'coin_leech';
       setBrief({
         key: `fx-${f.id}`,
-        spriteId:
-          f.kind === 'pickpocket'
-            ? 'pickpocket'
-            : f.kind === 'heist'
-              ? 'heist_kit'
-              : f.kind === 'quick_swap'
-                ? 'quick_swap'
-                : 'coin_leech',
+        spriteId,
         progress: null,
         until: performance.now() + BRIEF_MS,
       });

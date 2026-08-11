@@ -106,6 +106,7 @@ function cloneState(state: GameState): GameState {
     itemPool: [...state.itemPool],
     eventPool: [...state.eventPool],
     pendingQuickSwaps: state.pendingQuickSwaps.map((p) => ({ ...p })),
+    pendingPlunders: state.pendingPlunders.map((p) => ({ ...p })),
     rules: {
       gameLengthMs: state.rules?.gameLengthMs ?? CONFIG.GAME_LENGTH_MS,
       speedMult: state.rules?.speedMult ?? 1,
@@ -293,14 +294,28 @@ function grantCoins(
 ): void {
   if (amount <= 0) return;
   if (passivesBlocked(state, player) || hasCurseIdol(player)) return;
-  const tip = tipBonus(player);
+
+  let dest = player;
+  if (player.siphonMs > 0 && player.siphonToId) {
+    const thief = getPlayer(state, player.siphonToId);
+    if (thief && thief.isAlive) {
+      dest = thief;
+      emitFx(state, 'siphon', {
+        playerId: thief.id,
+        targetPlayerId: player.id,
+        label: `+${amount}`,
+      });
+    }
+  }
+
+  const tip = dest === player ? tipBonus(player) : 0;
   const pay = amount + tip;
-  player.coins += pay;
+  dest.coins += pay;
   state.events.push({
     type: 'income',
-    playerId: player.id,
+    playerId: dest.id,
     amount: pay,
-    emoji,
+    emoji: dest !== player ? '💧' : emoji,
   });
   if (tip > 0) {
     for (let i = 0; i < player.hand.length; i++) {
@@ -330,7 +345,7 @@ function grantCoins(
   }
   if (opts.skipMagnet) return;
   for (const other of state.players) {
-    if (!other.isAlive || other.id === player.id) continue;
+    if (!other.isAlive || other.id === dest.id) continue;
     if (passivesBlocked(state, other) || hasCurseIdol(other)) continue;
     let mag = 0;
     for (const h of other.hand) {
@@ -347,6 +362,32 @@ function grantCoins(
       emitFx(state, 'magnet', { playerId: other.id });
     }
   }
+}
+
+/** Debit coins, honoring Siphon redirect (losses hit the siphoner instead). */
+function debitCoins(
+  state: GameState,
+  player: Player,
+  amount: number,
+  emoji: string,
+  label: string,
+): void {
+  if (amount <= 0) return;
+  let dest = player;
+  if (player.siphonMs > 0 && player.siphonToId) {
+    const thief = getPlayer(state, player.siphonToId);
+    if (thief && thief.isAlive) {
+      dest = thief;
+      emitFx(state, 'siphon', {
+        playerId: thief.id,
+        targetPlayerId: player.id,
+        label: `-${amount}`,
+      });
+    }
+  }
+  dest.coins -= amount;
+  if (dest.coins < 0) dest.coins = 0;
+  emitLoss(state, dest, amount, emoji, label);
 }
 
 function makeGoldenFrom(
@@ -518,6 +559,9 @@ export function createInitialState(
     archetype: id.archetype,
     handcuffMs: 0,
     muteMs: 0,
+    siphonMs: 0,
+    siphonToId: null,
+    xrayMs: 0,
     roiMs: 0,
     roiTargetCoins: 0,
     botCooldownMs: id.isHuman ? 0 : 200 + Math.floor(rng() * 600),
@@ -569,6 +613,7 @@ export function createInitialState(
     itemPool,
     eventPool,
     pendingQuickSwaps: [],
+    pendingPlunders: [],
     rules,
   };
   for (let i = 0; i < setup.gridSize; i++) {
@@ -889,6 +934,7 @@ export function bid(
   const tile = next.tiles[tileIndex];
   if (!player || !tile || !player.isAlive) return next;
   if (player.handcuffMs > 0) return next;
+  if (player.xrayMs > 0) return next;
   if (tile.bidLocked) return next;
   if (tile.highBidderId === playerId) return next;
 
@@ -915,6 +961,7 @@ export function sellItem(
 
   const player = getPlayer(next, playerId);
   if (!player || !player.isAlive) return next;
+  if (player.xrayMs > 0) return next;
 
   const idx = player.hand.findIndex((h) => h.instanceId === instanceId);
   if (idx < 0) return next;
@@ -948,15 +995,41 @@ export function sellItem(
   let payout = value;
   const tip = brokerBonus(player);
   payout += tip;
-  player.coins += payout;
-
-  if (value > 0 || tip > 0) {
-    next.events.push({
-      type: 'income',
-      playerId,
-      amount: payout,
-      emoji: tip > 0 ? '🤝' : getItem(item.itemId).emoji,
-    });
+  if (payout > 0) {
+    // Direct sell income still honors Siphon redirect
+    if (player.siphonMs > 0 && player.siphonToId) {
+      const thief = getPlayer(next, player.siphonToId);
+      if (thief && thief.isAlive) {
+        thief.coins += payout;
+        next.events.push({
+          type: 'income',
+          playerId: thief.id,
+          amount: payout,
+          emoji: '💧',
+        });
+        emitFx(next, 'siphon', {
+          playerId: thief.id,
+          targetPlayerId: player.id,
+          label: `+${payout}`,
+        });
+      } else {
+        player.coins += payout;
+        next.events.push({
+          type: 'income',
+          playerId,
+          amount: payout,
+          emoji: tip > 0 ? '🤝' : getItem(item.itemId).emoji,
+        });
+      }
+    } else {
+      player.coins += payout;
+      next.events.push({
+        type: 'income',
+        playerId,
+        amount: payout,
+        emoji: tip > 0 ? '🤝' : getItem(item.itemId).emoji,
+      });
+    }
   }
   if (item.itemId === 'mystery_box') {
     emitFx(next, 'mystery_sell', { playerId });
@@ -981,17 +1054,10 @@ function resolveTile(
   if (winnerId) {
     const winner = getPlayer(state, winnerId);
     if (winner && winner.isAlive) {
-      const price = purchasePriceFor(winner, tile.price);
+      const price = purchasePriceFor(winner, tile.price, state);
       if (winner.coins >= price) {
         const def = getItem(tile.itemId);
-        winner.coins -= price;
-        emitLoss(
-          state,
-          winner,
-          price,
-          def.emoji,
-          `Bought ${def.name}`,
-        );
+        debitCoins(state, winner, price, def.emoji, `Bought ${def.name}`);
         giveItem(state, winner, tile.itemId, tile.golden);
         // Kickback: +3 (golden +6) per held card on every purchase
         let kick = 0;
@@ -1037,6 +1103,7 @@ export function applyUseItem(
 
   const player = getPlayer(next, playerId);
   if (!player || !player.isAlive) return next;
+  if (player.xrayMs > 0) return next;
 
   const idx = player.hand.findIndex((h) => h.instanceId === instanceId);
   if (idx < 0) return next;
@@ -1300,6 +1367,51 @@ function applyActiveEffect(
       if (!target || !target.isAlive || target.id === player.id) return;
       target.muteMs = Math.max(target.muteMs, CONFIG.MUTE_MS * mult);
       emitFx(state, 'mute', { playerId: target.id });
+      break;
+    }
+    case 'siphon': {
+      const target = getPlayer(state, targets.playerId ?? '');
+      if (!target || !target.isAlive || target.id === player.id) return;
+      target.siphonMs = Math.max(target.siphonMs, CONFIG.SIPHON_MS * mult);
+      target.siphonToId = player.id;
+      emitFx(state, 'siphon', {
+        playerId: player.id,
+        targetPlayerId: target.id,
+      });
+      break;
+    }
+    case 'plunder': {
+      const target = getPlayer(state, targets.playerId ?? '');
+      if (!target || !target.isAlive || target.id === player.id) return;
+      if (target.hand.length === 0) return;
+      let best = target.hand[0]!;
+      let bestVal = sellValueOf(best, target.itemsSold);
+      for (const h of target.hand) {
+        const v = sellValueOf(h, target.itemsSold);
+        if (v > bestVal) {
+          best = h;
+          bestVal = v;
+        }
+      }
+      state.pendingPlunders.push({
+        casterId: player.id,
+        targetId: target.id,
+        msLeft: CONFIG.PLUNDER_MS,
+        instanceId: best.instanceId,
+        itemId: best.itemId,
+        golden: best.golden,
+      });
+      emitFx(state, 'plunder', {
+        playerId: player.id,
+        targetPlayerId: target.id,
+        instanceId: best.instanceId,
+        label: '10s',
+      });
+      break;
+    }
+    case 'xray_goggles': {
+      player.xrayMs = Math.max(player.xrayMs, CONFIG.XRAY_MS * mult);
+      emitFx(state, 'xray', { playerId: player.id, label: '5s' });
       break;
     }
     case 'roi': {
@@ -1657,14 +1769,16 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
         continue;
       }
 
-      // Money Printer - every 10s print a Bank Note into hand
+      // Money Printer - every 20s instantly cash a Bank Note's sell value
       if (item.itemId === 'money_printer') {
         item.passiveAccMs += tick;
         while (item.passiveAccMs >= CONFIG.PRINTER_NOTE_MS) {
           item.passiveAccMs -= CONFIG.PRINTER_NOTE_MS;
           const copies = item.golden ? 2 : 1;
           for (let n = 0; n < copies; n++) {
-            giveItem(state, player, 'bank_note');
+            const noteVal = player.itemsSold * 1;
+            recordItemsSold(player, 1);
+            grantCoins(state, player, noteVal, '💵');
           }
           emitFx(state, 'print', {
             playerId: player.id,
@@ -1673,7 +1787,9 @@ function tickPassives(state: GameState, dt: number, rng: () => number = Math.ran
           });
           for (const mirror of mirrorsCopying(player.hand, i)) {
             for (let n = 0; n < copies; n++) {
-              giveItem(state, player, 'bank_note');
+              const noteVal = player.itemsSold * 1;
+              recordItemsSold(player, 1);
+              grantCoins(state, player, noteVal, '💵');
             }
             emitFx(state, 'print', {
               playerId: player.id,
@@ -1957,6 +2073,69 @@ function tickPendingQuickSwaps(state: GameState, dtMs: number): void {
   state.pendingQuickSwaps = next;
 }
 
+function resolveOnePlunder(
+  state: GameState,
+  pending: {
+    casterId: string;
+    targetId: string;
+    instanceId: string;
+    itemId: ItemId;
+    golden: boolean;
+  },
+): void {
+  const caster = getPlayer(state, pending.casterId);
+  const target = getPlayer(state, pending.targetId);
+  if (!caster || !caster.isAlive) return;
+  if (!target || !target.isAlive) return;
+  const idx = target.hand.findIndex((h) => h.instanceId === pending.instanceId);
+  if (idx < 0) return;
+  const item = target.hand[idx]!;
+  // Bombs/dynamite: remove without payout to caster
+  if (item.itemId === 'bomb' || item.itemId === 'dynamite') {
+    target.hand.splice(idx, 1);
+    emitFx(state, 'plunder', {
+      playerId: caster.id,
+      targetPlayerId: target.id,
+      label: 'FAIL',
+    });
+    return;
+  }
+  const value = sellValueOf(item, target.itemsSold);
+  target.hand.splice(idx, 1);
+  recordItemsSold(target, 1);
+  if (value > 0) {
+    caster.coins += value;
+    state.events.push({
+      type: 'income',
+      playerId: caster.id,
+      amount: value,
+      emoji: '🏴‍☠️',
+      label: 'Plunder',
+    });
+    emitLoss(state, target, value, '🏴‍☠️', `Plundered ${getItem(item.itemId).name}`);
+  }
+  emitFx(state, 'plunder', {
+    playerId: caster.id,
+    targetPlayerId: target.id,
+    instanceId: pending.instanceId,
+    label: `+${value}`,
+  });
+}
+
+function tickPendingPlunders(state: GameState, dtMs: number): void {
+  if (state.pendingPlunders.length === 0) return;
+  const next: typeof state.pendingPlunders = [];
+  for (const pending of state.pendingPlunders) {
+    const msLeft = pending.msLeft - dtMs;
+    if (msLeft > 0) {
+      next.push({ ...pending, msLeft });
+      continue;
+    }
+    resolveOnePlunder(state, pending);
+  }
+  state.pendingPlunders = next;
+}
+
 export function tick(state: GameState, dtMs: number, rng: () => number = Math.random): GameState {
   const next = cloneState(state);
   if (next.ended) return next;
@@ -1987,6 +2166,7 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
   }
 
   tickPendingQuickSwaps(next, dtMs);
+  tickPendingPlunders(next, dtMs);
 
   // Status timers
   for (const player of next.players) {
@@ -1996,6 +2176,13 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
     }
     if (player.muteMs > 0) {
       player.muteMs = Math.max(0, player.muteMs - dtMs);
+    }
+    if (player.siphonMs > 0) {
+      player.siphonMs = Math.max(0, player.siphonMs - dtMs);
+      if (player.siphonMs <= 0) player.siphonToId = null;
+    }
+    if (player.xrayMs > 0) {
+      player.xrayMs = Math.max(0, player.xrayMs - dtMs);
     }
     if (player.roiMs > 0) {
       player.roiMs = Math.max(0, player.roiMs - dtMs);
@@ -2007,9 +2194,7 @@ export function tick(state: GameState, dtMs: number, rng: () => number = Math.ra
         eliminate(next, player.id, 'roi');
       }
     }
-    if (!player.isHuman) {
-      player.botCooldownMs = Math.max(0, player.botCooldownMs - dtMs);
-    }
+    player.botCooldownMs = Math.max(0, player.botCooldownMs - dtMs);
   }
 
   const timerScale =

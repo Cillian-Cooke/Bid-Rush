@@ -6,6 +6,7 @@ import {
   passiveChargeProgress,
 } from '../game/items';
 import type { FxKind, HandItem } from '../game/types';
+import { playSfx } from '../audio/sfx';
 import { SpriteIcon } from './SpriteIcon';
 
 type Props = {
@@ -22,6 +23,10 @@ type Props = {
   swapThreatened?: boolean;
   /** Seconds left on the nearest pending Quick Swap involving this mark */
   swapThreatSec?: number | null;
+  /** Plunder: this slot is being channeled for steal */
+  plunderThreatened?: boolean;
+  /** Seconds left on the pending Plunder */
+  plunderThreatSec?: number | null;
   onSelect: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
 };
@@ -62,6 +67,8 @@ export function HandSlot({
   hand,
   swapThreatened = false,
   swapThreatSec = null,
+  plunderThreatened = false,
+  plunderThreatSec = null,
   onSelect,
   onReorder,
 }: Props) {
@@ -104,6 +111,7 @@ export function HandSlot({
 
     const to = slotIndexFromPoint(clientX, clientY, index);
     if (to != null && to !== index) onReorder(index, to);
+    else playSfx('hand_cancel');
   };
 
   const onPointerDown = (e: ReactPointerEvent) => {
@@ -133,6 +141,7 @@ export function HandSlot({
     ) {
       drag.dragging = true;
       setDragging(true);
+      playSfx('hand_pickup');
     }
     if (!drag.dragging) return;
 
@@ -154,9 +163,11 @@ export function HandSlot({
   const onPointerCancel = (e: ReactPointerEvent) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
+    const wasDragging = drag.dragging;
     dragRef.current = null;
     clearDragOverMarks();
     setDragging(false);
+    if (wasDragging) playSfx('hand_cancel');
   };
 
   if (!item) {
@@ -208,6 +219,7 @@ export function HandSlot({
         links?.gildTarget ? 'adj-gild-target' : '',
         links?.dynamiteThreat ? 'adj-dynamite-threat' : '',
         swapThreatened ? 'quick-swap-threat' : '',
+        plunderThreatened ? 'plunder-threat' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -225,6 +237,11 @@ export function HandSlot({
       {swapThreatened && (
         <span className="hand-adj-badge quick-swap" aria-hidden>
           {swapThreatSec != null ? `${swapThreatSec}s` : '🔀'}
+        </span>
+      )}
+      {plunderThreatened && (
+        <span className="hand-adj-badge plunder" aria-hidden>
+          {plunderThreatSec != null ? `${plunderThreatSec}s` : '!'}
         </span>
       )}
       <button
