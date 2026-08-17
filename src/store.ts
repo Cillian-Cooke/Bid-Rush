@@ -154,7 +154,7 @@ type Store = {
     bidderId: string;
   }) => void;
   applyOnlineNaming: (naming: NameAuctionState) => void;
-  applyOnlineGame: (game: GameState) => void;
+  applyOnlineGame: (game: GameState, serverPhase?: string | null) => void;
   applyOnlineMatchEnded: (winnerId: string | null) => void;
 };
 
@@ -544,11 +544,23 @@ export const useGameStore = create<Store>((set, get) => ({
   },
 
   applyOnlineYou: (msg) => {
-    set({
-      sessionId: msg.sessionId,
-      myPlayerId: msg.playerId || null,
-      myBidderId: msg.bidderId || null,
-    });
+    const prev = get();
+    // Ignore empty join-time You payloads so we don't wipe real seat ids.
+    const playerId = msg.playerId || prev.myPlayerId;
+    const bidderId = msg.bidderId || prev.myBidderId;
+    const patch: Partial<Store> = {
+      sessionId: msg.sessionId || prev.sessionId,
+      myPlayerId: playerId,
+      myBidderId: bidderId,
+    };
+    // Remap live snapshots immediately when identity finally arrives.
+    if (playerId && prev.game && prev.game.humanId !== playerId) {
+      patch.game = { ...prev.game, humanId: playerId };
+    }
+    if (bidderId && prev.naming && prev.naming.humanId !== bidderId) {
+      patch.naming = { ...prev.naming, humanId: bidderId };
+    }
+    set(patch);
   },
 
   applyOnlineNaming: (naming) => {
@@ -580,13 +592,19 @@ export const useGameStore = create<Store>((set, get) => ({
     });
   },
 
-  applyOnlineGame: (game) => {
+  applyOnlineGame: (game, serverPhase = null) => {
     const prev = get();
     const humanId = prev.myPlayerId ?? game.humanId;
     const wasAlive =
       prev.game?.players.find((p) => p.id === humanId)?.isAlive ?? true;
 
-    const ingested = ingest(game, prev.floats, prev.activeFx);
+    // Always bind the local seat even if remap raced ahead of You.
+    const boundGame =
+      prev.myPlayerId && game.humanId !== prev.myPlayerId
+        ? { ...game, humanId: prev.myPlayerId }
+        : game;
+
+    const ingested = ingest(boundGame, prev.floats, prev.activeFx);
     reactGameSfx({
       prev: prev.game,
       next: ingested.game,
@@ -644,11 +662,28 @@ export const useGameStore = create<Store>((set, get) => ({
       ...(justDied || xrayStarted ? { targeting: null } : {}),
     };
 
-    if (ingested.game.ended) {
+    if (ingested.game.ended || serverPhase === 'results') {
       patch.phase = 'results';
+      patch.poolRevealOpen = false;
+    } else if (serverPhase === 'playing') {
+      // Authoritative: don't stay stuck on the countdown overlay if Lobby was missed.
+      patch.phase = 'playing';
+      patch.poolRevealOpen = false;
+      patch.countdown = 0;
+    } else if (serverPhase === 'countdown') {
+      patch.phase = 'countdown';
+      patch.poolRevealOpen = true;
     } else if (prev.phase === 'lobby' || prev.phase === 'naming') {
       patch.phase = 'countdown';
       patch.poolRevealOpen = true;
+    } else if (
+      prev.phase === 'countdown' &&
+      ingested.game.elapsedMs > CONFIG.TICK_MS
+    ) {
+      // Fallback for older servers that still send bare GameState snapshots.
+      patch.phase = 'playing';
+      patch.poolRevealOpen = false;
+      patch.countdown = 0;
     }
 
     set(patch);
@@ -954,7 +989,11 @@ export const useGameStore = create<Store>((set, get) => ({
     const human = game.players.find((p) => p.id === game.humanId);
     if (!human?.isAlive) return;
     if (online) {
-      sendOnline('bid', { tileIndex });
+      if (!sendOnline('bid', { tileIndex })) {
+        set({
+          onlineError: 'Not connected to the match. Try returning to lobby.',
+        });
+      }
       return;
     }
     commitGame(set, get, bid(game, game.humanId, tileIndex));
@@ -969,8 +1008,13 @@ export const useGameStore = create<Store>((set, get) => ({
     const instanceId = targeting?.instanceId ?? handFocus;
     if (!instanceId) return;
     if (online) {
-      sendOnline('sell', { instanceId });
-      set({ targeting: null, handFocus: null });
+      if (!sendOnline('sell', { instanceId })) {
+        set({
+          onlineError: 'Not connected to the match. Try returning to lobby.',
+        });
+      } else {
+        set({ targeting: null, handFocus: null });
+      }
       return;
     }
     commitGame(set, get, sellItem(game, game.humanId, instanceId, rng), {

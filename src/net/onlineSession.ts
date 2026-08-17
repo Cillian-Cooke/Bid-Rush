@@ -53,6 +53,12 @@ function remapGame(game: GameState, playerId: string | null): GameState {
 function applyLobby(lobby: LobbyStateMsg, userId: string) {
   const prev = useGameStore.getState();
   const phase = lobby.phase as Phase;
+  const known =
+    phase === 'lobby' ||
+    phase === 'naming' ||
+    phase === 'countdown' ||
+    phase === 'playing' ||
+    phase === 'results';
   useGameStore.setState({
     online: true,
     roomCode: lobby.code || activeMatchId,
@@ -62,16 +68,13 @@ function applyLobby(lobby: LobbyStateMsg, userId: string) {
       (a, b) => a.seatIndex - b.seatIndex,
     ),
     countdown: lobby.countdown ?? prev.countdown,
-    phase:
-      phase === 'lobby' ||
-      phase === 'naming' ||
-      phase === 'countdown' ||
-      phase === 'playing' ||
-      phase === 'results'
-        ? phase
-        : prev.phase,
+    phase: known ? phase : prev.phase,
     poolRevealOpen:
-      phase === 'countdown' ? true : phase === 'playing' ? false : false,
+      phase === 'countdown'
+        ? true
+        : phase === 'playing' || phase === 'results'
+          ? false
+          : prev.poolRevealOpen,
     lobby: {
       ...prev.lobby,
       mode: lobby.mode === 'duel' || lobby.mode === 'blitz' ? lobby.mode : prev.lobby.mode,
@@ -123,9 +126,16 @@ function wireMatch(matchId: string, code: string) {
         return;
       }
       if (msg.op_code === Op.Game) {
-        const game = JSON.parse(text) as GameState;
+        const raw = JSON.parse(text) as
+          | GameState
+          | { phase?: string; game: GameState };
+        const game = 'game' in raw && raw.game ? raw.game : (raw as GameState);
+        const serverPhase =
+          'phase' in raw && typeof raw.phase === 'string' ? raw.phase : null;
         const { myPlayerId } = useGameStore.getState();
-        useGameStore.getState().applyOnlineGame(remapGame(game, myPlayerId));
+        useGameStore
+          .getState()
+          .applyOnlineGame(remapGame(game, myPlayerId), serverPhase);
         return;
       }
       if (msg.op_code === Op.MatchEnded) {

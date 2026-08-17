@@ -76,6 +76,7 @@ ITEMS_B = [
     "tip_jar",
     "haste_gear",
     "quick_swap",
+    # siphon / tariff / plunder / xray_goggles are paint-only (see paint.py)
     None,
     None,
     None,
@@ -406,6 +407,22 @@ def main() -> None:
             "folder": folder,
             "file": f"{folder}/{sid}.png",
         }
+
+    # Painted-only items (not on emoji raw sheets) — keep if PNG already exists
+    for sid in ("siphon", "tariff", "plunder", "xray_goggles"):
+        path = OUT / "items" / f"{sid}.png"
+        if not path.exists():
+            continue
+        atlas["frames"][sid] = {
+            "sheet": "items-b.png",
+            "x": 0,
+            "y": 0,
+            "w": CELL,
+            "h": CELL,
+            "folder": "items",
+            "file": f"items/{sid}.png",
+        }
+        print(f"kept painted-only {sid}")
 
     atlas_path = OUT / "atlas.json"
     text = json.dumps(atlas, indent=2) + "\n"

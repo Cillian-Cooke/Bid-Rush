@@ -5681,6 +5681,32 @@ button {
   transform: scale(0.96);
 }
 
+.fullscreen-btn {
+  position: fixed;
+  bottom: calc(14px + var(--safe-bottom));
+  right: calc(12px + var(--safe-right));
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  border-radius: 2px;
+  background: var(--panel);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  border: 2px solid var(--ink);
+  box-shadow: 0 8px 20px rgba(12, 10, 8, 0.35);
+}
+
+.fullscreen-btn:active {
+  transform: scale(0.96);
+}
+
+.fullscreen-btn.is-active {
+  color: var(--yell);
+  border-color: color-mix(in srgb, var(--yell) 45%, var(--ink));
+}
+
 .leaderboard-sheet .leaderboard-title {
   display: inline-flex;
   align-items: center;
@@ -7398,7 +7424,7 @@ button {
   line-height: 1.35;
 }
 
-@media (min-width: 960px) {
+@media (min-width: 800px) {
   .lobby-stage > .settings-btn {
     left: calc(12px + var(--safe-left));
   }
@@ -8186,7 +8212,12 @@ button {
 }
 
 /* -- Desktop wide layout -- */
-@media (min-width: 960px) {
+@media (min-width: 800px) {
+  :root {
+    /* Stop inheriting the 480px phone strip on desktop */
+    --app-width: min(1400px, 100vw);
+  }
+
   .stack-base,
   .stack-sheet {
     justify-content: stretch;
@@ -8194,9 +8225,11 @@ button {
 
   .stack-base .screen,
   .stack-sheet .screen,
-  .app-stack > .screen {
+  .app-stack > .screen,
+  .screen {
     max-width: none;
     width: 100%;
+    margin: 0;
   }
 
   /* Login / onboarding: full-bleed floor + auction bg (not a 480px phone strip) */
@@ -8224,18 +8257,39 @@ button {
 
   .lobby-screen {
     display: grid;
-    grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
     padding: 0;
     gap: 0;
     overflow: hidden;
+    max-width: none;
+    width: 100%;
+  }
+
+  /* Queue / room / casual views have no rail — don't trap content in the 400px column */
+  .lobby-screen:not(:has(> .lobby-rail)) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: calc(24px + var(--safe-top)) 32px calc(24px + var(--safe-bottom));
+  }
+
+  .lobby-screen:not(:has(> .lobby-rail)) .lobby-content {
+    width: min(560px, 100%);
+    max-width: min(560px, 100%);
   }
 
   .lobby-screen .lobby-auction-bg {
-    left: 420px;
+    left: 400px;
     right: 0;
     width: auto;
-    inset: 0 0 0 420px;
+    inset: 0 0 0 400px;
     --lobby-cols: 7;
+  }
+
+  .lobby-screen:not(:has(> .lobby-rail)) .lobby-auction-bg {
+    inset: 0;
+    left: 0;
   }
 
   .lobby-auction-scroller {
@@ -8303,6 +8357,7 @@ button {
     justify-content: center;
     align-items: center;
     padding: calc(28px + var(--safe-top)) 48px calc(28px + var(--safe-bottom));
+    min-width: 0;
   }
 
   .mobile-codex-btn {
@@ -8310,7 +8365,8 @@ button {
   }
 
   .lobby-content {
-    max-width: 440px;
+    max-width: min(520px, 100%);
+    width: 100%;
     gap: 28px;
     padding: 28px 28px 32px;
     border-radius: 10px;
@@ -8357,7 +8413,7 @@ button {
   /* Game: left scoreboard + items, right playfield */
   .game-screen {
     display: grid;
-    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
     grid-template-rows: 1fr;
     max-width: none;
     width: 100%;
@@ -8365,19 +8421,19 @@ button {
     padding: 0;
     gap: 0;
     --tile-size: min(
-      128px,
-      calc((100vw - 380px - 96px - 24px) / var(--grid-cols, 4))
+      140px,
+      calc((100vw - 360px - 96px - 24px) / var(--grid-cols, 4))
     );
-    --grid-gap: 8px;
+    --grid-gap: 10px;
     --stage-gap: 14px;
   }
 
   .countdown-overlay {
     --tile-size: min(
-      128px,
-      calc((100vw - 380px - 96px - 24px) / var(--grid-cols, 4))
+      140px,
+      calc((100vw - 360px - 96px - 24px) / var(--grid-cols, 4))
     );
-    --grid-gap: 8px;
+    --grid-gap: 10px;
   }
 
   .game-rail {
@@ -8603,12 +8659,15 @@ button {
 
   .naming-screen {
     max-width: none;
+    width: 100%;
     padding: calc(16px + var(--safe-top)) 40px calc(16px + var(--safe-bottom));
-    --tile-size: min(120px, calc((min(720px, 70vw) - 40px) / var(--grid-cols, 4)));
+    --tile-size: min(132px, calc((min(880px, 72vw) - 40px) / var(--grid-cols, 4)));
   }
 
   .results-screen {
-    max-width: min(720px, 100%);
+    max-width: min(900px, 100%);
+    width: 100%;
+    margin: 0 auto;
   }
 }
 

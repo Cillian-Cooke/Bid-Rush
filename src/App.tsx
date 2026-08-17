@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { LandscapeBlocker } from './components/LandscapeBlocker';
+import { FullscreenButton } from './components/FullscreenButton';
 import { useGameStore } from './store';
 import { Lobby } from './screens/Lobby';
 import { LoginScreen } from './screens/LoginScreen';
@@ -217,6 +218,7 @@ export default function App() {
         <div className="screen login-screen login-loading">
           <p className="login-loading-copy">Loading…</p>
         </div>
+        <FullscreenButton />
       </div>
     );
   }
@@ -226,6 +228,7 @@ export default function App() {
       <div className="app-stack">
         <LandscapeBlocker />
         <LoginScreen onAuthenticated={onAuthenticated} />
+        <FullscreenButton />
       </div>
     );
   }
@@ -239,6 +242,7 @@ export default function App() {
           displayName={profile.displayName}
           onDone={onOnboardingDone}
         />
+        <FullscreenButton />
       </div>
     );
   }
@@ -284,6 +288,7 @@ export default function App() {
       >
         <Results />
       </StackSheet>
+      <FullscreenButton />
     </div>
   );
 }

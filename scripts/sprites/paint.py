@@ -100,6 +100,10 @@ ITEMS_B = [
     "tip_jar",
     "haste_gear",
     "quick_swap",
+    "siphon",
+    "tariff",
+    "plunder",
+    "xray_goggles",
     None,
     None,
     None,
@@ -1083,6 +1087,103 @@ def paint_golden_chaos() -> Image.Image:
     return c.im
 
 
+def paint_siphon() -> Image.Image:
+    """💧 Tube + droplet pulling a coin stream."""
+    c = Canvas()
+    c.disc(12, 18, 8, SKY, INK)
+    c.rect(8, 12, 16, 18, SKY)
+    for i, w in enumerate([1, 2, 3, 4, 5, 6]):
+        y = 5 + i
+        x0 = 12 - w // 2
+        c.hline(x0, x0 + w - 1, y, SKY)
+    c.hline(11, 13, 4, INK)
+    c.hline(9, 15, 5, INK)
+    c.rect(9, 14, 11, 18, WHITE)
+    c.p(10, 12, WHITE)
+    c.outline_rect(16, 14, 26, 17, TEAL, INK)
+    c.rect(17, 15, 25, 16, TEAL_D)
+    c.outline_rect(24, 12, 27, 19, TEAL_D, INK)
+    c.coin(22, 8)
+    c.p(23, 11, GOLD)
+    c.p(24, 12, GOLD_D)
+    c.p(12, 27, SKY)
+    c.p(12, 28, SKY)
+    return c.im
+
+
+def paint_tariff() -> Image.Image:
+    """Customs tax stamp (distinct from Bargain's 50% tag)."""
+    c = Canvas()
+    c.outline_rect(5, 6, 22, 26, PAPER, INK)
+    c.rect(7, 8, 20, 24, WHITE)
+    c.hline(8, 19, 11, MUTE)
+    c.hline(8, 19, 14, MUTE)
+    c.hline(8, 16, 17, MUTE)
+    c.disc(20, 20, 7, DANGER, INK)
+    c.disc(20, 20, 5, DANGER_D, DANGER_D)
+    c.vline(20, 16, 24, GOLD)
+    c.hline(18, 22, 17, GOLD)
+    c.hline(18, 22, 23, GOLD)
+    c.p(19, 16, PAPER)
+    c.p(21, 24, PAPER)
+    c.p(22, 8, GOLD_D)
+    c.p(23, 9, GOLD)
+    return c.im
+
+
+def paint_plunder() -> Image.Image:
+    """🏴‍☠️ Pirate flag + hook snatching a tile."""
+    c = Canvas()
+    c.vline(5, 3, 28, GOLD_D)
+    c.vline(6, 3, 28, INK)
+    c.outline_rect(7, 4, 24, 17, SHADOW, INK)
+    c.rect(9, 6, 22, 15, INK)
+    c.disc(15, 9, 3, PAPER, INK)
+    c.p(14, 9, INK)
+    c.p(16, 9, INK)
+    c.p(15, 11, INK)
+    c.p(12, 13, PAPER)
+    c.p(13, 14, PAPER)
+    c.p(17, 13, PAPER)
+    c.p(16, 14, PAPER)
+    c.p(12, 15, PAPER)
+    c.p(18, 15, PAPER)
+    c.vline(20, 18, 26, GOLD)
+    c.vline(21, 18, 26, GOLD_D)
+    c.hline(16, 21, 26, GOLD)
+    c.vline(16, 23, 26, GOLD)
+    c.p(16, 23, PAPER)
+    c.outline_rect(22, 20, 28, 26, TEAL, INK)
+    c.rect(24, 22, 26, 24, GOLD)
+    return c.im
+
+
+def paint_xray_goggles() -> Image.Image:
+    """🥽 Goggles with glowing scan lenses."""
+    c = Canvas()
+    c.hline(4, 27, 12, MUTE)
+    c.hline(4, 27, 13, SHADOW)
+    c.hline(4, 27, 14, MUTE)
+    c.outline_rect(5, 10, 14, 20, TEAL_D, INK)
+    c.rect(7, 12, 12, 18, GREEN)
+    c.rect(8, 13, 11, 17, GREEN_D)
+    c.outline_rect(17, 10, 26, 20, TEAL_D, INK)
+    c.rect(19, 12, 24, 18, GREEN)
+    c.rect(20, 13, 23, 17, GREEN_D)
+    c.outline_rect(13, 13, 18, 17, MUTE, INK)
+    c.p(9, 14, SKY)
+    c.p(10, 15, SKY)
+    c.p(9, 16, SKY)
+    c.p(21, 14, SKY)
+    c.p(22, 15, SKY)
+    c.p(21, 16, SKY)
+    c.p(7, 12, PAPER)
+    c.p(19, 12, PAPER)
+    c.hline(6, 25, 9, SHADOW)
+    c.hline(6, 25, 10, INK)
+    return c.im
+
+
 PAINTERS: dict[str, Callable[[], Image.Image]] = {
     "coin_mine": paint_coin_mine,
     "money_printer": paint_money_printer,
@@ -1121,6 +1222,10 @@ PAINTERS: dict[str, Callable[[], Image.Image]] = {
     "tip_jar": paint_tip_jar,
     "haste_gear": paint_haste_gear,
     "quick_swap": paint_quick_swap,
+    "siphon": paint_siphon,
+    "tariff": paint_tariff,
+    "plunder": paint_plunder,
+    "xray_goggles": paint_xray_goggles,
     "skull": paint_skull,
     "runner": paint_runner,
     "scales": paint_scales,
@@ -1215,7 +1320,7 @@ def main() -> None:
 
     jobs = [
         (ITEMS_A, 4, 5, "items-a.png", "items"),
-        (ITEMS_B, 4, 5, "items-b.png", "items"),
+        (ITEMS_B, 4, 6, "items-b.png", "items"),
         (UI_EMOJIS, 4, 4, "ui-emojis.png", "ui"),
         (AVATARS, 4, 3, "avatars.png", "avatars"),
         (EVENTS, 4, 3, "events.png", "events"),

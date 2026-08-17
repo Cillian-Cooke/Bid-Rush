@@ -29,6 +29,15 @@ export function sendOnline<K extends keyof ClientMessages>(
   payload: ClientMessages[K],
 ): boolean {
   if (!handle || !sendFn) return false;
-  void sendFn(Op.Action, JSON.stringify({ type, ...payload }));
-  return true;
+  try {
+    const result = sendFn(Op.Action, JSON.stringify({ type, ...payload }));
+    if (result && typeof (result as Promise<void>).then === 'function') {
+      void (result as Promise<void>).catch(() => {
+        /* caller may surface via onlineError elsewhere */
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -231,6 +231,26 @@ function sendYou(
   );
 }
 
+function sendYouAll(
+  dispatcher: nkruntime.MatchDispatcher,
+  state: BidRushState,
+) {
+  for (const seat of seatList(state)) sendYou(dispatcher, seat);
+}
+
+function rejectAction(
+  dispatcher: nkruntime.MatchDispatcher,
+  presence: nkruntime.Presence | null | undefined,
+  message: string,
+) {
+  if (!presence) return;
+  dispatcher.broadcastMessage(
+    Op.Error,
+    JSON.stringify({ message }),
+    [presence],
+  );
+}
+
 function broadcastNaming(
   dispatcher: nkruntime.MatchDispatcher,
   state: BidRushState,
@@ -248,7 +268,12 @@ function broadcastGame(
     ...state.game,
     events: [...state.game.events],
   };
-  dispatcher.broadcastMessage(Op.Game, JSON.stringify(snap));
+  // Include match phase so clients can recover if a Lobby packet was missed
+  // (otherwise they stay stuck in countdown with the pool overlay blocking bids).
+  dispatcher.broadcastMessage(
+    Op.Game,
+    JSON.stringify({ phase: state.phase, game: snap }),
+  );
   state.game = { ...state.game, events: [] };
 }
 
@@ -498,6 +523,7 @@ function beginPlaying(
   state.countdown = 0;
   state.poolRevealEndsAt = null;
   state.goAt = null;
+  sendYouAll(dispatcher, state);
   broadcastLobby(dispatcher, state);
   broadcastGame(dispatcher, state);
 }
@@ -657,7 +683,14 @@ function handleAction(
   }
 
   if (type === 'bid_name') {
-    if (!state.naming || state.phase !== 'naming' || !seat.bidderId) return;
+    if (!state.naming || state.phase !== 'naming') {
+      rejectAction(dispatcher, sender, 'Name auction is not active.');
+      return;
+    }
+    if (!seat.bidderId) {
+      rejectAction(dispatcher, sender, 'Not seated for this match yet.');
+      return;
+    }
     if (!msg.tagId) return;
     state.naming = bidOnNameTag(state.naming, seat.bidderId, msg.tagId);
     broadcastNaming(dispatcher, state);
@@ -665,20 +698,46 @@ function handleAction(
   }
 
   if (type === 'bid') {
-    if (!state.game || state.phase !== 'playing' || !seat.playerId) return;
+    if (!state.game || state.phase !== 'playing') {
+      rejectAction(
+        dispatcher,
+        sender,
+        state.phase === 'countdown'
+          ? 'Match still starting — wait for GO!'
+          : 'Match is not in play.',
+      );
+      return;
+    }
+    if (!seat.playerId) {
+      rejectAction(dispatcher, sender, 'Not seated for this match yet.');
+      return;
+    }
     if (typeof msg.tileIndex !== 'number') return;
     const player = state.game.players.find((p) => p.id === seat.playerId);
-    if (!player?.isAlive) return;
+    if (!player?.isAlive) {
+      rejectAction(dispatcher, sender, 'You are out of the match.');
+      return;
+    }
     state.game = bid(state.game, seat.playerId, msg.tileIndex);
     broadcastGame(dispatcher, state);
     return;
   }
 
   if (type === 'sell') {
-    if (!state.game || state.phase !== 'playing' || !seat.playerId) return;
+    if (!state.game || state.phase !== 'playing') {
+      rejectAction(dispatcher, sender, 'Match is not in play.');
+      return;
+    }
+    if (!seat.playerId) {
+      rejectAction(dispatcher, sender, 'Not seated for this match yet.');
+      return;
+    }
     if (!msg.instanceId) return;
     const player = state.game.players.find((p) => p.id === seat.playerId);
-    if (!player?.isAlive) return;
+    if (!player?.isAlive) {
+      rejectAction(dispatcher, sender, 'You are out of the match.');
+      return;
+    }
     state.game = sellItem(
       state.game,
       seat.playerId,
@@ -690,7 +749,14 @@ function handleAction(
   }
 
   if (type === 'use') {
-    if (!state.game || state.phase !== 'playing' || !seat.playerId) return;
+    if (!state.game || state.phase !== 'playing') {
+      rejectAction(dispatcher, sender, 'Match is not in play.');
+      return;
+    }
+    if (!seat.playerId) {
+      rejectAction(dispatcher, sender, 'Not seated for this match yet.');
+      return;
+    }
     if (!msg.instanceId) return;
     const player = state.game.players.find((p) => p.id === seat.playerId);
     if (!player?.isAlive) return;
